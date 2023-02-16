@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/regions"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -12,6 +14,8 @@ import (
 // singlestoreProvider is the provider implementation.
 type singlestoreProvider struct {
 }
+
+var _ provider.Provider = &singlestoreProvider{}
 
 func New() func() provider.Provider {
 	return func() provider.Provider {
@@ -36,7 +40,9 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 
 // DataSources defines the data sources implemented in the provider.
 func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		regions.NewDataSource,
+	}
 }
 
 // Resources defines the resources implemented in the provider.
