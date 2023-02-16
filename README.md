@@ -4,4 +4,4 @@
 
 For information on developing `terraform-provider-singlestore` see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-**Note: This is a preview release, suitable only for experimental user.**
+**Note: This is a preview release, suitable only for experimental users.**
