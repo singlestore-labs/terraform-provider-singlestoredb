@@ -16,7 +16,6 @@
 
 3. Build and install the binary
     ~~~ shell
-    make build
     make install
     ~~~
 

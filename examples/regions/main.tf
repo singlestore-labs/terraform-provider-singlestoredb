@@ -6,7 +6,9 @@ terraform {
   }
 }
 
-provider "singlestore" {}
+provider "singlestore" {
+  # export SINGLESTORE_API_KEY with a SingleStore Management API key
+}
 
 data "singlestore_regions" "all" {}
 

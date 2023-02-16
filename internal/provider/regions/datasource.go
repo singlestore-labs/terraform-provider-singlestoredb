@@ -2,12 +2,15 @@ package regions
 
 import (
 	"context"
-
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"fmt"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
 )
 
 const (
@@ -15,7 +18,9 @@ const (
 )
 
 // regionsDataSource is the data source implementation.
-type regionsDataSource struct{}
+type regionsDataSource struct {
+	management.ClientWithResponsesInterface
+}
 
 // regionsDataSourceModel maps the data source schema data.
 type regionsDataSourceModel struct {
@@ -24,10 +29,12 @@ type regionsDataSourceModel struct {
 
 // regionsModel maps regions schema data.
 type regionsModel struct {
-	ID types.Int64 `tfsdk:"id"`
+	Provider types.String `tfsdk:"provider"`
+	Region   types.String `tfsdk:"region"`
+	RegionID types.String `tfsdk:"region_id"`
 }
 
-var _ datasource.DataSource = &regionsDataSource{}
+var _ datasource.DataSourceWithConfigure = &regionsDataSource{}
 
 // NewDataSource is a helper function to simplify the provider implementation.
 func NewDataSource() datasource.DataSource {
@@ -47,8 +54,17 @@ func (d *regionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id": schema.Int64Attribute{
-							Computed: true,
+						"provider": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Name of the provider",
+						},
+						"region": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Name of the region",
+						},
+						"region_id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "ID of the region",
 						},
 					},
 				},
@@ -59,13 +75,51 @@ func (d *regionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	result := regionsDataSourceModel{
-		Regions: []regionsModel{
-			{ID: types.Int64Value(int64(1))},
-			{ID: types.Int64Value(int64(2))},
-			{ID: types.Int64Value(int64(3))},
-		},
+	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{})
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"SingleStore API client failed to list regions",
+			"An unexpected error occurred when calling SingleStore API regions. "+
+				"If the error is not clear, please contact the provider developers.\n\n"+
+				"SingleStore client error: "+err.Error(),
+		)
+
+		return
 	}
+
+	code := regions.StatusCode()
+	if code != http.StatusOK {
+		resp.Diagnostics.AddError(
+			fmt.Sprintf("SingleStore API client returned status code %s while listing regions", http.StatusText(code)),
+			"An unsucessfull status code occurred when calling SingleStore API regions. "+
+				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyTerraformProviderAttribute, config.EnvAPIKey)+
+				"If the error is not clear, please contact the provider developers.\n\n"+
+				"SingleStore client response body: "+string(regions.Body),
+		)
+
+		return
+
+	}
+
+	result := regionsDataSourceModel{}
+
+	for _, region := range util.Deref(regions.JSON200) {
+		result.Regions = append(result.Regions, regionsModel{
+			Provider: types.StringValue(string(region.Provider)),
+			Region:   types.StringValue(region.Region),
+			RegionID: types.StringValue(region.RegionID.String()),
+		})
+	}
+
 	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+// Configure adds the provider configured client to the data source.
+func (d *regionsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return // Should not return an error for unknown reasons.
+	}
+
+	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }

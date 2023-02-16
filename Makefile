@@ -1,8 +1,11 @@
 NAME=singlestore
 BINARY=terraform-provider-${NAME}
 
+deps:
+	go mod tidy
+
 build:
 	go build -o ${BINARY}
 
-install: build
+install: deps build
 	go install .

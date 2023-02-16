@@ -4,9 +4,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
-
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
 )
 
 func main() {

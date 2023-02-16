@@ -10,3 +10,15 @@ import (
 func DataSourceTypeName(req datasource.MetadataRequest, name string) string {
 	return strings.Join([]string{req.ProviderTypeName, name}, "_")
 }
+
+// Deref returns the value under the pointer.
+//
+// If the pointer is nil, it returns an empty value.
+func Deref[T any](a *T) (result T) {
+	if a == nil {
+		return
+	}
+
+	result = *a
+	return
+}
