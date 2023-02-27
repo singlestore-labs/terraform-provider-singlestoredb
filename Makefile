@@ -1,6 +1,8 @@
 NAME=singlestore
 BINARY=terraform-provider-${NAME}
 
+default: install
+
 deps:
 	go mod tidy
 

@@ -25,6 +25,7 @@ type regionsDataSource struct {
 // regionsDataSourceModel maps the data source schema data.
 type regionsDataSourceModel struct {
 	Regions []regionsModel `tfsdk:"regions"`
+	ID      types.String   `tfsdk:"id"`
 }
 
 // regionsModel maps regions schema data.
@@ -50,6 +51,9 @@ func (d *regionsDataSource) Metadata(_ context.Context, req datasource.MetadataR
 func (d *regionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			config.TestIDAttribute: schema.StringAttribute{
+				Computed: true,
+			},
 			dataSourceName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
@@ -92,7 +96,7 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while listing regions", http.StatusText(code)),
 			"An unsucessfull status code occurred when calling SingleStore API regions. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyTerraformProviderAttribute, config.EnvAPIKey)+
+				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(regions.Body),
 		)
@@ -101,7 +105,9 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	}
 
-	result := regionsDataSourceModel{}
+	result := regionsDataSourceModel{
+		ID: types.StringValue(config.TestIDValue),
+	}
 
 	for _, region := range util.Deref(regions.JSON200) {
 		result.Regions = append(result.Regions, regionsModel{
