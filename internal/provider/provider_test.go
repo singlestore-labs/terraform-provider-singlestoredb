@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -63,6 +65,7 @@ func TestProviderAuthenticationError(t *testing.T) {
 
 	require.Equal(t, fmt.Sprintf("Bearer %s", apiKey), actualAPIKey)
 }
+
 func TestProviderAuthenticatesFromEnv(t *testing.T) {
 	apiKey := "bar"
 	actualAPIKey := ""
@@ -84,4 +87,32 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 	})
 
 	require.Equal(t, fmt.Sprintf("Bearer %s", apiKey), actualAPIKey)
+}
+
+func TestProviderAuthenticationErrorIntegration(t *testing.T) {
+	apiKey := "foo"
+
+	r, err := regexp.Compile(http.StatusText(http.StatusUnauthorized))
+	require.NoError(t, err)
+
+	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.Regions,
+				ExpectError: r,
+			},
+		},
+	})
+}
+
+func TestProviderAuthenticatesIntegration(t *testing.T) {
+	apiKey := os.Getenv(config.EnvTestAPIKey)
+
+	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.Regions,
+			},
+		},
+	})
 }

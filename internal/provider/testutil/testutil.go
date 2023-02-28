@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
+	"github.com/stretchr/testify/require"
 )
 
 type Config struct {
@@ -39,6 +40,27 @@ func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
 	resource.UnitTest(t, c)
+}
+
+func IntegrationTest(t *testing.T, apiKey string, c resource.TestCase) {
+	t.Helper()
+
+	if testing.Short() {
+		t.Skip("skipping integration test because go test is run with the flag -short")
+	}
+
+	if apiKey == "" {
+		require.NotEmpty(t, apiKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
+	}
+
+	os.Setenv("TF_ACC", "on") // Enables running the integration test.
+	os.Setenv(config.EnvAPIKey, apiKey)
+
+	f := provider.New()
+	c.ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
+		config.ProviderName: providerserver.NewProtocol6WithError(f()),
+	}
+	resource.Test(t, c)
 }
 
 func compile(conf Config, c string) string {

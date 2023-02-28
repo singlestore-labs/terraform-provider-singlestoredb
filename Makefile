@@ -11,3 +11,12 @@ build:
 
 install: deps build
 	go install .
+
+unit: nocache
+	go test -v -short ./...
+
+integration: nocache
+	go test -v -run Integration ./...
+
+nocache:
+	go clean -testcache
