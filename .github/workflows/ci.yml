@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    environment: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.20'
+
+    - name: Install make
+      run: sudo apt-get install make -y
+
+    - name: Configure Terraform
+      run: |
+        # This replaces the $HOME variable with the appropriate value.
+        envsubst < .terraformrc > ~/.terraformrc
+
+    - name: Build
+      run: make
+
+    - name: Run unit tests
+      run: make unit
+
+    - name: Run integration tests
+      env:
+        TEST_SINGLESTORE_API_KEY: ${{ secrets.TEST_SINGLESTORE_API_KEY }}
+      run: make integration

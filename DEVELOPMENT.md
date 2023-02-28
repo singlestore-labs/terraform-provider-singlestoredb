@@ -19,20 +19,7 @@
     make install
     ~~~
 
-4. Override the `~/.terraformrc`
-    ~~~ tf
-    provider_installation {
-
-    dev_overrides {
-            "registry.terraform.io/singlestoredb/singlestore" = "<PATH>/go/bin"
-    }
-
-    # For all other providers, install them directly from their origin provider
-    # registries as normal. If you omit this, Terraform will _only_ use
-    # the dev_overrides block, and so no other providers will be available.
-    direct {}
-    }
-    ~~~
+4. Override the `~/.terraformrc` just as in [here](./.terraformrc) but with the `$HOME` variable replaced
 
 **Note: `terraform init` is not compatible with `dev_overrides`, run `terraform plan` directly.**
 
