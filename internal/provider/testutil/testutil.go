@@ -14,7 +14,7 @@ import (
 )
 
 type Config struct {
-	APIKeyFromEnv bool
+	APIKeyFromEnv string
 	APIKey        string
 	APIServiceURL string
 }
@@ -24,8 +24,10 @@ type Config struct {
 func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
 	t.Helper()
 
-	if !conf.APIKeyFromEnv {
+	if conf.APIKeyFromEnv == "" {
 		os.Unsetenv(config.EnvAPIKey) // The default behavior is to ignore the environment.
+	} else {
+		os.Setenv(config.EnvAPIKey, conf.APIKeyFromEnv)
 	}
 
 	for i, s := range c.Steps {
