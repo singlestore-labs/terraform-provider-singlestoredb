@@ -1,17 +1,24 @@
 package testutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	UnusedAPIKey = "foo"
 )
 
 type Config struct {
@@ -61,6 +68,24 @@ func IntegrationTest(t *testing.T, apiKey string, c resource.TestCase) {
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
 	resource.Test(t, c)
+}
+
+func MustJSON(s interface{}) []byte {
+	result, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return result
+}
+
+func MustUUID(s string) openapi_types.UUID {
+	result, err := uuid.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return result
 }
 
 func compile(conf Config, c string) string {

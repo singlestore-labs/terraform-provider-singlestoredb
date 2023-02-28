@@ -102,7 +102,6 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		)
 
 		return
-
 	}
 
 	result := regionsDataSourceModel{

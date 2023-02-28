@@ -12,10 +12,10 @@ build:
 install: deps build
 	go install .
 
-unit: nocache
+unit: build nocache # Unit tests depend on the binary.
 	go test -v -short ./...
 
-integration: nocache
+integration: build nocache # Integration tests depend on the binary.
 	go test -v -run Integration ./...
 
 nocache:
