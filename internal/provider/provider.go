@@ -15,6 +15,7 @@ import (
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/regions"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspacegroups"
 )
 
 // singlestoreProvider is the provider implementation.
@@ -138,6 +139,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		regions.NewDataSource,
+		workspacegroups.NewDataSource,
 	}
 }
 

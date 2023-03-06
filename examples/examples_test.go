@@ -10,4 +10,5 @@ import (
 func TestEmbedsExamples(t *testing.T) {
 	require.NotEmpty(t, examples.Provider)
 	require.NotEmpty(t, examples.Regions)
+	require.NotEmpty(t, examples.WorkspaceGroups)
 }
