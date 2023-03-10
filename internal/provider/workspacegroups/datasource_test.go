@@ -18,37 +18,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var workspaceGroups = []management.WorkspaceGroup{ //nolint
-	{
-		AllowAllTraffic: nil,
-		CreatedAt:       "2023-02-28T05:33:06.3003Z",
-		ExpiresAt:       nil,
-		FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
-		Name:            "foo",
-		RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-		State:           management.WorkspaceGroupStateACTIVE,
-		TerminatedAt:    nil,
-		UpdateWindow: &management.UpdateWindow{
-			Day:  3,
-			Hour: 15,
-		},
-		WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
-	},
-	{
-		AllowAllTraffic:  util.Ptr(true),
-		CreatedAt:        "2022-07-15T15:11:09.185048Z",
-		ExpiresAt:        util.Ptr("2222-07-15T15:11:09.185048Z"),
-		FirewallRanges:   nil,
-		Name:             "bar",
-		RegionID:         uuid.MustParse("1aa1aff3-5092-4a0c-bf36-da54e85a5fdf"),
-		State:            management.WorkspaceGroupStatePENDING,
-		TerminatedAt:     nil,
-		UpdateWindow:     nil,
-		WorkspaceGroupID: uuid.MustParse("f1a0a960-8691-4196-bb26-f53f1f8e35ce"),
-	},
-}
-
 func TestReadsWorkspaceGroups(t *testing.T) {
+	workspaceGroups := []management.WorkspaceGroup{
+		{
+			AllowAllTraffic: nil,
+			CreatedAt:       "2023-02-28T05:33:06.3003Z",
+			ExpiresAt:       nil,
+			FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
+			Name:            "foo",
+			RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
+			State:           management.WorkspaceGroupStateACTIVE,
+			TerminatedAt:    nil,
+			UpdateWindow: &management.UpdateWindow{
+				Day:  3,
+				Hour: 15,
+			},
+			WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		},
+		{
+			AllowAllTraffic:  util.Ptr(true),
+			CreatedAt:        "2022-07-15T15:11:09.185048Z",
+			ExpiresAt:        util.Ptr("2222-07-15T15:11:09.185048Z"),
+			FirewallRanges:   nil,
+			Name:             "bar",
+			RegionID:         uuid.MustParse("1aa1aff3-5092-4a0c-bf36-da54e85a5fdf"),
+			State:            management.WorkspaceGroupStatePENDING,
+			TerminatedAt:     nil,
+			UpdateWindow:     nil,
+			WorkspaceGroupID: uuid.MustParse("f1a0a960-8691-4196-bb26-f53f1f8e35ce"),
+		},
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.

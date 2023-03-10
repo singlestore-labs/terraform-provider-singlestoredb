@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	otypes "github.com/deepmap/oapi-codegen/pkg/types"
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -83,15 +81,6 @@ func MustJSON(s interface{}) []byte {
 	return result
 }
 
-func MustUUID(s string) otypes.UUID {
-	result, err := uuid.Parse(s)
-	if err != nil {
-		panic(err)
-	}
-
-	return result
-}
-
 func compile(conf Config, c string) string {
 	for _, kvp := range []struct {
 		key     string
@@ -121,5 +110,5 @@ func compile(conf Config, c string) string {
 func withInstantExpiration(c string) string {
 	instantExpiration := time.Now().Add(time.Hour).Format(time.RFC3339)
 
-	return strings.ReplaceAll(c, config.IntegrationTestInitialWorkspaceGroupExpiresAt, instantExpiration)
+	return strings.ReplaceAll(c, config.TestInitialWorkspaceGroupExpiresAt, instantExpiration)
 }

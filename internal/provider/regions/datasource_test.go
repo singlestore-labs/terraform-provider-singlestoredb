@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
@@ -15,20 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var regions = []management.Region{ //nolint
-	{
-		RegionID: testutil.MustUUID("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
-		Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-		Provider: management.AWS,
-	},
-	{
-		RegionID: testutil.MustUUID("e8f6f596-6fba-4b87-adb1-7f9e960c7c78"),
-		Region:   "East US 1 (Virginia)",
-		Provider: management.Azure,
-	},
-}
-
 func TestReadsRegions(t *testing.T) {
+	regions := []management.Region{
+		{
+			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
+			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
+			Provider: management.AWS,
+		},
+		{
+			RegionID: uuid.MustParse("e8f6f596-6fba-4b87-adb1-7f9e960c7c78"),
+			Region:   "East US 1 (Virginia)",
+			Provider: management.Azure,
+		},
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/regions", r.URL.Path)
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.

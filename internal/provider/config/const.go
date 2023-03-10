@@ -29,8 +29,10 @@ const (
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time to 1 hour.
 	WorkspaceGroupCreationTimeout = time.Hour
-	// IntegrationTestInitialWorkspaceGroupName is the default workspace group name in examples.
-	IntegrationTestInitialWorkspaceGroupName = "terraform-provider-ci-integration-test-workspace-group"
-	// IntegrationTestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.
-	IntegrationTestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
+	// TestInitialWorkspaceGroupName is the default workspace group name in examples.
+	TestInitialWorkspaceGroupName = "terraform-provider-ci-integration-test-workspace-group"
+	// TestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.
+	TestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
+	// TestInitialAdminPassword is the initial workspace admin password in examples.
+	TestInitialAdminPassword = "fooBAR12$"
 )
