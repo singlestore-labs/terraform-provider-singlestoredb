@@ -1,3 +1,6 @@
 terraform-provider-singlestore
 *.tfstate
 *.tfstate.backup
+unitcoverage.txt
+integrationcoverage.txt
+coverage.txt

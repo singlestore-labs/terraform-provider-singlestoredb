@@ -22,6 +22,9 @@ jobs:
     - name: Install make
       run: sudo apt-get install make -y
 
+    - name: Install tools
+      run: make tools
+
     - name: Configure Terraform
       run: |
         # This replaces the $HOME variable with the appropriate value.
@@ -29,9 +32,6 @@ jobs:
 
     - name: Build
       run: make
-
-    - name: Install lint
-      run: make lint-deps
 
     - name: Run lint
       run: make lint
@@ -43,3 +43,32 @@ jobs:
       env:
         TEST_SINGLESTORE_API_KEY: ${{ secrets.TEST_SINGLESTORE_API_KEY }}
       run: make integration
+
+    - name: Prepare coverage
+      run: make gocovmerge
+
+    - name: Go coverage badge
+      uses: tj-actions/coverage-badge-go@v2
+      with:
+        filename: coverage.txt
+
+    - name: Verify changed Files
+      uses: tj-actions/verify-changed-files@v12
+      id: verify-changed-files
+      with:
+        files: README.md
+
+    - name: Commit changes
+      if: steps.verify-changed-files.outputs.files_changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        git commit -m "chore: Updated coverage badge."
+
+    - name: Push changes
+      if: steps.verify-changed-files.outputs.files_changed == 'true'
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ github.token }}
+        branch: ${{ github.head_ref }}
