@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 const (
 	// Version is the version of the provider.
 	Version = "0.0.0"
@@ -23,4 +25,8 @@ const (
 	UnitTestReplaceWithAPIKey = "#unit_test_replace_with_api_key"
 	// UnitTestReplaceWihtAPIServiceURL converts an example tf file into a unit test config.
 	UnitTestReplaceWithAPIServiceURL = "#unit_test_replace_with_api_service_url"
+	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
+	HTTPRequestTimeout = time.Second * 10
+	// WorkspaceGroupCreationTimeout limits the workspace group creation time to 1 hour.
+	WorkspaceGroupCreationTimeout = time.Hour
 )

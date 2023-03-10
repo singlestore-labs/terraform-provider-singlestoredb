@@ -24,25 +24,25 @@ type workspaceGroupsDataSource struct {
 
 // workspaceGroupsDataSourceModel maps the data source schema data.
 type workspaceGroupsDataSourceModel struct {
-	WorkspaceGroups []workspaceGroupsModel `tfsdk:"workspace_groups"`
-	ID              types.String           `tfsdk:"id"`
+	WorkspaceGroups []workspaceGroupDataSourceModel `tfsdk:"workspace_groups"`
+	ID              types.String                    `tfsdk:"id"`
 }
 
-// workspaceGroupsModel maps workspace groups schema data.
-type workspaceGroupsModel struct {
-	Name             types.String       `tfsdk:"name"`
-	State            types.String       `tfsdk:"state"`
-	WorkspaceGroupID types.String       `tfsdk:"workspace_group_id"`
-	FirewallRanges   []types.String     `tfsdk:"firewall_ranges"`
-	AllowAllTraffic  types.Bool         `tfsdk:"allow_all_traffic"`
-	CreatedAt        types.String       `tfsdk:"created_at"`
-	ExpiresAt        types.String       `tfsdk:"expires_at"`
-	TerminatedAt     types.String       `tfsdk:"terminated_at"`
-	RegionID         types.String       `tfsdk:"region_id"`
-	UpdateWindow     *updateWindowModel `tfsdk:"update_window"`
+// workspaceGroupDataSourceModel maps workspace groups schema data.
+type workspaceGroupDataSourceModel struct {
+	Name             types.String                 `tfsdk:"name"`
+	State            types.String                 `tfsdk:"state"`
+	WorkspaceGroupID types.String                 `tfsdk:"workspace_group_id"`
+	FirewallRanges   []types.String               `tfsdk:"firewall_ranges"`
+	AllowAllTraffic  types.Bool                   `tfsdk:"allow_all_traffic"`
+	CreatedAt        types.String                 `tfsdk:"created_at"`
+	ExpiresAt        types.String                 `tfsdk:"expires_at"`
+	TerminatedAt     types.String                 `tfsdk:"terminated_at"`
+	RegionID         types.String                 `tfsdk:"region_id"`
+	UpdateWindow     *updateWindowDataSourceModel `tfsdk:"update_window"`
 }
 
-type updateWindowModel struct {
+type updateWindowDataSourceModel struct {
 	Hour types.Int64 `tfsdk:"hour"`
 	Day  types.Int64 `tfsdk:"day"`
 }
@@ -160,17 +160,17 @@ func (d *workspaceGroupsDataSource) Read(ctx context.Context, req datasource.Rea
 	}
 
 	for _, workspaceGroup := range util.Deref(workspaceGroups.JSON200) {
-		result.WorkspaceGroups = append(result.WorkspaceGroups, workspaceGroupsModel{
+		result.WorkspaceGroups = append(result.WorkspaceGroups, workspaceGroupDataSourceModel{
 			Name:             types.StringValue(workspaceGroup.Name),
-			State:            types.StringValue(string(workspaceGroup.State)),
-			WorkspaceGroupID: types.StringValue(workspaceGroup.WorkspaceGroupID.String()),
-			FirewallRanges:   util.MapList(util.Deref(workspaceGroup.FirewallRanges), types.StringValue),
-			AllowAllTraffic:  types.BoolValue(util.Deref(workspaceGroup.AllowAllTraffic)),
+			State:            util.WorkspaceGroupStateStringValue(workspaceGroup.State),
+			WorkspaceGroupID: util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+			FirewallRanges:   util.FirewallRanges(workspaceGroup.FirewallRanges),
+			AllowAllTraffic:  util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
 			CreatedAt:        types.StringValue(workspaceGroup.CreatedAt),
-			ExpiresAt:        types.StringValue(util.Deref(workspaceGroup.ExpiresAt)),
-			TerminatedAt:     types.StringValue(util.Deref(workspaceGroup.TerminatedAt)),
-			RegionID:         types.StringValue(workspaceGroup.RegionID.String()),
-			UpdateWindow:     util.Maybe(workspaceGroup.UpdateWindow, toUpdateWindowModel),
+			ExpiresAt:        util.MaybeStringValue(workspaceGroup.ExpiresAt),
+			TerminatedAt:     util.MaybeStringValue(workspaceGroup.TerminatedAt),
+			RegionID:         util.UUIDStringValue(workspaceGroup.RegionID),
+			UpdateWindow:     toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
 		})
 	}
 
@@ -187,8 +187,12 @@ func (d *workspaceGroupsDataSource) Configure(_ context.Context, req datasource.
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toUpdateWindowModel(uw management.UpdateWindow) updateWindowModel {
-	return updateWindowModel{
+func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {
+	if uw == nil {
+		return nil
+	}
+
+	return &updateWindowDataSourceModel{
 		Hour: types.Int64Value(int64(uw.Hour)),
 		Day:  types.Int64Value(int64(uw.Day)),
 	}

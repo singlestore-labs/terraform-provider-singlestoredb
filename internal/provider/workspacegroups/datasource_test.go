@@ -63,25 +63,19 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroups,
+				Config: examples.WorkspaceGroupsDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.#", "2"),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.allow_all_traffic",
-						strconv.FormatBool(util.Deref(workspaceGroups[0].AllowAllTraffic)),
-					),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.expires_at",
-						util.Deref(workspaceGroups[0].ExpiresAt),
-					),
+					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.allow_all_traffic"),
+					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.expires_at"),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.firewall_ranges.#",
 						strconv.Itoa(len(util.Deref(workspaceGroups[0].FirewallRanges))),
 					),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.name", workspaceGroups[0].Name),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.region_id", workspaceGroups[0].RegionID.String()),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.state", string(workspaceGroups[0].State)),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.terminated_at",
-						util.Deref(workspaceGroups[0].TerminatedAt),
-					),
+					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.update_window.day",
 						strconv.Itoa(int(workspaceGroups[0].UpdateWindow.Day)),
 					),
@@ -100,9 +94,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.name", workspaceGroups[1].Name),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.region_id", workspaceGroups[1].RegionID.String()),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.state", string(workspaceGroups[1].State)),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.terminated_at",
-						util.Deref(workspaceGroups[1].TerminatedAt),
-					),
+					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.1.update_window.%", "0"), // Not present for legacy schedules.
 				),
 			},
@@ -125,7 +117,7 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config:      examples.WorkspaceGroups,
+				Config:      examples.WorkspaceGroupsDataSource,
 				ExpectError: r,
 			},
 		},
@@ -138,7 +130,7 @@ func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, apiKey, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroups,
+				Config: examples.WorkspaceGroupsDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
 					// Checking that at least no error.

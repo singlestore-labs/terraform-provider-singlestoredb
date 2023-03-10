@@ -113,6 +113,11 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	client, err := management.NewClientWithResponses(apiServiceURL,
+		management.WithHTTPClient(
+			&http.Client{
+				Timeout: config.HTTPRequestTimeout,
+			},
+		),
 		management.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 			return nil
@@ -145,5 +150,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 
 // Resources defines the resources implemented in the provider.
 func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		workspacegroups.NewResource,
+	}
 }

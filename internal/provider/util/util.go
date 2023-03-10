@@ -4,10 +4,17 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // DataSourceTypeName constructs the type name for the data source of the provider.
 func DataSourceTypeName(req datasource.MetadataRequest, name string) string {
+	return strings.Join([]string{req.ProviderTypeName, name}, "_")
+}
+
+// ResourceTypeName constructs the type name for the resource of the provider.
+func ResourceTypeName(req resource.MetadataRequest, name string) string {
 	return strings.Join([]string{req.ProviderTypeName, name}, "_")
 }
 
@@ -23,26 +30,30 @@ func Deref[T any](a *T) (result T) {
 	return
 }
 
-// MapList converts the list of type A into the list of type B using the convert.
-func MapList[A, B any](input []A, convert func(A) B) (result []B) {
-	for _, i := range input {
-		result = append(result, convert(i))
-	}
-
-	return
-}
-
-// Maybe performs the conversion if input is not nil.
-func Maybe[A, B any](input *A, convert func(A) B) *B {
-	if input == nil {
-		return nil
-	}
-
-	result := convert(*input)
-	return &result
-}
-
 // Ptr returns a pointer to the input value.
 func Ptr[A any](a A) *A {
 	return &a
+}
+
+// FirstNotEmpty returns the first encountered not empty string if present.
+func FirstNotEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+
+	return ""
+}
+
+// FirstSetStringValue returns the first set string value.
+// If not found, it returns an unset string.
+func FirstSetStringValue(ss ...types.String) types.String {
+	for _, s := range ss {
+		if !s.IsNull() && !s.IsUnknown() {
+			return s
+		}
+	}
+
+	return types.StringNull()
 }

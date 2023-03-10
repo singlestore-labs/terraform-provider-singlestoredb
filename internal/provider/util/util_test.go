@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"strconv"
 	"testing"
 
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
@@ -29,19 +28,4 @@ func TestDerefSlice(t *testing.T) {
 
 	result = util.Deref(s)
 	require.Equal(t, value, result)
-}
-
-func TestMapList(t *testing.T) {
-	input := []int{1, 2, 3}
-	result := util.MapList(input, strconv.Itoa)
-	require.Equal(t, []string{"1", "2", "3"}, result)
-}
-
-func TestMaybe(t *testing.T) {
-	result := util.Maybe(util.Ptr(1), strconv.Itoa)
-	require.Equal(t, util.Ptr("1"), result)
-
-	var nilString *string
-	result = util.Maybe(nil, strconv.Itoa)
-	require.Equal(t, nilString, result)
 }
