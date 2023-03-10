@@ -19,8 +19,7 @@ import (
 )
 
 // singlestoreProvider is the provider implementation.
-type singlestoreProvider struct {
-}
+type singlestoreProvider struct{}
 
 // singlestoreProviderModel maps provider schema data to a Go type.
 type singlestoreProviderModel struct {
@@ -120,6 +119,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		),
 		management.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+
 			return nil
 		}),
 	)

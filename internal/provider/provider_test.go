@@ -16,7 +16,7 @@ import (
 )
 
 func TestProviderAuthenticates(t *testing.T) {
-	apiKey := "foo"
+	apiKey := "buzz"
 	actualAPIKey := ""
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

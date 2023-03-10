@@ -3,11 +3,10 @@ package testutil
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
-	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
+	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
@@ -33,9 +32,9 @@ func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
 	t.Helper()
 
 	if conf.APIKeyFromEnv == "" {
-		os.Unsetenv(config.EnvAPIKey) // The default behavior is to ignore the environment.
+		t.Setenv(config.EnvAPIKey, "") // The default behavior is to ignore the environment.
 	} else {
-		os.Setenv(config.EnvAPIKey, conf.APIKeyFromEnv)
+		t.Setenv(config.EnvAPIKey, conf.APIKeyFromEnv)
 	}
 
 	for i, s := range c.Steps {
@@ -60,8 +59,8 @@ func IntegrationTest(t *testing.T, apiKey string, c resource.TestCase) {
 		require.NotEmpty(t, apiKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 	}
 
-	os.Setenv("TF_ACC", "on") // Enables running the integration test.
-	os.Setenv(config.EnvAPIKey, apiKey)
+	t.Setenv("TF_ACC", "on") // Enables running the integration test.
+	t.Setenv(config.EnvAPIKey, apiKey)
 
 	f := provider.New()
 	c.ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
@@ -79,7 +78,7 @@ func MustJSON(s interface{}) []byte {
 	return result
 }
 
-func MustUUID(s string) openapi_types.UUID {
+func MustUUID(s string) otypes.UUID {
 	result, err := uuid.Parse(s)
 	if err != nil {
 		panic(err)

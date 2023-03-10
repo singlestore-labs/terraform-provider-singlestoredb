@@ -12,6 +12,7 @@ func MaybeString(s types.String) *string {
 	}
 
 	result := s.ValueString()
+
 	return &result
 }
 

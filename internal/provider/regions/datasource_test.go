@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var regions = []management.Region{
+var regions = []management.Region{ //nolint
 	{
 		RegionID: testutil.MustUUID("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
 		Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",

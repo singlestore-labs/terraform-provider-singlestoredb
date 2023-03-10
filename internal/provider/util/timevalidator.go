@@ -3,7 +3,6 @@ package util
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
@@ -14,22 +13,21 @@ var _ validator.String = timeValidator{}
 
 // timeValidator validates that a string Attribute's value matches the expected time format.
 type timeValidator struct {
-	regexp  *regexp.Regexp
 	message string
 }
 
 // Description describes the validation in plain text formatting.
-func (validator timeValidator) Description(_ context.Context) string {
-	if validator.message != "" {
-		return validator.message
+func (v timeValidator) Description(_ context.Context) string {
+	if v.message != "" {
+		return v.message
 	}
 
 	return "value must be an RFC3339 time string"
 }
 
 // MarkdownDescription describes the validation in Markdown formatting.
-func (validator timeValidator) MarkdownDescription(ctx context.Context) string {
-	return validator.Description(ctx)
+func (v timeValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
 }
 
 // Validate performs the validation.
@@ -39,8 +37,7 @@ func (v timeValidator) ValidateString(ctx context.Context, request validator.Str
 	}
 
 	value := request.ConfigValue.ValueString()
-	_, err := parseTime(value)
-	if err != nil {
+	if _, err := parseTime(value); err != nil {
 		v.message = err.Error()
 		response.Diagnostics.Append(validatordiag.InvalidAttributeValueMatchDiagnostic(
 			request.Path,

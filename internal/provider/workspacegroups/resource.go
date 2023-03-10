@@ -43,11 +43,6 @@ type workspaceGroupResourceModel struct {
 	AdminPassword    types.String `tfsdk:"admin_password"`
 }
 
-type updateWindowResourceModel struct {
-	Hour types.Int64 `tfsdk:"hour"`
-	Day  types.Int64 `tfsdk:"day"`
-}
-
 // NewResource is a helper function to simplify the provider implementation.
 func NewResource() resource.Resource {
 	return &workspaceGroupResource{}
@@ -148,7 +143,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	if code != http.StatusOK {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while creating a workspace group", http.StatusText(code)),
-			"An unsucessfull status code occurred when calling SingleStore API that creates a workspace group. "+
+			"An unsuccessful status code occurred when calling SingleStore API that creates a workspace group. "+
 				fmt.Sprintf("Make sure that the input is correct and set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(workspaceGroupCreateResponse.Body),
@@ -163,17 +158,19 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, workspaceGroupCreateResponse.JSON200.WorkspaceGroupID, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
 		if err != nil { // Not status code OK does not get here, not retrying for that reason.
 			ferr := fmt.Errorf("failed to get workspace group %s: %w", workspaceGroupCreateResponse.JSON200.WorkspaceGroupID, err)
+
 			return hresource.NonRetryableError(ferr)
 		}
 
-		code := workspaceGroup.StatusCode()
-		if code != http.StatusOK {
+		if code := workspaceGroup.StatusCode(); code != http.StatusOK {
 			err := fmt.Errorf("failed to get workspace group %s: status code %s", workspaceGroupCreateResponse.JSON200.WorkspaceGroupID, http.StatusText(code))
+
 			return hresource.RetryableError(err)
 		}
 
 		if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
 			err := fmt.Errorf("workspace group %s creation failed", workspaceGroup.JSON200.WorkspaceGroupID)
+
 			return hresource.NonRetryableError(err)
 		}
 
@@ -187,6 +184,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		}
 
 		err = fmt.Errorf("workspace group %s state is %s", workspaceGroupCreateResponse.JSON200.WorkspaceGroupID, workspaceGroup.JSON200.State)
+
 		return hresource.RetryableError(err)
 	}); err != nil {
 		resp.Diagnostics.AddError(
@@ -229,7 +227,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	if code != http.StatusOK {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while getting workspace group %s", http.StatusText(code), state.WorkspaceGroupID.ValueString()),
-			"An unsucessfull status code occurred when calling SingleStore API workspace group get. "+
+			"An unsuccessful status code occurred when calling SingleStore API workspace group get. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(workspaceGroup.Body),
@@ -294,7 +292,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	if code != http.StatusOK {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while updating workspace group %s", http.StatusText(code), plan.WorkspaceGroupID.ValueString()),
-			"An unsucessfull status code occurred when calling SingleStore API workspace group update. "+
+			"An unsuccessful status code occurred when calling SingleStore API workspace group update. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(workspaceGroupUpdateResponse.Body),
@@ -338,7 +336,7 @@ func (r *workspaceGroupResource) Delete(ctx context.Context, req resource.Delete
 	if code != http.StatusOK && code != http.StatusNotFound {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while terminating workspace group %s", http.StatusText(code), state.WorkspaceGroupID.ValueString()),
-			"An unsucessfull status code occurred when calling SingleStore API workspace group delete. "+
+			"An unsuccessful status code occurred when calling SingleStore API workspace group delete. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(workspaceGroupDeleteResponse.Body),

@@ -30,6 +30,12 @@ jobs:
     - name: Build
       run: make
 
+    - name: Install lint
+      run: make lint-deps
+
+    - name: Run lint
+      run: make lint
+
     - name: Run unit tests
       run: make unit
 

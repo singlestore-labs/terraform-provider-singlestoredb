@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var workspaceGroups = []management.WorkspaceGroup{
+var workspaceGroups = []management.WorkspaceGroup{ //nolint
 	{
 		AllowAllTraffic: nil,
 		CreatedAt:       "2023-02-28T05:33:06.3003Z",

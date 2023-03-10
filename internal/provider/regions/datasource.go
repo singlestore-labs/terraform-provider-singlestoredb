@@ -91,11 +91,10 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	code := regions.StatusCode()
-	if code != http.StatusOK {
+	if code := regions.StatusCode(); code != http.StatusOK {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("SingleStore API client returned status code %s while listing regions", http.StatusText(code)),
-			"An unsucessfull status code occurred when calling SingleStore API regions. "+
+			"An unsuccessful status code occurred when calling SingleStore API regions. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client response body: "+string(regions.Body),

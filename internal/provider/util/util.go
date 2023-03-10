@@ -21,13 +21,15 @@ func ResourceTypeName(req resource.MetadataRequest, name string) string {
 // Deref returns the value under the pointer.
 //
 // If the pointer is nil, it returns an empty value.
-func Deref[T any](a *T) (result T) {
+func Deref[T any](a *T) T {
+	var result T
 	if a == nil {
-		return
+		return result
 	}
 
 	result = *a
-	return
+
+	return result
 }
 
 // Ptr returns a pointer to the input value.

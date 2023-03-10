@@ -1,0 +1,25 @@
+linters:
+  enable-all: true
+  disable:
+    - varnamelen
+    - paralleltest
+    - lll
+    - exhaustivestruct
+    - exhaustruct
+    - ireturn
+    - goerr113
+    - forcetypeassert
+    - wsl
+    - funlen
+    - wastedassign
+    - structcheck
+    - rowserrcheck
+    - varcheck
+    - structcheck
+    - interfacer
+    - maligned
+    - golint
+    - deadcode
+    - ifshort
+    - scopelint
+    - nosnakecase

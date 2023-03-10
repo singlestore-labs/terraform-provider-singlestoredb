@@ -20,3 +20,9 @@ integration: build nocache # Integration tests depend on the binary.
 
 nocache:
 	go clean -testcache
+
+lint-deps:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+
+lint: lint-deps
+	golangci-lint run ./...
