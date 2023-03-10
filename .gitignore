@@ -1,4 +1,3 @@
 terraform-provider-singlestore
 *.tfstate
 *.tfstate.backup
-coverage.out
