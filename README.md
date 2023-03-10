@@ -1,4 +1,5 @@
 # Terraform provider for SingleStoreDB Cloud
+![Coverage](https://img.shields.io/badge/Coverage-0-red)
 
 `terraform-provider-singlestore` is the Terraform provider for the SingleStoreDB Cloud API.
 
