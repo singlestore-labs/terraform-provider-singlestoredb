@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
@@ -59,6 +60,10 @@ func IntegrationTest(t *testing.T, apiKey string, c resource.TestCase) {
 		require.NotEmpty(t, apiKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 	}
 
+	for i, s := range c.Steps {
+		c.Steps[i].Config = withInstantExpiration(s.Config) // Ensures garbage collection.
+	}
+
 	t.Setenv("TF_ACC", "on") // Enables running the integration test.
 	t.Setenv(config.EnvAPIKey, apiKey)
 
@@ -111,4 +116,10 @@ func compile(conf Config, c string) string {
 	}
 
 	return c
+}
+
+func withInstantExpiration(c string) string {
+	instantExpiration := time.Now().Add(time.Hour).Format(time.RFC3339)
+
+	return strings.ReplaceAll(c, config.IntegrationTestInitialWorkspaceGroupExpiresAt, instantExpiration)
 }
