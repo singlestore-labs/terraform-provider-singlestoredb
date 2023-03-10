@@ -36,21 +36,15 @@ jobs:
     - name: Run lint
       run: make lint
 
-    - name: Run unit tests
-      run: make unit
-
-    - name: Run integration tests
+    - name: Run tests
       env:
         TEST_SINGLESTORE_API_KEY: ${{ secrets.TEST_SINGLESTORE_API_KEY }}
-      run: make integration
+      run: make test
 
-    - name: Prepare coverage
-      run: make gocovmerge
-
-    - name: Go coverage badge
+    - name: Go coverage badge # Based on the result of the previous step.
       uses: tj-actions/coverage-badge-go@v2
       with:
-        filename: coverage.txt
+        filename: coverage.out
 
     - name: Verify changed Files
       uses: tj-actions/verify-changed-files@v12
