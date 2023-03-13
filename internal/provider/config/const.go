@@ -21,10 +21,10 @@ const (
 	TestIDAttribute = "id"
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
-	// UnitTestReplaceWithAPIKey converts an example tf file into a unit test config.
-	UnitTestReplaceWithAPIKey = "#unit_test_replace_with_api_key" //nolint
-	// UnitTestReplaceWihtAPIServiceURL converts an example tf file into a unit test config.
-	UnitTestReplaceWithAPIServiceURL = "#unit_test_replace_with_api_service_url"
+	// TestReplaceWithAPIKey converts an example tf file into a unit test config.
+	TestReplaceWithAPIKey = "#test_replace_with_api_key"
+	// TestReplaceWithAPIServiceURL converts an example tf file into a unit test config.
+	TestReplaceWithAPIServiceURL = "#test_replace_with_api_service_url"
 	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time to 1 hour.

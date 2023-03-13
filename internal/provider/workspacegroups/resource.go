@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -19,12 +20,14 @@ import (
 )
 
 const (
-	resourceName = "workspace_group"
+	resourceName        = "workspace_group"
+	resourceIDAttribute = "workspace_group_id"
 )
 
 var (
-	_ resource.ResourceWithConfigure  = &workspaceGroupResource{}
-	_ resource.ResourceWithModifyPlan = &workspaceGroupResource{}
+	_ resource.ResourceWithConfigure   = &workspaceGroupResource{}
+	_ resource.ResourceWithModifyPlan  = &workspaceGroupResource{}
+	_ resource.ResourceWithImportState = &workspaceGroupResource{}
 )
 
 // workspaceGroupResource is the resource implementation.
@@ -67,7 +70,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Required:            true,
 				MarkdownDescription: "Name of the workspace group",
 			},
-			"workspace_group_id": schema.StringAttribute{
+			resourceIDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -380,6 +383,11 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 
 		return
 	}
+}
+
+// ImportState results in Terraform managing the resource that was not previously managed.
+func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root(resourceIDAttribute), req, resp)
 }
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string) workspaceGroupResourceModel {

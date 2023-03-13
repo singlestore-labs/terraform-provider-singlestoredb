@@ -90,12 +90,12 @@ func compile(conf Config, c string) string {
 		{
 			key:     config.APIKeyAttribute,
 			value:   conf.APIKey,
-			pattern: config.UnitTestReplaceWithAPIKey,
+			pattern: config.TestReplaceWithAPIKey,
 		},
 		{
 			key:     config.APIServiceURLAttribute,
 			value:   conf.APIServiceURL,
-			pattern: config.UnitTestReplaceWithAPIServiceURL,
+			pattern: config.TestReplaceWithAPIServiceURL,
 		},
 	} {
 		if kvp.value != "" {
