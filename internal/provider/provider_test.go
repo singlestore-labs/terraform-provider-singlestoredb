@@ -48,8 +48,7 @@ func TestProviderAuthenticationError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r, err := regexp.Compile(http.StatusText(http.StatusUnauthorized))
-	require.NoError(t, err)
+	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
 
 	testutil.UnitTest(t, testutil.Config{
 		APIServiceURL: server.URL,
@@ -92,8 +91,7 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 func TestProviderAuthenticationErrorIntegration(t *testing.T) {
 	apiKey := "foo"
 
-	r, err := regexp.Compile(http.StatusText(http.StatusUnauthorized))
-	require.NoError(t, err)
+	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
 
 	testutil.IntegrationTest(t, apiKey, resource.TestCase{
 		Steps: []resource.TestStep{

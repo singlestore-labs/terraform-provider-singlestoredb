@@ -35,4 +35,6 @@ const (
 	TestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
 	// TestInitialAdminPassword is the initial workspace admin password in examples.
 	TestInitialAdminPassword = "fooBAR12$"
+	// TestWorkspaceGroupID is the workspace group ID in the example.
+	TestWorkspaceGroupID = "bc8c0deb-50dd-4a58-a5a5-1c62eb5c456d"
 )

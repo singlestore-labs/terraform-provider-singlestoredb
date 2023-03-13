@@ -1,6 +1,6 @@
 # regions
 
-`workspacegroups/datasource` shows listing workspace groups.
+`workspacegroups/list` shows listing workspace groups.
 
 ~~~ shell
 terraform apply -auto-approve

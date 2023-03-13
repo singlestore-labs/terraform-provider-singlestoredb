@@ -63,7 +63,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroupsDataSource,
+				Config: examples.WorkspaceGroupsListDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.#", "2"),
@@ -108,8 +108,7 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r, err := regexp.Compile(http.StatusText(http.StatusUnauthorized))
-	require.NoError(t, err)
+	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
 
 	testutil.UnitTest(t, testutil.Config{
 		APIServiceURL: server.URL,
@@ -117,7 +116,7 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config:      examples.WorkspaceGroupsDataSource,
+				Config:      examples.WorkspaceGroupsListDataSource,
 				ExpectError: r,
 			},
 		},
@@ -130,7 +129,7 @@ func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, apiKey, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroupsDataSource,
+				Config: examples.WorkspaceGroupsListDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
 					// Checking that at least no error.

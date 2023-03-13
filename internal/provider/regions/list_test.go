@@ -64,8 +64,7 @@ func TestReadRegionsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r, err := regexp.Compile(http.StatusText(http.StatusUnauthorized))
-	require.NoError(t, err)
+	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
 
 	testutil.UnitTest(t, testutil.Config{
 		APIServiceURL: server.URL,

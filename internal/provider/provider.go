@@ -143,8 +143,9 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 // DataSources defines the data sources implemented in the provider.
 func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		regions.NewDataSource,
-		workspacegroups.NewDataSource,
+		regions.NewDataSourceList,
+		workspacegroups.NewDataSourceList,
+		workspacegroups.NewDataSourceGet,
 	}
 }
 

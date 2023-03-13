@@ -14,47 +14,47 @@ import (
 )
 
 const (
-	dataSourceName = "regions"
+	dataSourceListName = "regions"
 )
 
-// regionsDataSource is the data source implementation.
-type regionsDataSource struct {
+// regionsDataSourceList is the data source implementation.
+type regionsDataSourceList struct {
 	management.ClientWithResponsesInterface
 }
 
-// regionsDataSourceModel maps the data source schema data.
-type regionsDataSourceModel struct {
-	Regions []regionsModel `tfsdk:"regions"`
-	ID      types.String   `tfsdk:"id"`
+// regionsListDataSourceModel maps the data source schema data.
+type regionsListDataSourceModel struct {
+	Regions []regionModel `tfsdk:"regions"`
+	ID      types.String  `tfsdk:"id"`
 }
 
-// regionsModel maps regions schema data.
-type regionsModel struct {
+// regionModel maps regions schema data.
+type regionModel struct {
 	Provider types.String `tfsdk:"provider"`
 	Region   types.String `tfsdk:"region"`
 	RegionID types.String `tfsdk:"region_id"`
 }
 
-var _ datasource.DataSourceWithConfigure = &regionsDataSource{}
+var _ datasource.DataSourceWithConfigure = &regionsDataSourceList{}
 
-// NewDataSource is a helper function to simplify the provider implementation.
-func NewDataSource() datasource.DataSource {
-	return &regionsDataSource{}
+// NewDataSourceList is a helper function to simplify the provider implementation.
+func NewDataSourceList() datasource.DataSource {
+	return &regionsDataSourceList{}
 }
 
 // Metadata returns the data source type name.
-func (d *regionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = util.DataSourceTypeName(req, dataSourceName)
+func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = util.DataSourceTypeName(req, dataSourceListName)
 }
 
 // Schema defines the schema for the data source.
-func (d *regionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			config.TestIDAttribute: schema.StringAttribute{
 				Computed: true,
 			},
-			dataSourceName: schema.ListNestedAttribute{
+			dataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -78,7 +78,7 @@ func (d *regionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -103,12 +103,12 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	result := regionsDataSourceModel{
+	result := regionsListDataSourceModel{
 		ID: types.StringValue(config.TestIDValue),
 	}
 
 	for _, region := range util.Deref(regions.JSON200) {
-		result.Regions = append(result.Regions, regionsModel{
+		result.Regions = append(result.Regions, regionModel{
 			Provider: types.StringValue(string(region.Provider)),
 			Region:   types.StringValue(region.Region),
 			RegionID: types.StringValue(region.RegionID.String()),
@@ -120,7 +120,7 @@ func (d *regionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 }
 
 // Configure adds the provider configured client to the data source.
-func (d *regionsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return // Should not return an error for unknown reasons.
 	}
