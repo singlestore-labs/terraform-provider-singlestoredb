@@ -49,7 +49,7 @@ func (d *workspaceGroupsDataSourceList) Metadata(_ context.Context, req datasour
 func (d *workspaceGroupsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			config.TestIDAttribute: schema.StringAttribute{
+			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
 			},
 			dataSourceListName: schema.ListNestedAttribute{
@@ -92,11 +92,8 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 	}
 
 	result := workspaceGroupsListDataSourceModel{
-		ID: types.StringValue(config.TestIDValue),
-	}
-
-	for _, workspaceGroup := range util.Deref(workspaceGroups.JSON200) {
-		result.WorkspaceGroups = append(result.WorkspaceGroups, toWorkspaceGroupDataSourceModel(workspaceGroup))
+		ID:              types.StringValue(config.TestIDValue),
+		WorkspaceGroups: util.Map(util.Deref(workspaceGroups.JSON200), toWorkspaceGroupDataSourceModel),
 	}
 
 	diags := resp.State.Set(ctx, &result)
@@ -114,16 +111,15 @@ func (d *workspaceGroupsDataSourceList) Configure(_ context.Context, req datasou
 
 func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) workspaceGroupDataSourceModel {
 	return workspaceGroupDataSourceModel{
-		ID:               types.StringValue(config.TestIDValue),
-		Name:             types.StringValue(workspaceGroup.Name),
-		State:            util.WorkspaceGroupStateStringValue(workspaceGroup.State),
-		WorkspaceGroupID: util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
-		FirewallRanges:   util.FirewallRanges(workspaceGroup.FirewallRanges),
-		AllowAllTraffic:  util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
-		CreatedAt:        types.StringValue(workspaceGroup.CreatedAt),
-		ExpiresAt:        util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:         util.UUIDStringValue(workspaceGroup.RegionID),
-		UpdateWindow:     toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
+		ID:              util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		Name:            types.StringValue(workspaceGroup.Name),
+		State:           util.WorkspaceGroupStateStringValue(workspaceGroup.State),
+		FirewallRanges:  util.FirewallRanges(workspaceGroup.FirewallRanges),
+		AllowAllTraffic: util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
+		CreatedAt:       types.StringValue(workspaceGroup.CreatedAt),
+		ExpiresAt:       util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		RegionID:        util.UUIDStringValue(workspaceGroup.RegionID),
+		UpdateWindow:    toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
 	}
 }
 

@@ -17,8 +17,8 @@ const (
 	EnvTestAPIKey = "TEST_SINGLESTORE_API_KEY"
 	// ProviderName is the name of the provider.
 	ProviderName = "singlestore"
-	// TestIDAttribute is the test only ID attribute.
-	TestIDAttribute = "id"
+	// IDAttribute is the idiomatic Terraform ID attribute.
+	IDAttribute = "id"
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
 	// TestReplaceWithAPIKey converts an example tf file into a unit test config.

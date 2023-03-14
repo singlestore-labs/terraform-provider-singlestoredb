@@ -20,8 +20,7 @@ import (
 )
 
 const (
-	resourceName        = "workspace_group"
-	resourceIDAttribute = "workspace_group_id"
+	resourceName = "workspace_group"
 )
 
 var (
@@ -37,13 +36,12 @@ type workspaceGroupResource struct {
 
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	Name             types.String `tfsdk:"name"`
-	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	ExpiresAt        types.String `tfsdk:"expires_at"`
-	RegionID         types.String `tfsdk:"region_id"`
-	AdminPassword    types.String `tfsdk:"admin_password"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	CreatedAt     types.String `tfsdk:"created_at"`
+	ExpiresAt     types.String `tfsdk:"expires_at"`
+	RegionID      types.String `tfsdk:"region_id"`
+	AdminPassword types.String `tfsdk:"admin_password"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -60,22 +58,16 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			config.TestIDAttribute: schema.StringAttribute{
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				Computed: true,
-			},
-			"name": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Name of the workspace group",
-			},
-			resourceIDAttribute: schema.StringAttribute{
+			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
 				MarkdownDescription: "ID of the workspace group",
+			},
+			"name": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "Name of the workspace group",
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -212,12 +204,12 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-		uuid.MustParse(state.WorkspaceGroupID.ValueString()),
+		uuid.MustParse(state.ID.ValueString()),
 		&management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{},
 	)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client failed to get workspace group %s", state.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client failed to get workspace group %s", state.ID.ValueString()),
 			"An unexpected error occurred when calling SingleStore API workspace group get. "+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client error: "+err.Error(),
@@ -229,7 +221,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	code := workspaceGroup.StatusCode()
 	if code != http.StatusOK {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while getting workspace group %s", http.StatusText(code), state.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client returned status code %s while getting workspace group %s", http.StatusText(code), state.ID.ValueString()),
 			"An unsuccessful status code occurred when calling SingleStore API workspace group get. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
@@ -247,7 +239,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 
 	if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.WorkspaceGroupID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE),
+			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE),
 			"An unexpected workpsace group state.",
 		)
 
@@ -273,7 +265,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-		uuid.MustParse(plan.WorkspaceGroupID.ValueString()),
+		uuid.MustParse(plan.ID.ValueString()),
 		management.WorkspaceGroupUpdate{
 			AdminPassword: util.MaybeString(plan.AdminPassword),
 			ExpiresAt:     util.MaybeString(plan.ExpiresAt),
@@ -282,7 +274,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client failed to update workspace group %s", plan.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client failed to update workspace group %s", plan.ID.ValueString()),
 			"An unexpected error occurred when calling SingleStore API workspace group update. "+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client error: "+err.Error(),
@@ -294,7 +286,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	code := workspaceGroupUpdateResponse.StatusCode()
 	if code != http.StatusOK {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while updating workspace group %s", http.StatusText(code), plan.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client returned status code %s while updating workspace group %s", http.StatusText(code), plan.ID.ValueString()),
 			"An unsuccessful status code occurred when calling SingleStore API workspace group update. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
@@ -321,12 +313,12 @@ func (r *workspaceGroupResource) Delete(ctx context.Context, req resource.Delete
 	}
 
 	workspaceGroupDeleteResponse, err := r.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-		uuid.MustParse(state.WorkspaceGroupID.ValueString()),
+		uuid.MustParse(state.ID.ValueString()),
 		&management.DeleteV1WorkspaceGroupsWorkspaceGroupIDParams{Force: util.Ptr(true)}, // Deleting even if workspaces in the group.
 	)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client failed to terminate workspace group %s", state.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client failed to terminate workspace group %s", state.ID.ValueString()),
 			"An unexpected error occurred when calling SingleStore API workspace group get. "+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"SingleStore client error: "+err.Error(),
@@ -338,7 +330,7 @@ func (r *workspaceGroupResource) Delete(ctx context.Context, req resource.Delete
 	code := workspaceGroupDeleteResponse.StatusCode()
 	if code != http.StatusOK && code != http.StatusNotFound {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while terminating workspace group %s", http.StatusText(code), state.WorkspaceGroupID.ValueString()),
+			fmt.Sprintf("SingleStore API client returned status code %s while terminating workspace group %s", http.StatusText(code), state.ID.ValueString()),
 			"An unsuccessful status code occurred when calling SingleStore API workspace group delete. "+
 				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
 				"If the error is not clear, please contact the provider developers.\n\n"+
@@ -387,17 +379,16 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root(resourceIDAttribute), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string) workspaceGroupResourceModel {
 	return workspaceGroupResourceModel{
-		ID:               types.StringValue(config.TestIDValue),
-		Name:             types.StringValue(workspaceGroup.Name),
-		WorkspaceGroupID: util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
-		CreatedAt:        types.StringValue(workspaceGroup.CreatedAt),
-		ExpiresAt:        util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:         util.UUIDStringValue(workspaceGroup.RegionID),
-		AdminPassword:    types.StringValue(adminPassword),
+		ID:            util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		Name:          types.StringValue(workspaceGroup.Name),
+		CreatedAt:     types.StringValue(workspaceGroup.CreatedAt),
+		ExpiresAt:     util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		RegionID:      util.UUIDStringValue(workspaceGroup.RegionID),
+		AdminPassword: types.StringValue(adminPassword),
 	}
 }

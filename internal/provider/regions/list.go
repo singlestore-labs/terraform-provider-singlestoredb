@@ -24,15 +24,15 @@ type regionsDataSourceList struct {
 
 // regionsListDataSourceModel maps the data source schema data.
 type regionsListDataSourceModel struct {
-	Regions []regionModel `tfsdk:"regions"`
 	ID      types.String  `tfsdk:"id"`
+	Regions []regionModel `tfsdk:"regions"`
 }
 
 // regionModel maps regions schema data.
 type regionModel struct {
+	ID       types.String `tfsdk:"id"`
 	Provider types.String `tfsdk:"provider"`
 	Region   types.String `tfsdk:"region"`
-	RegionID types.String `tfsdk:"region_id"`
 }
 
 var _ datasource.DataSourceWithConfigure = &regionsDataSourceList{}
@@ -51,13 +51,17 @@ func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.Metad
 func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			config.TestIDAttribute: schema.StringAttribute{
+			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
 			},
 			dataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						config.IDAttribute: schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "ID of the region",
+						},
 						"provider": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "Name of the provider",
@@ -65,10 +69,6 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 						"region": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "Name of the region",
-						},
-						"region_id": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "ID of the region",
 						},
 					},
 				},
@@ -104,15 +104,8 @@ func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadReq
 	}
 
 	result := regionsListDataSourceModel{
-		ID: types.StringValue(config.TestIDValue),
-	}
-
-	for _, region := range util.Deref(regions.JSON200) {
-		result.Regions = append(result.Regions, regionModel{
-			Provider: types.StringValue(string(region.Provider)),
-			Region:   types.StringValue(region.Region),
-			RegionID: types.StringValue(region.RegionID.String()),
-		})
+		ID:      types.StringValue(config.TestIDValue),
+		Regions: util.Map(util.Deref(regions.JSON200), toRegionsDataSourceModel),
 	}
 
 	diags := resp.State.Set(ctx, &result)
@@ -126,4 +119,12 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	}
 
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
+}
+
+func toRegionsDataSourceModel(region management.Region) regionModel {
+	return regionModel{
+		ID:       types.StringValue(region.RegionID.String()),
+		Provider: types.StringValue(string(region.Provider)),
+		Region:   types.StringValue(region.Region),
+	}
 }

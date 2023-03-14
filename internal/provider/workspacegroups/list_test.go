@@ -65,7 +65,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsListDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.#", "2"),
 					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.allow_all_traffic"),
 					resource.TestCheckNoResourceAttr("data.singlestore_workspace_groups.all", "workspace_groups.0.expires_at"),
@@ -131,7 +131,7 @@ func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsListDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.TestIDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestore_workspace_groups.all", config.IDAttribute, config.TestIDValue),
 					// Checking that at least no error.
 				),
 			},

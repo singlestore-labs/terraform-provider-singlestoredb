@@ -147,9 +147,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "id", config.TestIDValue),
+					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupCreateResponse.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "workspace_group_id", workspaceGroupCreateResponse.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "region_id", regions[0].RegionID.String()),
@@ -172,9 +171,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "id", config.TestIDValue),
+					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupCreateResponse.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "workspace_group_id", workspaceGroupCreateResponse.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "region_id", regions[0].RegionID.String()),
@@ -195,7 +193,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "id", config.TestIDValue),
+					resource.TestCheckResourceAttrSet("singlestore_workspace_group.example", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
 				),
@@ -212,7 +210,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					). // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "id", config.TestIDValue),
+					resource.TestCheckResourceAttrSet("singlestore_workspace_group.example", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", updatedAdminPassword),
 				),

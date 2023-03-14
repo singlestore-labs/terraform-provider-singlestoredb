@@ -54,7 +54,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 					WithOverride(config.TestWorkspaceGroupID, workspaceGroup.WorkspaceGroupID.String()).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", config.TestIDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
 					resource.TestCheckNoResourceAttr("data.singlestore_workspace_group.example", "allow_all_traffic"),
 					resource.TestCheckNoResourceAttr("data.singlestore_workspace_group.example", "expires_at"),
 					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "firewall_ranges.#",

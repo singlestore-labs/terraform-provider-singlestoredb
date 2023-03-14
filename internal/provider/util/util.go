@@ -59,3 +59,16 @@ func FirstSetStringValue(ss ...types.String) types.String {
 
 	return types.StringNull()
 }
+
+// Map applies the function f to each element of the input list and returns a new
+// list containing the results. The input list is not modified. The function f
+// should take an element of the input list as its argument and return a value
+// of a different type. The output list has the same length as the input list.
+func Map[A, B any](as []A, f func(A) B) []B {
+	result := make([]B, 0, len(as))
+	for _, a := range as {
+		result = append(result, f(a))
+	}
+
+	return result
+}

@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	dataSourceGetName     = "workspace_group"
-	dataSourceIDAttribute = "region_id"
+	dataSourceGetName = "workspace_group"
 )
 
 // workspaceGroupsDataSourceGet is the data source implementation.
@@ -28,16 +27,15 @@ type workspaceGroupsDataSourceGet struct {
 
 // workspaceGroupDataSourceModel maps workspace groups schema data.
 type workspaceGroupDataSourceModel struct {
-	ID               types.String                 `tfsdk:"id"`
-	Name             types.String                 `tfsdk:"name"`
-	State            types.String                 `tfsdk:"state"`
-	WorkspaceGroupID types.String                 `tfsdk:"workspace_group_id"`
-	FirewallRanges   []types.String               `tfsdk:"firewall_ranges"`
-	AllowAllTraffic  types.Bool                   `tfsdk:"allow_all_traffic"`
-	CreatedAt        types.String                 `tfsdk:"created_at"`
-	ExpiresAt        types.String                 `tfsdk:"expires_at"`
-	RegionID         types.String                 `tfsdk:"region_id"`
-	UpdateWindow     *updateWindowDataSourceModel `tfsdk:"update_window"`
+	ID              types.String                 `tfsdk:"id"`
+	Name            types.String                 `tfsdk:"name"`
+	State           types.String                 `tfsdk:"state"`
+	FirewallRanges  []types.String               `tfsdk:"firewall_ranges"`
+	AllowAllTraffic types.Bool                   `tfsdk:"allow_all_traffic"`
+	CreatedAt       types.String                 `tfsdk:"created_at"`
+	ExpiresAt       types.String                 `tfsdk:"expires_at"`
+	RegionID        types.String                 `tfsdk:"region_id"`
+	UpdateWindow    *updateWindowDataSourceModel `tfsdk:"update_window"`
 }
 
 type workspaceGroupDataSourceSchemaConfig struct {
@@ -77,10 +75,10 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 		return
 	}
 
-	id, err := uuid.Parse(data.WorkspaceGroupID.ValueString())
+	id, err := uuid.Parse(data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
-			path.Root(dataSourceIDAttribute),
+			path.Root(config.IDAttribute),
 			"Invalid workspace group ID",
 			"The workspace group ID should be a valid UUID",
 		)
@@ -103,7 +101,7 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 	code := workspaceGroup.StatusCode()
 	if code == http.StatusNotFound {
 		resp.Diagnostics.AddAttributeError(
-			path.Root(dataSourceIDAttribute),
+			path.Root(config.IDAttribute),
 			fmt.Sprintf("SingleStore API client returned status code %s while listing workspace groups", http.StatusText(code)),
 			"An unsuccessful status code occurred when calling SingleStore API workspace groups. "+
 				"Make sure to set the workspace group ID of the workspace group that exists."+
@@ -127,7 +125,7 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 
 	if workspaceGroup.JSON200.TerminatedAt != nil {
 		resp.Diagnostics.AddAttributeError(
-			path.Root(dataSourceIDAttribute),
+			path.Root(config.IDAttribute),
 			fmt.Sprintf("Workspace group with the specified ID existed, but got terminated at %s", *workspaceGroup.JSON200.TerminatedAt),
 			"Make sure to set the workspace group ID of the workspace group that exists.",
 		)
@@ -161,8 +159,11 @@ func (d *workspaceGroupsDataSourceGet) Configure(_ context.Context, req datasour
 
 func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSchemaConfig) map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		config.TestIDAttribute: schema.StringAttribute{
-			Computed: true,
+		config.IDAttribute: schema.StringAttribute{
+			Computed:            conf.computeWorkspaceGroupID,
+			Required:            conf.requireWorkspaceGroupID,
+			MarkdownDescription: "ID of the workspace group",
+			Validators:          conf.workspaceGroupIDValidators,
 		},
 		"name": schema.StringAttribute{
 			Computed:            true,
@@ -171,12 +172,6 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		"state": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "State of the workspace group",
-		},
-		"workspace_group_id": schema.StringAttribute{
-			Computed:            conf.computeWorkspaceGroupID,
-			Required:            conf.requireWorkspaceGroupID,
-			MarkdownDescription: "ID of the workspace group",
-			Validators:          conf.workspaceGroupIDValidators,
 		},
 		"firewall_ranges": schema.ListAttribute{
 			Computed:            true,
