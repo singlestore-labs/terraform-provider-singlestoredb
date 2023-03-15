@@ -11,13 +11,23 @@ func MaybeString(s types.String) *string {
 		return nil
 	}
 
-	result := s.ValueString()
+	return Ptr(s.ValueString())
+}
 
-	return &result
+func ToString(s types.String) string {
+	return s.ValueString()
 }
 
 func MaybeStringValue(s *string) types.String {
 	return maybeElse(s, types.StringValue, types.StringNull)
+}
+
+func MaybeBool(b types.Bool) *bool {
+	if b.IsNull() || b.IsUnknown() {
+		return nil
+	}
+
+	return Ptr(b.ValueBool())
 }
 
 func MaybeBoolValue(b *bool) types.Bool {
@@ -28,17 +38,12 @@ func UUIDStringValue(id otypes.UUID) types.String {
 	return types.StringValue(id.String())
 }
 
+func StringFirewallRanges(frs []types.String) []string {
+	return Map(frs, ToString)
+}
+
 func FirewallRanges(frs *[]string) []types.String {
-	if frs == nil {
-		return nil
-	}
-
-	result := []types.String{}
-	for _, fr := range *frs {
-		result = append(result, types.StringValue(fr))
-	}
-
-	return result
+	return Map(Deref(frs), types.StringValue)
 }
 
 func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.String {

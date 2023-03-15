@@ -36,12 +36,13 @@ type workspaceGroupResource struct {
 
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	Name          types.String `tfsdk:"name"`
-	CreatedAt     types.String `tfsdk:"created_at"`
-	ExpiresAt     types.String `tfsdk:"expires_at"`
-	RegionID      types.String `tfsdk:"region_id"`
-	AdminPassword types.String `tfsdk:"admin_password"`
+	ID             types.String   `tfsdk:"id"`
+	Name           types.String   `tfsdk:"name"`
+	FirewallRanges []types.String `tfsdk:"firewall_ranges"`
+	CreatedAt      types.String   `tfsdk:"created_at"`
+	ExpiresAt      types.String   `tfsdk:"expires_at"`
+	RegionID       types.String   `tfsdk:"region_id"`
+	AdminPassword  types.String   `tfsdk:"admin_password"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -68,6 +69,11 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Name of the workspace group",
+			},
+			"firewall_ranges": schema.ListAttribute{
+				ElementType:         types.StringType,
+				Required:            true,
+				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that all inbound requests are allowed.",
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -118,8 +124,8 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
 		AdminPassword:   util.MaybeString(plan.AdminPassword),
 		ExpiresAt:       util.MaybeString(plan.ExpiresAt),
-		FirewallRanges:  []string{},
-		AllowAllTraffic: util.Ptr(true),
+		FirewallRanges:  util.StringFirewallRanges(plan.FirewallRanges),
+		AllowAllTraffic: util.Ptr(len(plan.FirewallRanges) == 0),
 		Name:            plan.Name.ValueString(),
 		RegionID:        uuid.MustParse(plan.RegionID.ValueString()),
 	})
@@ -267,9 +273,11 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
 		uuid.MustParse(plan.ID.ValueString()),
 		management.WorkspaceGroupUpdate{
-			AdminPassword: util.MaybeString(plan.AdminPassword),
-			ExpiresAt:     util.MaybeString(plan.ExpiresAt),
-			Name:          util.MaybeString(plan.Name),
+			AdminPassword:   util.MaybeString(plan.AdminPassword),
+			ExpiresAt:       util.MaybeString(plan.ExpiresAt),
+			Name:            util.MaybeString(plan.Name),
+			FirewallRanges:  util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+			AllowAllTraffic: util.Ptr(len(plan.FirewallRanges) == 0),
 		},
 	)
 	if err != nil {
@@ -350,7 +358,7 @@ func (r *workspaceGroupResource) Configure(_ context.Context, req resource.Confi
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-// ModifyPlan emits an error if a required yet immutable field changes.
+// ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 //
 // `RequiresReplace` is not used because deleting a workspace group results in the data loss.
 func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
@@ -384,11 +392,12 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string) workspaceGroupResourceModel {
 	return workspaceGroupResourceModel{
-		ID:            util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
-		Name:          types.StringValue(workspaceGroup.Name),
-		CreatedAt:     types.StringValue(workspaceGroup.CreatedAt),
-		ExpiresAt:     util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:      util.UUIDStringValue(workspaceGroup.RegionID),
-		AdminPassword: types.StringValue(adminPassword),
+		ID:             util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		Name:           types.StringValue(workspaceGroup.Name),
+		FirewallRanges: util.FirewallRanges(workspaceGroup.FirewallRanges),
+		CreatedAt:      types.StringValue(workspaceGroup.CreatedAt),
+		ExpiresAt:      util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		RegionID:       util.UUIDStringValue(workspaceGroup.RegionID),
+		AdminPassword:  types.StringValue(adminPassword),
 	}
 }

@@ -51,7 +51,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestWorkspaceGroupID, workspaceGroup.WorkspaceGroupID.String()).
+					WithOverride(config.TestInitialWorkspaceGroupID, workspaceGroup.WorkspaceGroupID.String()).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
@@ -91,7 +91,7 @@ func TestWorkspaceGroupNotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestWorkspaceGroupID, uuid.New().String()).
+					WithOverride(config.TestInitialWorkspaceGroupID, uuid.New().String()).
 					String(),
 				ExpectError: r,
 			},
@@ -115,7 +115,7 @@ func TestInvalidInputUUID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestWorkspaceGroupID, "invalid-uuid").
+					WithOverride(config.TestInitialWorkspaceGroupID, "invalid-uuid").
 					String(),
 				ExpectError: r,
 			},
@@ -132,7 +132,7 @@ func TestGetWorkspaceGroupNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestWorkspaceGroupID, uuid.New().String()).
+					WithOverride(config.TestInitialWorkspaceGroupID, uuid.New().String()).
 					String(),
 				ExpectError: r, // Checking that at least the expected error.
 			},

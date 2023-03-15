@@ -24,6 +24,7 @@ import (
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-") //nolint
 	updatedAdminPassword      = "buzzBAR123$"                                                                //nolint
+	emptyFirewallRanges       = ""                                                                           //nolint
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) {
@@ -40,10 +41,10 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
 	}
 	workspaceGroup := management.WorkspaceGroup{
-		AllowAllTraffic:  util.Ptr(true),
+		AllowAllTraffic:  util.Ptr(false),
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
 		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-		FirewallRanges:   util.Ptr([]string{}),
+		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
 		State:            management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
@@ -84,9 +85,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			var input management.WorkspaceGroupCreate
 			require.NoError(t, json.Unmarshal(body, &input))
 			require.Equal(t, config.TestInitialAdminPassword, util.Deref(input.AdminPassword))
-			require.Equal(t, util.Ptr(true), input.AllowAllTraffic)
+			require.Equal(t, false, util.Deref(input.AllowAllTraffic))
 			require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
-			require.Equal(t, []string{}, input.FirewallRanges)
+			require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 			require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
 			require.Equal(t, regions[0].RegionID, input.RegionID)
 
@@ -115,16 +116,18 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			var input management.WorkspaceGroupUpdate
 			require.NoError(t, json.Unmarshal(body, &input))
 			require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
-			require.Nil(t, input.AllowAllTraffic)
+			require.True(t, util.Deref(input.AllowAllTraffic))
 			require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
-			require.Nil(t, input.FirewallRanges)
+			require.Empty(t, util.Deref(input.FirewallRanges))
 			require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
 
 			w.Header().Add("Content-Type", "json")
 			_, err = w.Write(testutil.MustJSON(workspaceGroupUpdateResponse))
 			require.NoError(t, err)
 			workspaceGroup.ExpiresAt = &updatedExpiresAt
-			workspaceGroup.Name = updatedWorkspaceGroupName // Updating for next reads.
+			workspaceGroup.Name = updatedWorkspaceGroupName
+			workspaceGroup.AllowAllTraffic = util.Ptr(true)
+			workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
 		case 18: // Delete.
 			require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path, strconv.Itoa(call))
 			require.Equal(t, http.MethodDelete, r.Method)
@@ -169,6 +172,14 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 						config.TestInitialWorkspaceGroupExpiresAt,
 						updatedExpiresAt,
 					).
+					WithOverride(
+						config.TestInitialWorkspaceGroupExpiresAt,
+						updatedExpiresAt,
+					).
+					WithOverride(
+						strconv.Quote(config.TestInitialFirewallRange),
+						emptyFirewallRanges,
+					).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupCreateResponse.WorkspaceGroupID.String()),
@@ -207,6 +218,10 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					WithOverride(
 						config.TestInitialAdminPassword,
 						updatedAdminPassword,
+					).
+					WithOverride(
+						strconv.Quote(config.TestInitialFirewallRange),
+						emptyFirewallRanges,
 					). // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
