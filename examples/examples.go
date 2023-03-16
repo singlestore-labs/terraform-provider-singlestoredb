@@ -11,6 +11,7 @@ var (
 	WorkspaceGroupsListDataSource = mustRead("workspacegroups/list/main.tf")
 	WorkspaceGroupsGetDataSource  = mustRead("workspacegroups/get/main.tf")
 	WorkspaceGroupsResource       = mustRead("workspacegroups/resource/main.tf")
+	WorkspacesGetDataSource       = mustRead("workspaces/get/main.tf")
 )
 
 func mustRead(path string) string {

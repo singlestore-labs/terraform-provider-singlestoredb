@@ -39,4 +39,6 @@ const (
 	TestInitialWorkspaceGroupID = "bc8c0deb-50dd-4a58-a5a5-1c62eb5c456d"
 	// TestInitialFirewallRange is the firewall range in the example.
 	TestInitialFirewallRange = "192.168.0.1/32"
+	// TestInitialWorkspaceID is the workspace ID in the example.
+	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
 )

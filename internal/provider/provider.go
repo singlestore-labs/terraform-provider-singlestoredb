@@ -16,6 +16,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/regions"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspacegroups"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
 )
 
 // singlestoreProvider is the provider implementation.
@@ -146,6 +147,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		regions.NewDataSourceList,
 		workspacegroups.NewDataSourceList,
 		workspacegroups.NewDataSourceGet,
+		workspaces.NewDataSourceGet,
 	}
 }
 

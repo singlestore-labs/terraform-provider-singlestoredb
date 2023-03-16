@@ -50,6 +50,10 @@ func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.St
 	return types.StringValue(string(wgs))
 }
 
+func WorkspaceStateStringValue(ws management.WorkspaceState) types.String {
+	return types.StringValue(string(ws))
+}
+
 func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	if input == nil {
 		return create()
