@@ -1,4 +1,4 @@
-# regions
+# Workspace Groups List
 
 `workspacegroups/list` shows listing workspace groups.
 

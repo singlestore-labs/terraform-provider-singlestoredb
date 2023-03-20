@@ -13,5 +13,6 @@ func TestEmbedsExamples(t *testing.T) {
 	require.NotEmpty(t, examples.WorkspaceGroupsListDataSource)
 	require.NotEmpty(t, examples.WorkspaceGroupsGetDataSource)
 	require.NotEmpty(t, examples.WorkspaceGroupsResource)
+	require.NotEmpty(t, examples.WorkspacesListDataSource)
 	require.NotEmpty(t, examples.WorkspacesGetDataSource)
 }

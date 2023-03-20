@@ -1,4 +1,4 @@
-# regions
+# Workspaces Get
 
 `workspaces/get` shows workspace lookup by ID.
 

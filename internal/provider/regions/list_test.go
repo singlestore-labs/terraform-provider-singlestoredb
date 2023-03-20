@@ -1,6 +1,7 @@
 package regions_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -48,10 +49,10 @@ func TestReadsRegions(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_regions.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.#", "2"),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.0.id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestore_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), regions[0].RegionID.String()),
 					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.0.region", regions[0].Region),
 					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.0.provider", string(regions[0].Provider)),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.1.id", regions[1].RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestore_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute), regions[1].RegionID.String()),
 				),
 			},
 		},
@@ -88,7 +89,7 @@ func TestReadsRegionsIntegration(t *testing.T) {
 				Config: examples.Regions,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestore_regions.all", config.IDAttribute, config.TestIDValue),
-					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", "regions.0.id"),
+					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute)),
 					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", "regions.0.region"),
 					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", "regions.0.provider"),
 					// Checking that at least 1 element and that element is with the expected fields.

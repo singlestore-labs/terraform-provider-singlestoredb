@@ -147,6 +147,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		regions.NewDataSourceList,
 		workspacegroups.NewDataSourceList,
 		workspacegroups.NewDataSourceGet,
+		workspaces.NewDataSourceList,
 		workspaces.NewDataSourceGet,
 	}
 }

@@ -1,9 +1,9 @@
-# Provider
+# Workspaces List
 
-`provider` shows the successfull installation of the provider.
+`workspaces/list` shows listing workspaces.
 
 ~~~ shell
-terraform plan
+terraform apply -auto-approve
 ~~~
 
 **Note: `terraform init` does not work with `dev_overrides` for local development.**

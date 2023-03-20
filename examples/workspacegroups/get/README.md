@@ -1,4 +1,4 @@
-# regions
+# Workspace Groups Get
 
 `workspacegroups/get` shows workspace group lookup by ID.
 

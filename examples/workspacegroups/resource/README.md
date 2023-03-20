@@ -1,4 +1,4 @@
-# regions
+# Workspace Groups Resource
 
 `workspacegroups/resource` shows operations on top of the worspace group resource.
 

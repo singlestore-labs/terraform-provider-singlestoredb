@@ -1,4 +1,4 @@
-# regions
+# Workspace Groups Import
 
 `workspacegroups/import` shows importing a workspace group that already exists.
 

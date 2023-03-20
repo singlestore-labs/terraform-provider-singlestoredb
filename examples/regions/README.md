@@ -1,4 +1,4 @@
-# regions
+# Regions
 
 `regions` shows listing regions.
 
