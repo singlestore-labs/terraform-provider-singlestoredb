@@ -3,7 +3,6 @@ package workspaces
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -86,37 +85,10 @@ func (d *workspacesDataSourceGet) Read(ctx context.Context, req datasource.ReadR
 	}
 
 	workspace, err := d.GetV1WorkspacesWorkspaceIDWithResponse(ctx, id, &management.GetV1WorkspacesWorkspaceIDParams{})
-	if err != nil {
+	if serr := util.StatusOK(workspace, err); serr != nil {
 		resp.Diagnostics.AddError(
-			"SingleStore API client failed to list workspace",
-			"An unexpected error occurred when calling SingleStore API workspaces. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
-		)
-
-		return
-	}
-
-	code := workspace.StatusCode()
-	if code == http.StatusNotFound {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.IDAttribute),
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspaces", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspaces. "+
-				"Make sure to set the workspace ID of the workspace that exists."+
-				"SingleStore client response body: "+string(workspace.Body),
-		)
-
-		return
-	}
-
-	if code != http.StatusOK {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspaces", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspaces. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client response body: "+string(workspace.Body),
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return
@@ -141,7 +113,12 @@ func (d *workspacesDataSourceGet) Read(ctx context.Context, req datasource.ReadR
 		return
 	}
 
-	result := toWorkspaceDataSourceModel(*workspace.JSON200)
+	result, terr := toWorkspaceDataSourceModel(*workspace.JSON200)
+	if terr != nil {
+		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
+
+		return
+	}
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -195,15 +172,20 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 	}
 }
 
-func toWorkspaceDataSourceModel(workspace management.Workspace) workspaceDataSourceModel {
+func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
+	size, perr := ParseSize(workspace.Size, workspace.State)
+	if perr != nil {
+		return workspaceDataSourceModel{}, perr
+	}
+
 	return workspaceDataSourceModel{
 		ID:               util.UUIDStringValue(workspace.WorkspaceID),
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
 		State:            util.WorkspaceStateStringValue(workspace.State),
-		Size:             types.StringValue(workspace.Size),
+		Size:             types.StringValue(size.String()),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
-	}
+	}, nil
 }

@@ -3,6 +3,7 @@ package util_test
 import (
 	"testing"
 
+	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
@@ -28,4 +29,9 @@ func TestDerefSlice(t *testing.T) {
 
 	result = util.Deref(s)
 	require.Equal(t, value, result)
+}
+
+func TestJoin(t *testing.T) {
+	result := util.Join([]management.WorkspaceState{management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED}, ", ")
+	require.Equal(t, result, "ACTIVE, SUSPENDED")
 }

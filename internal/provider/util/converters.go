@@ -50,6 +50,22 @@ func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.St
 	return types.StringValue(string(wgs))
 }
 
+func WorkspaceStateString(wgs types.String) *management.WorkspaceState {
+	for _, s := range []management.WorkspaceState{
+		management.WorkspaceStateACTIVE,
+		management.WorkspaceStateFAILED,
+		management.WorkspaceStatePENDING,
+		management.WorkspaceStateSUSPENDED,
+		management.WorkspaceStateTERMINATED,
+	} {
+		if wgs.ValueString() == string(s) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 func WorkspaceStateStringValue(ws management.WorkspaceState) types.String {
 	return types.StringValue(string(ws))
 }

@@ -2,8 +2,6 @@ package regions
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -80,24 +78,10 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{})
-	if err != nil {
+	if serr := util.StatusOK(regions, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
-			"SingleStore API client failed to list regions",
-			"An unexpected error occurred when calling SingleStore API regions. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
-		)
-
-		return
-	}
-
-	if code := regions.StatusCode(); code != http.StatusOK {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while listing regions", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API regions. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client response body: "+string(regions.Body),
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return

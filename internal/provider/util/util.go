@@ -1,12 +1,22 @@
 package util
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+type SummaryWithDetailError struct {
+	Summary string
+	Detail  string
+}
+
+func (swd SummaryWithDetailError) Error() string {
+	return fmt.Sprintf("%s: %s", swd.Summary, swd.Detail)
+}
 
 // DataSourceTypeName constructs the type name for the data source of the provider.
 func DataSourceTypeName(req datasource.MetadataRequest, name string) string {
@@ -71,4 +81,31 @@ func Map[A, B any](as []A, f func(A) B) []B {
 	}
 
 	return result
+}
+
+// MapWithError applies the function f to each element of the input list and returns a new
+// list containing the results. The input list is not modified. The function f
+// should take an element of the input list as its argument and return a value
+// of a different type. The output list has the same length as the input list.
+// If the converter returns an error, the first error is returned and no result.
+func MapWithError[A, B any](as []A, f func(A) (B, *SummaryWithDetailError)) ([]B, *SummaryWithDetailError) {
+	result := make([]B, 0, len(as))
+	for _, a := range as {
+		r, err := f(a)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, r)
+	}
+
+	return result, nil
+}
+
+func Join[A any](ss []A, separator string) string {
+	result := Map(ss, func(s A) string {
+		return fmt.Sprintf("%v", s)
+	})
+
+	return strings.Join(result, separator)
 }

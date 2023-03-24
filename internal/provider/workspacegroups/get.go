@@ -3,7 +3,6 @@ package workspacegroups
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -87,37 +86,10 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 	}
 
 	workspaceGroup, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
-	if err != nil {
+	if serr := util.StatusOK(workspaceGroup, err); serr != nil {
 		resp.Diagnostics.AddError(
-			"SingleStore API client failed to list workspace groups",
-			"An unexpected error occurred when calling SingleStore API workspace groups. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
-		)
-
-		return
-	}
-
-	code := workspaceGroup.StatusCode()
-	if code == http.StatusNotFound {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.IDAttribute),
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspace groups", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspace groups. "+
-				"Make sure to set the workspace group ID of the workspace group that exists."+
-				"SingleStore client response body: "+string(workspaceGroup.Body),
-		)
-
-		return
-	}
-
-	if code != http.StatusOK {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspace groups", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspace groups. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client response body: "+string(workspaceGroup.Body),
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return

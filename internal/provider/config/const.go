@@ -13,22 +13,29 @@ const (
 	APIServiceURL = "https://api.singlestore.com"
 	// EnvAPIKey is the environmental variable for fetching the API key.
 	EnvAPIKey = "SINGLESTORE_API_KEY"
-	// EnvTestAPIKey is the environmental variable for API key for integration tests.
-	EnvTestAPIKey = "TEST_SINGLESTORE_API_KEY"
 	// ProviderName is the name of the provider.
 	ProviderName = "singlestore"
 	// IDAttribute is the idiomatic Terraform ID attribute.
 	IDAttribute = "id"
+	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
+	HTTPRequestTimeout = time.Second * 10
+	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
+	WorkspaceGroupCreationTimeout = time.Hour
+	// WorkspaceReadTimeout limits the workspace creation time.
+	WorkspaceReadTimeout = 10 * time.Minute
+	// WorkspaceCreationTimeout limits the workspace creation time.
+	WorkspaceCreationTimeout = 5 * time.Hour
+	// WorkspaceResumeTimeout limits the workspace resume time.
+	WorkspaceResumeTimeout = 6 * time.Hour
+
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
 	// TestReplaceWithAPIKey converts an example tf file into a unit test config.
 	TestReplaceWithAPIKey = "#test_replace_with_api_key"
 	// TestReplaceWithAPIServiceURL converts an example tf file into a unit test config.
 	TestReplaceWithAPIServiceURL = "#test_replace_with_api_service_url"
-	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
-	HTTPRequestTimeout = time.Second * 10
-	// WorkspaceGroupCreationTimeout limits the workspace group creation time to 1 hour.
-	WorkspaceGroupCreationTimeout = time.Hour
+	// EnvTestAPIKey is the environmental variable for API key for integration tests.
+	EnvTestAPIKey = "TEST_SINGLESTORE_API_KEY"
 	// TestInitialWorkspaceGroupName is the default workspace group name in examples.
 	TestInitialWorkspaceGroupName = "terraform-provider-ci-integration-test-workspace-group"
 	// TestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.
@@ -41,4 +48,10 @@ const (
 	TestInitialFirewallRange = "192.168.0.1/32"
 	// TestInitialWorkspaceID is the workspace ID in the example.
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
+	// WorkspaceSizeSuspended is a special size that equals suspension.
+	WorkspaceSizeSuspended = "0"
+	// TestInitialWorkspaceName is the default workspace name in examples.
+	TestInitialWorkspaceName = "test-workspace"
+	// TestInitialWorkspaceSize is the default workspace size in examples.
+	TestInitialWorkspaceSize = "0.25"
 )

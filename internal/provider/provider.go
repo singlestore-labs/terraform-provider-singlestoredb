@@ -15,6 +15,7 @@ import (
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/regions"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
 )
@@ -113,11 +114,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	client, err := management.NewClientWithResponses(apiServiceURL,
-		management.WithHTTPClient(
-			&http.Client{
-				Timeout: config.HTTPRequestTimeout,
-			},
-		),
+		management.WithHTTPClient(util.NewHTTPClient()),
 		management.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
@@ -156,5 +153,6 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		workspacegroups.NewResource,
+		workspaces.NewResource,
 	}
 }

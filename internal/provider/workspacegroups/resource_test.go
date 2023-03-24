@@ -64,81 +64,129 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
 	}
 
-	call := 0
-	expectedCalls := 19
+	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/v1/regions" || r.Method != http.MethodGet {
+			return false
+		}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() { call++ }()
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(regions))
+		require.NoError(t, err)
 
-		switch call {
-		case 0, 1, 6, 7, 9, 10, 12, 14, 15, 17:
-			require.Equal(t, "/v1/regions", r.URL.Path, strconv.Itoa(call))
+		return true
+	}
 
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regions))
-			require.NoError(t, err)
-		case 2: // Create.
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path, strconv.Itoa(call))
-			require.Equal(t, http.MethodPost, r.Method)
-			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
-			var input management.WorkspaceGroupCreate
-			require.NoError(t, json.Unmarshal(body, &input))
-			require.Equal(t, config.TestInitialAdminPassword, util.Deref(input.AdminPassword))
-			require.Equal(t, false, util.Deref(input.AllowAllTraffic))
-			require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
-			require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
-			require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
-			require.Equal(t, regions[0].RegionID, input.RegionID)
+	returnNotFound := true
+	workspaceGroupsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/") ||
+			r.Method != http.MethodGet {
+			return false
+		}
 
-			w.Header().Add("Content-Type", "json")
-			_, err = w.Write(testutil.MustJSON(workspaceGroupCreateResponse))
-			require.NoError(t, err)
-		case 3: // Read.
-			require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path, strconv.Itoa(call))
-			require.Equal(t, http.MethodGet, r.Method)
-
+		if returnNotFound {
 			w.Header().Add("Content-Type", "json")
 			w.WriteHeader(http.StatusNotFound)
-		case 4, 5, 8, 11, 16: // Read.
-			require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path, strconv.Itoa(call))
-			require.Equal(t, http.MethodGet, r.Method)
 
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(workspaceGroup))
-			require.NoError(t, err)
-			workspaceGroup.State = management.WorkspaceGroupStateACTIVE // Marking the state as ACTIVE to end polling.
-		case 13: // Update.
-			require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path, strconv.Itoa(call))
-			require.Equal(t, http.MethodPatch, r.Method)
-			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
-			var input management.WorkspaceGroupUpdate
-			require.NoError(t, json.Unmarshal(body, &input))
-			require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
-			require.True(t, util.Deref(input.AllowAllTraffic))
-			require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
-			require.Empty(t, util.Deref(input.FirewallRanges))
-			require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
+			returnNotFound = false
 
-			w.Header().Add("Content-Type", "json")
-			_, err = w.Write(testutil.MustJSON(workspaceGroupUpdateResponse))
-			require.NoError(t, err)
-			workspaceGroup.ExpiresAt = &updatedExpiresAt
-			workspaceGroup.Name = updatedWorkspaceGroupName
-			workspaceGroup.AllowAllTraffic = util.Ptr(true)
-			workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
-		case 18: // Delete.
-			require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path, strconv.Itoa(call))
-			require.Equal(t, http.MethodDelete, r.Method)
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(workspaceGroupTerminateResponse))
-			require.NoError(t, err)
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-			require.Fail(t, "Management API should be called not more than %d times, but is called the %d time now with the URL %s", expectedCalls, call, r.URL.Path)
+			return true
 		}
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(workspaceGroup))
+		require.NoError(t, err)
+		workspaceGroup.State = management.WorkspaceGroupStateACTIVE // Marking the state as ACTIVE to end polling.
+
+		return true
+	}
+
+	workspaceGroupsPostHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+		require.Equal(t, http.MethodPost, r.Method)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var input management.WorkspaceGroupCreate
+		require.NoError(t, json.Unmarshal(body, &input))
+		require.Equal(t, config.TestInitialAdminPassword, util.Deref(input.AdminPassword))
+		require.Equal(t, false, util.Deref(input.AllowAllTraffic))
+		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
+		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
+		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
+		require.Equal(t, regions[0].RegionID, input.RegionID)
+
+		w.Header().Add("Content-Type", "json")
+		_, err = w.Write(testutil.MustJSON(workspaceGroupCreateResponse))
+		require.NoError(t, err)
+	}
+
+	returnInternalError := true
+	workspaceGroupsPatchHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path)
+
+		if returnInternalError {
+			w.Header().Add("Content-Type", "json")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			returnInternalError = false
+
+			return
+		}
+
+		require.Equal(t, http.MethodPatch, r.Method)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var input management.WorkspaceGroupUpdate
+		require.NoError(t, json.Unmarshal(body, &input))
+		require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
+		require.True(t, util.Deref(input.AllowAllTraffic))
+		require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
+		require.Empty(t, util.Deref(input.FirewallRanges))
+		require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
+
+		w.Header().Add("Content-Type", "json")
+		_, err = w.Write(testutil.MustJSON(workspaceGroupUpdateResponse))
+		require.NoError(t, err)
+		workspaceGroup.ExpiresAt = &updatedExpiresAt
+		workspaceGroup.Name = updatedWorkspaceGroupName
+		workspaceGroup.AllowAllTraffic = util.Ptr(true)
+		workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
+	}
+
+	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, http.MethodDelete, r.Method)
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(workspaceGroupTerminateResponse))
+		require.NoError(t, err)
+	}
+
+	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
+		regionsHandler,
+		workspaceGroupsGetHandler,
+	}
+
+	writeHandlers := []func(w http.ResponseWriter, r *http.Request){
+		workspaceGroupsPostHandler,
+		workspaceGroupsPatchHandler, // Retry.
+		workspaceGroupsPatchHandler,
+		workspaceGroupsDeleteHandler,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, h := range readOnlyHandlers {
+			if h(w, r) {
+				return
+			}
+		}
+
+		require.NotEmpty(t, writeHandlers, "already executed all the expected mutating REST calls")
+
+		h := writeHandlers[0]
+
+		h(w, r)
+
+		writeHandlers = writeHandlers[1:]
 	}))
 	defer server.Close()
 
@@ -193,7 +241,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		},
 	})
 
-	require.Equal(t, expectedCalls, call, "Management API should be called %d times, but is called %d times", expectedCalls, call)
+	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
 }
 
 func TestWorkspaceGroupResourceIntegration(t *testing.T) {

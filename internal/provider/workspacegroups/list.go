@@ -2,8 +2,6 @@ package workspacegroups
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -67,25 +65,10 @@ func (d *workspaceGroupsDataSourceList) Schema(_ context.Context, _ datasource.S
 // Read refreshes the Terraform state with the latest data.
 func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	workspaceGroups, err := d.GetV1WorkspaceGroupsWithResponse(ctx, &management.GetV1WorkspaceGroupsParams{})
-	if err != nil {
+	if serr := util.StatusOK(workspaceGroups, err); serr != nil {
 		resp.Diagnostics.AddError(
-			"SingleStore API client failed to list workspace groups",
-			"An unexpected error occurred when calling SingleStore API workspace groups. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
-		)
-
-		return
-	}
-
-	code := workspaceGroups.StatusCode()
-	if code != http.StatusOK {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspace groups", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspace groups. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client response body: "+string(workspaceGroups.Body),
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return

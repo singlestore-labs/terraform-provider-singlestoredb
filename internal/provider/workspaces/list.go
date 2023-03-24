@@ -2,8 +2,6 @@ package workspaces
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -89,26 +87,18 @@ func (d *workspacesDataSourceList) Read(ctx context.Context, req datasource.Read
 	workspaces, err := d.GetV1WorkspacesWithResponse(ctx, &management.GetV1WorkspacesParams{
 		WorkspaceGroupID: id,
 	})
-	if err != nil {
+	if serr := util.StatusOK(workspaces, err); serr != nil {
 		resp.Diagnostics.AddError(
-			"SingleStore API client failed to list workspace",
-			"An unexpected error occurred when calling SingleStore API workspaces. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return
 	}
 
-	code := workspaces.StatusCode()
-	if code != http.StatusOK {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("SingleStore API client returned status code %s while listing workspaces", http.StatusText(code)),
-			"An unsuccessful status code occurred when calling SingleStore API workspaces. "+
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client response body: "+string(workspaces.Body),
-		)
+	resultWorkspaces, merr := util.MapWithError(util.Deref(workspaces.JSON200), toWorkspaceDataSourceModel)
+	if merr != nil {
+		resp.Diagnostics.AddError(merr.Summary, merr.Detail)
 
 		return
 	}
@@ -116,7 +106,7 @@ func (d *workspacesDataSourceList) Read(ctx context.Context, req datasource.Read
 	result := workspacesListDataSourceModel{
 		ID:               types.StringValue(config.TestIDValue),
 		WorkspaceGroupID: data.WorkspaceGroupID,
-		Workspaces:       util.Map(util.Deref(workspaces.JSON200), toWorkspaceDataSourceModel),
+		Workspaces:       resultWorkspaces,
 	}
 
 	diags = resp.State.Set(ctx, &result)

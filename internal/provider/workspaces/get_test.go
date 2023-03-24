@@ -15,10 +15,18 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReadsWorkspace(t *testing.T) {
+	mustSize := func(value string) string {
+		result, err := workspaces.ParseSize(value, management.WorkspaceStateACTIVE)
+		require.Nil(t, err)
+
+		return result.String()
+	}
+
 	workspace := management.Workspace{
 		CreatedAt:        "2023-02-28T05:33:06.3003Z",
 		Name:             "foo",
@@ -52,7 +60,7 @@ func TestReadsWorkspace(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "name", workspace.Name),
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "state", string(workspace.State)),
-					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "size", workspace.Size),
+					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "size", mustSize(workspace.Size)),
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "endpoint", *workspace.Endpoint),
 					resource.TestCheckResourceAttr("data.singlestore_workspace.example", "last_resumed_at", *workspace.LastResumedAt),
