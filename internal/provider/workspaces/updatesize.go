@@ -19,7 +19,7 @@ const (
 	fromActiveToActive
 )
 
-var updateSizeScenarios = []struct { //nolint:gochecknoglobals
+var updateSizeScenarios = []struct {
 	scenario        updateSizeScenario
 	matchesScenario func(state, plan workspaceResourceModel) bool
 	updateSize      func(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError)

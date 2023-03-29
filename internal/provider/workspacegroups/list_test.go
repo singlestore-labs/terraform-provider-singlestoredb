@@ -27,7 +27,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 			FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 			Name:            "foo",
 			RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-			State:           management.WorkspaceGroupStateACTIVE,
+			State:           management.ACTIVE,
 			TerminatedAt:    nil,
 			UpdateWindow: &management.UpdateWindow{
 				Day:  3,
@@ -42,7 +42,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 			FirewallRanges:   nil,
 			Name:             "bar",
 			RegionID:         uuid.MustParse("1aa1aff3-5092-4a0c-bf36-da54e85a5fdf"),
-			State:            management.WorkspaceGroupStatePENDING,
+			State:            management.PENDING,
 			TerminatedAt:     nil,
 			UpdateWindow:     nil,
 			WorkspaceGroupID: uuid.MustParse("f1a0a960-8691-4196-bb26-f53f1f8e35ce"),

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,22 +17,13 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	updatedWorkspaceSize = "0.5"                                                                                     //nolint
-	newEndpoint          = util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com") //nolint
-)
+var updatedWorkspaceSize = "0.5"
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
-	mustSize := func(value string) string {
-		result, err := workspaces.ParseSize(value, management.WorkspaceStateACTIVE)
-		require.Nil(t, err)
-
-		return result.String()
-	}
+	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
 
 	regions := []management.Region{
 		{
@@ -41,11 +33,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		},
 	}
 
-	workspaceGroupCreateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
-	}
+	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 
 	workspaceGroup := management.WorkspaceGroup{
 		AllowAllTraffic:  util.Ptr(false),
@@ -54,71 +42,23 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		FirewallRanges:   nil,
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
-		State:            management.WorkspaceGroupStateACTIVE,
+		State:            management.ACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
-		WorkspaceGroupID: workspaceGroupCreateResponse.WorkspaceGroupID,
+		WorkspaceGroupID: workspaceGroupID,
 	}
 
-	workspaceCreateResponse := struct {
-		WorkspaceID uuid.UUID
-	}{
-		WorkspaceID: uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce"),
-	}
-
-	mustDecimalSizeToSFormatSize := func(s string) string {
-		if s == "0.25" {
-			return "S-00"
-		}
-
-		if s == "0.5" {
-			return "S-0"
-		}
-
-		require.False(t, true, "implement conversion from the decimal size %s to the S-format size for the test", s)
-
-		return ""
-	}
+	workspaceID := uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
 
 	workspace := management.Workspace{
 		CreatedAt:        "2023-02-28T05:33:06.3003Z",
 		Name:             config.TestInitialWorkspaceName,
 		State:            management.WorkspaceStateACTIVE,
-		WorkspaceID:      workspaceCreateResponse.WorkspaceID,
+		WorkspaceID:      workspaceID,
 		WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		Size:             mustDecimalSizeToSFormatSize(config.TestInitialWorkspaceSize),
-	}
-
-	workspaceSuspendResponse := struct {
-		WorkspaceID uuid.UUID
-	}{
-		WorkspaceID: workspace.WorkspaceID,
-	}
-
-	workspaceResumeResponse := struct {
-		WorkspaceID uuid.UUID
-	}{
-		WorkspaceID: workspace.WorkspaceID,
-	}
-
-	workspacePatchResponse := struct {
-		WorkspaceID uuid.UUID
-	}{
-		WorkspaceID: workspace.WorkspaceID,
-	}
-
-	workspaceGroupTerminateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
-	}
-
-	workspaceTerminateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: workspace.WorkspaceID,
+		Size:             testutil.MustWorkspaceDecimalSizeToSFormatSize(config.TestInitialWorkspaceSize),
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
@@ -138,7 +78,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.Equal(t, http.MethodPost, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceGroupCreateResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
@@ -147,12 +93,18 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.Equal(t, http.MethodPost, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceCreateResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: workspaceID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
 	workspaceGroupsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -166,7 +118,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 
 	returnNotFound := true
 	workspacesGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v1/workspaces", workspaceCreateResponse.WorkspaceID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v1/workspaces", workspaceID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -192,7 +144,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.Equal(t, http.MethodPost, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceSuspendResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: workspaceID,
+			},
+		))
 		require.NoError(t, err)
 
 		workspace.State = management.WorkspaceStateSUSPENDED
@@ -204,7 +162,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.Equal(t, http.MethodPost, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceResumeResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: workspaceID,
+			},
+		))
 		require.NoError(t, err)
 
 		workspace.State = management.WorkspaceStateACTIVE
@@ -230,29 +194,47 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.NoError(t, err)
 		var input management.WorkspaceUpdate
 		require.NoError(t, json.Unmarshal(body, &input))
-		require.Equal(t, updatedWorkspaceSize, mustSize(util.Deref(input.Size)))
+		require.Equal(t, updatedWorkspaceSize, testutil.MustWorkspaceDecimalSize(util.Deref(input.Size)))
 
 		w.Header().Add("Content-Type", "json")
-		_, err = w.Write(testutil.MustJSON(workspacePatchResponse))
+		_, err = w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: workspaceID,
+			},
+		))
 		require.NoError(t, err)
 		workspace.Size = *input.Size // Finally, the desired size after resume.
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceGroupTerminateResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
 	workspacesDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/workspaces", workspaceCreateResponse.WorkspaceID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaces", workspaceID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceTerminateResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
@@ -299,7 +281,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestore_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace.example", "name", workspace.Name),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", mustSize(workspace.Size)),
+					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
 					resource.TestCheckResourceAttr("singlestore_workspace.example", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("singlestore_workspace.example", "endpoint", *workspace.Endpoint),
 					resource.TestCheckNoResourceAttr("singlestore_workspace.example", "last_resumed_at"),
@@ -327,4 +309,41 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	})
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
+}
+
+func TestWorkspaceResourceIntegration(t *testing.T) {
+	apiKey := os.Getenv(config.EnvTestAPIKey)
+
+	isConnectable := testutil.IsConnectableWithAdminPassword(config.TestInitialAdminPassword)
+
+	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.WorkspacesResource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestore_workspace.example", "name", config.TestInitialWorkspaceName),
+					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttrWith("singlestore_workspace.example", "endpoint", isConnectable),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
+					WithOverride(config.TestInitialWorkspaceSize, config.WorkspaceSizeSuspended).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", config.WorkspaceSizeSuspended),
+					resource.TestCheckNoResourceAttr("singlestore_workspace.example", "endpoint"),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
+					WithOverride(config.TestInitialWorkspaceSize, updatedWorkspaceSize).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttrWith("singlestore_workspace.example", "endpoint", isConnectable),
+				),
+			},
+		},
+	})
 }

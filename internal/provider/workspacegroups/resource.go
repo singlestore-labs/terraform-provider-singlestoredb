@@ -83,14 +83,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "The timestamp of when the workspace was created",
 			},
 			"expires_at": schema.StringAttribute{
-				Optional: true,
-				MarkdownDescription: `The timestamp of when the workspace group will expire. If the expiration time is not specified, the workspace group will have no expiration time. At expiration, the workspace group is terminated and all the data is lost. Expiration time can be specified as a timestamp or duration. For example,
-
-"2021-01-02T15:04:05Z07:00"
-"2021-01-02T15:04:05-0700"
-"2021-01-02T15:04:05"
-"2021-01-02"`,
-				Validators: []validator.String{util.NewTimeValidator()},
+				Optional:            true,
+				MarkdownDescription: `The timestamp of when the workspace group will expire. If the expiration time is not specified, the workspace group will have no expiration time. At expiration, the workspace group is terminated and all the data is lost. Expiration time can be specified as an RFC3339 timestamp in UTC. For example, "2021-01-02T15:04:05Z"`,
+				Validators:          []validator.String{util.NewTimeValidator()},
 			},
 			"region_id": schema.StringAttribute{
 				Required:            true,
@@ -180,15 +175,15 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateTERMINATED {
+	if workspaceGroup.JSON200.State == management.TERMINATED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
+	if workspaceGroup.JSON200.State != management.ACTIVE {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE),
+			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.ACTIVE),
 			"An unexpected workspace group state.\n\n"+
 				"If nothing changes in a few hours, contact SingleStore support.",
 		)
@@ -345,13 +340,13 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 			return retry.RetryableError(err)
 		}
 
-		if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
+		if workspaceGroup.JSON200.State == management.FAILED {
 			err := fmt.Errorf("workspace group %s creation failed", workspaceGroup.JSON200.WorkspaceGroupID)
 
 			return retry.NonRetryableError(err)
 		}
 
-		if workspaceGroup.JSON200.State == management.WorkspaceGroupStateACTIVE {
+		if workspaceGroup.JSON200.State == management.ACTIVE {
 			result = *workspaceGroup.JSON200
 
 			return nil

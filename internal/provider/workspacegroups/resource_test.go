@@ -22,9 +22,9 @@ import (
 )
 
 var (
-	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-") //nolint
-	updatedAdminPassword      = "buzzBAR123$"                                                                //nolint
-	emptyFirewallRanges       = ""                                                                           //nolint
+	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
+	updatedAdminPassword      = "buzzBAR123$"
+	emptyFirewallRanges       = ""
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) {
@@ -35,11 +35,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			Provider: management.AWS,
 		},
 	}
-	workspaceGroupCreateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
-	}
+
+	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+
 	workspaceGroup := management.WorkspaceGroup{
 		AllowAllTraffic:  util.Ptr(false),
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
@@ -47,22 +45,13 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
-		State:            management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
+		State:            management.PENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
-		WorkspaceGroupID: workspaceGroupCreateResponse.WorkspaceGroupID,
+		WorkspaceGroupID: workspaceGroupID,
 	}
-	workspaceGroupTerminateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
-	}
+
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
-	workspaceGroupUpdateResponse := struct {
-		WorkspaceGroupID uuid.UUID
-	}{
-		WorkspaceGroupID: uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507"),
-	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
 		if r.URL.Path != "/v1/regions" || r.Method != http.MethodGet {
@@ -78,7 +67,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 
 	returnNotFound := true
 	workspaceGroupsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -95,7 +84,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(workspaceGroup))
 		require.NoError(t, err)
-		workspaceGroup.State = management.WorkspaceGroupStateACTIVE // Marking the state as ACTIVE to end polling.
+		workspaceGroup.State = management.ACTIVE // Marking the state as ACTIVE to end polling.
 
 		return true
 	}
@@ -115,13 +104,19 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, regions[0].RegionID, input.RegionID)
 
 		w.Header().Add("Content-Type", "json")
-		_, err = w.Write(testutil.MustJSON(workspaceGroupCreateResponse))
+		_, err = w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
 	returnInternalError := true
 	workspaceGroupsPatchHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), r.URL.Path)
 
 		if returnInternalError {
 			w.Header().Add("Content-Type", "json")
@@ -144,7 +139,13 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
 
 		w.Header().Add("Content-Type", "json")
-		_, err = w.Write(testutil.MustJSON(workspaceGroupUpdateResponse))
+		_, err = w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 		workspaceGroup.ExpiresAt = &updatedExpiresAt
 		workspaceGroup.Name = updatedWorkspaceGroupName
@@ -153,11 +154,17 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupCreateResponse.WorkspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(workspaceGroupTerminateResponse))
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
 		require.NoError(t, err)
 	}
 
@@ -198,7 +205,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupCreateResponse.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
@@ -230,7 +237,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupCreateResponse.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", updatedExpiresAt),

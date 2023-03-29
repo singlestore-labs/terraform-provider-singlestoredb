@@ -52,6 +52,7 @@ func (v timeValidator) ValidateString(ctx context.Context, request validator.Str
 //
 //   - Is a string.
 //   - Matches the string format RFC3339.
+//   - Is UTC.
 //
 // Null (unconfigured) and unknown (known after apply) values are skipped.
 func NewTimeValidator() validator.String {
@@ -62,7 +63,11 @@ func NewTimeValidator() validator.String {
 func parseTime(timeString string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339, timeString)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("should be an RFC3339 string, e.g., %q", "2222-01-01T00:00:00Z")
+		return time.Time{}, fmt.Errorf("should be an RFC3339 string in UTC, e.g., %q", "2222-01-01T00:00:00Z")
+	}
+
+	if t.UTC().Format(time.RFC3339) != t.Format(time.RFC3339) {
+		return time.Time{}, fmt.Errorf("should be an RFC3339 string in UTC, e.g., %q", "2222-01-01T00:00:00Z")
 	}
 
 	return t.UTC(), nil

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,9 +11,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
+
+	// Loading the mysql driver to test connecting to SingleStore.
+	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -81,6 +87,83 @@ func MustJSON(s interface{}) []byte {
 	return result
 }
 
+// MustWorkspaceDecimalSizeToSFormatSize converts decimal size to S-format size.
+func MustWorkspaceDecimalSizeToSFormatSize(s string) string {
+	if s == "0.25" {
+		return "S-00"
+	}
+
+	if s == "0.5" {
+		return "S-0"
+	}
+
+	message := fmt.Sprintf("implement conversion from the decimal size %s to the S-format size for the test", s)
+
+	panic(message)
+}
+
+// MustWorkspaceDecimalSize converts workspace size to the decimal format and assumes that the workspace is active.
+func MustWorkspaceDecimalSize(s string) string {
+	result, err := workspaces.ParseSize(s, management.WorkspaceStateACTIVE)
+	if err != nil {
+		panic(err)
+	}
+
+	return result.String()
+}
+
+// IsConnectableWithAdminPassword attempts to connect to the workspace and execute a sample SQL query.
+func IsConnectableWithAdminPassword(adminPassword string) resource.CheckResourceAttrWithFunc {
+	return func(endpoint string) error {
+		defaultParams := map[string]string{
+			"parseTime":         "true",
+			"interpolateParams": "true",
+			"timeout":           "10s",
+			"tls":               "preferred",
+		}
+
+		mergedParams := []string{}
+		for parameName, paramVal := range defaultParams {
+			mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", parameName, paramVal))
+		}
+
+		connParams := strings.Join(mergedParams, "&")
+
+		connString := fmt.Sprintf(
+			"%s:%s@tcp(%s)/?%s",
+			"admin",
+			adminPassword,
+			endpoint,
+			connParams,
+		)
+
+		conn, err := sql.Open("mysql", connString)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		conn.SetConnMaxLifetime(time.Hour)
+		conn.SetMaxIdleConns(config.TestMaxIdleConns)
+		conn.SetMaxOpenConns(config.TestMaxOpenConns)
+
+		if err := conn.Ping(); err != nil {
+			return err
+		}
+
+		var one int
+		if err := conn.QueryRow("SELECT 1").Scan(&one); err != nil {
+			return err
+		}
+
+		if one != 1 {
+			return fmt.Errorf("executing 'SELECT 1' for the endpoint %s failed because the query returned %d while expecting 1", endpoint, one)
+		}
+
+		return nil
+	}
+}
+
 func compile(conf Config, c string) string {
 	for _, kvp := range []struct {
 		key     string
@@ -108,7 +191,7 @@ func compile(conf Config, c string) string {
 }
 
 func withInstantExpiration(c string) string {
-	instantExpiration := time.Now().Add(time.Hour).Format(time.RFC3339)
+	instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
 
 	return strings.ReplaceAll(c, config.TestInitialWorkspaceGroupExpiresAt, instantExpiration)
 }

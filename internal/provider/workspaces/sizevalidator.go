@@ -70,7 +70,7 @@ func ValidateTerraformSize(value string) error {
 
 	_, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		return err //nolint
+		return err
 	}
 
 	if strings.Contains(value, ".") {

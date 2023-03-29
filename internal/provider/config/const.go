@@ -54,4 +54,11 @@ const (
 	TestInitialWorkspaceName = "test-workspace"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "0.25"
+	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.
+	TestMaxIdleConns = 16
+	// TestMaxOpenConns is the maximum number of open connections for a SQL mysql connection for tests.
+	TestMaxOpenConns = 64
+	// TestWorkspaceGroupExpiration is the time after which a workspace group auto-terminates.
+	// This is an extra safeguard to cleanup resources after running integration tests.
+	TestWorkspaceGroupExpiration = 2 * time.Hour
 )
