@@ -1,5 +1,11 @@
 # Developing `terraform-provider-singlestore`
 
+## Prerequisites
+
+1. [go 1.20](https://go.dev/doc/install)
+
+2. [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+
 ## Installation
 
 1. In a terminal clone the `terraform-provider-singlestore` repository
@@ -20,6 +26,10 @@
     ~~~
 
 4. Override the `~/.terraformrc` just as in [here](./.terraformrc) but with the `$HOME` variable replaced
+
+## Examples
+
+Try out any example in [examples](examples), e.g., the [workspace resource example](examples/workspaces/resource)
 
 **Note: `terraform init` is not compatible with `dev_overrides`, run `terraform plan` directly.**
 
