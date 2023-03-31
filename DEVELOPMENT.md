@@ -17,7 +17,7 @@
 2. Navigate to the `terraform-provider-singlestore` directory
 
     ~~~ shell
-    cd terraform-proivder-singlestore
+    cd terraform-provider-singlestore
     ~~~
 
 3. Build and install the binary
