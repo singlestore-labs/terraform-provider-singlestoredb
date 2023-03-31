@@ -34,7 +34,7 @@ jobs:
     - name: Configure Terraform
       run: |
         # This replaces the $HOME variable with the appropriate value.
-        envsubst < .terraformrc > ~/.terraformrc
+        envsubst < .terraformrc_template > ~/.terraformrc
 
     - name: Build
       run: make

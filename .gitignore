@@ -1,3 +1,4 @@
 terraform-provider-singlestore
 *.tfstate
 *.tfstate.backup
+.terraformrc

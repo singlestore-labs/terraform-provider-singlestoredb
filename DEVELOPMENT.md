@@ -6,6 +6,8 @@
 
 2. [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 
+3. [direnv](https://direnv.net/docs/installation)
+
 ## Installation
 
 1. In a terminal clone the `terraform-provider-singlestore` repository
@@ -14,18 +16,17 @@
     git clone https://github.com/singlestore-labs/terraform-provider-singlestore
     ~~~
 
-2. Navigate to the `terraform-provider-singlestore` directory
+2. Navigate to the `terraform-provider-singlestore` directory, and enable direnv.
 
     ~~~ shell
     cd terraform-provider-singlestore
+    direnv allow
     ~~~
 
 3. Build and install the binary
     ~~~ shell
     make install
     ~~~
-
-4. Override the `~/.terraformrc` just as in [here](./.terraformrc) but with the `$HOME` variable replaced
 
 ## Examples
 
