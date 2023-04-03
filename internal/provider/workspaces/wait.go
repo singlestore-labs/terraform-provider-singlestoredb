@@ -82,3 +82,16 @@ func waitConditionSize(desiredSize Size) func(management.Workspace) error {
 		return nil
 	}
 }
+
+func waitConditionTakesAtLeast(d time.Duration) func(management.Workspace) error {
+	begin := time.Now()
+	atLeast := begin.Add(d)
+
+	return func(_ management.Workspace) error {
+		if time.Now().Before(atLeast) {
+			return fmt.Errorf("should wait at least until %s (%s starting from %s)", atLeast.UTC(), d, begin)
+		}
+
+		return nil
+	}
+}

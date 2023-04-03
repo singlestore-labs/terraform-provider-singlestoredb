@@ -78,6 +78,7 @@ var updateSizeScenarios = []struct {
 			workspace, werr = wait(ctx, c, id, config.WorkspaceResumeTimeout,
 				waitConditionState(management.WorkspaceStateACTIVE),
 				waitConditionSize(desiredSize),
+				waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
 			)
 			if werr != nil {
 				return workspaceResourceModel{}, werr
@@ -140,6 +141,7 @@ var updateSizeScenarios = []struct {
 			workspace, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
 				waitConditionState(management.WorkspaceStateACTIVE),
 				waitConditionSize(desiredSize),
+				waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
 			)
 			if werr != nil {
 				return workspaceResourceModel{}, werr

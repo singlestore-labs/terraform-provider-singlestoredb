@@ -27,6 +27,8 @@ const (
 	WorkspaceCreationTimeout = 5 * time.Hour
 	// WorkspaceResumeTimeout limits the workspace resume time.
 	WorkspaceResumeTimeout = 6 * time.Hour
+	// WorkspaceScaleTakesAtLeast ensures the least required time for scaling.
+	WorkspaceScaleTakesAtLeast = 30 * time.Second
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
