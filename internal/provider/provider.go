@@ -117,6 +117,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		management.WithHTTPClient(util.NewHTTPClient()),
 		management.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+			req.Header.Set("User-Agent", util.TerraformProviderUserAgent())
 
 			return nil
 		}),

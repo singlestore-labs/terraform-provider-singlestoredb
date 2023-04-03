@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
 )
 
 type SummaryWithDetailError struct {
@@ -16,6 +17,11 @@ type SummaryWithDetailError struct {
 
 func (swd SummaryWithDetailError) Error() string {
 	return fmt.Sprintf("%s: %s", swd.Summary, swd.Detail)
+}
+
+// TerraformProviderUserAgent identifies the provider as a versioned User Agent.
+func TerraformProviderUserAgent() string {
+	return fmt.Sprintf("terraform-provider-%s/%s", config.ProviderName, config.Version)
 }
 
 // DataSourceTypeName constructs the type name for the data source of the provider.
