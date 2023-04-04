@@ -7,7 +7,7 @@ terraform apply # Create.
 
 # Connect to the workspace and execute 'select 1'.
 
-export endpoint=$(terraform show --json | jq .values.root_module.resources | jq '.[] | select(.address=="singlestore_workspace.example")' | jq -r .values.endpoint)
+export endpoint=$(terraform output -raw example_endpoint)
 
 mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password='fooBAR12$' -e 'select 1'
 

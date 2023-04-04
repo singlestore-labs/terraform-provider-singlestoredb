@@ -27,3 +27,7 @@ resource "singlestore_workspace" "example" {
   workspace_group_id = singlestore_workspace_group.example.id
   size               = "0.25"
 }
+
+output "example_endpoint" {
+  value = singlestore_workspace.example.endpoint
+}
