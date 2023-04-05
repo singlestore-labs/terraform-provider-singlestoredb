@@ -39,7 +39,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 
 	workspaceGroup := management.WorkspaceGroup{
-		AllowAllTraffic:  util.Ptr(false),
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
 		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
@@ -97,7 +96,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		var input management.WorkspaceGroupCreate
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, config.TestInitialAdminPassword, util.Deref(input.AdminPassword))
-		require.Equal(t, false, util.Deref(input.AllowAllTraffic))
+		require.False(t, util.Deref(input.AllowAllTraffic))
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
@@ -133,7 +132,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		var input management.WorkspaceGroupUpdate
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
-		require.True(t, util.Deref(input.AllowAllTraffic))
+		require.False(t, util.Deref(input.AllowAllTraffic))
 		require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
 		require.Empty(t, util.Deref(input.FirewallRanges))
 		require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))

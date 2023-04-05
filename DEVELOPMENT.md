@@ -16,7 +16,7 @@
     git clone https://github.com/singlestore-labs/terraform-provider-singlestore
     ~~~
 
-2. Navigate to the `terraform-provider-singlestore` directory, and enable direnv.
+2. Navigate to the `terraform-provider-singlestore` directory and enable direnv
 
     ~~~ shell
     cd terraform-provider-singlestore

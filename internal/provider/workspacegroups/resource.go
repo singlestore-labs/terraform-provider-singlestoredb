@@ -73,7 +73,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
 				Required:            true,
-				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that all inbound requests are allowed.",
+				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that no inbound requests are allowed. To allow all the traffic, set to [\"0.0.0.0/0\"].",
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -117,12 +117,11 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
-		AdminPassword:   util.MaybeString(plan.AdminPassword),
-		ExpiresAt:       util.MaybeString(plan.ExpiresAt),
-		FirewallRanges:  util.StringFirewallRanges(plan.FirewallRanges),
-		AllowAllTraffic: util.Ptr(len(plan.FirewallRanges) == 0),
-		Name:            plan.Name.ValueString(),
-		RegionID:        uuid.MustParse(plan.RegionID.ValueString()),
+		AdminPassword:  util.MaybeString(plan.AdminPassword),
+		ExpiresAt:      util.MaybeString(plan.ExpiresAt),
+		FirewallRanges: util.StringFirewallRanges(plan.FirewallRanges),
+		Name:           plan.Name.ValueString(),
+		RegionID:       uuid.MustParse(plan.RegionID.ValueString()),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -212,11 +211,10 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	id := uuid.MustParse(plan.ID.ValueString())
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
 		management.WorkspaceGroupUpdate{
-			AdminPassword:   util.MaybeString(plan.AdminPassword),
-			ExpiresAt:       util.MaybeString(plan.ExpiresAt),
-			Name:            util.MaybeString(plan.Name),
-			FirewallRanges:  util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
-			AllowAllTraffic: util.Ptr(len(plan.FirewallRanges) == 0),
+			AdminPassword:  util.MaybeString(plan.AdminPassword),
+			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
+			Name:           util.MaybeString(plan.Name),
+			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
