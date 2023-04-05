@@ -9,4 +9,3 @@ provider_installation {
   # the dev_overrides block, and so no other providers will be available.
   direct {}
 }
-
