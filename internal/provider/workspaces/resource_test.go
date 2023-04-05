@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -278,13 +278,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			{
 				Config: examples.WorkspacesResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "name", workspace.Name),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "created_at", workspace.CreatedAt),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "endpoint", *workspace.Endpoint),
-					resource.TestCheckNoResourceAttr("singlestore_workspace.example", "last_resumed_at"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "name", workspace.Name),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "created_at", workspace.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *workspace.Endpoint),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "last_resumed_at"),
 				),
 			},
 			{
@@ -292,8 +292,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					WithOverride(config.TestInitialWorkspaceSize, config.WorkspaceSizeSuspended).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", config.WorkspaceSizeSuspended),
-					resource.TestCheckNoResourceAttr("singlestore_workspace.example", "endpoint"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.WorkspaceSizeSuspended),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "endpoint"),
 				),
 			},
 			{
@@ -301,8 +301,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					WithOverride(config.TestInitialWorkspaceSize, updatedWorkspaceSize).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", updatedWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "endpoint", *newEndpoint),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *newEndpoint),
 				),
 			},
 		},
@@ -321,9 +321,9 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			{
 				Config: examples.WorkspacesResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "name", config.TestInitialWorkspaceName),
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", config.TestInitialWorkspaceSize),
-					resource.TestCheckResourceAttrWith("singlestore_workspace.example", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "name", config.TestInitialWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.example", "endpoint", isConnectable),
 				),
 			},
 			{
@@ -331,8 +331,8 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithOverride(config.TestInitialWorkspaceSize, config.WorkspaceSizeSuspended).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", config.WorkspaceSizeSuspended),
-					resource.TestCheckNoResourceAttr("singlestore_workspace.example", "endpoint"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.WorkspaceSizeSuspended),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "endpoint"),
 				),
 			},
 			{
@@ -340,8 +340,8 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithOverride(config.TestInitialWorkspaceSize, updatedWorkspaceSize).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace.example", "size", updatedWorkspaceSize),
-					resource.TestCheckResourceAttrWith("singlestore_workspace.example", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.example", "endpoint", isConnectable),
 				),
 			},
 		},

@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 
-	// Loading the mysql driver to test connecting to SingleStore.
+	// Loading the mysql driver to test connecting to SingleStore DB.
 	_ "github.com/go-sql-driver/mysql"
 )
 

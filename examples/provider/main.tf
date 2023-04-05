@@ -1,9 +1,9 @@
 terraform {
   required_providers {
-    singlestore = {
-      source = "registry.terraform.io/singlestoredb/singlestore"
+    singlestoredb = {
+      source = "registry.terraform.io/singlestore-labs/singlestoredb"
     }
   }
 }
 
-provider "singlestore" {}
+provider "singlestoredb" {}

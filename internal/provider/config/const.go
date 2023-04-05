@@ -12,9 +12,9 @@ const (
 	// APIServiceURL is the default URL for the SingleStore Management API service.
 	APIServiceURL = "https://api.singlestore.com"
 	// EnvAPIKey is the environmental variable for fetching the API key.
-	EnvAPIKey = "SINGLESTORE_API_KEY"
+	EnvAPIKey = "SINGLESTOREDB_API_KEY"
 	// ProviderName is the name of the provider.
-	ProviderName = "singlestore"
+	ProviderName = "singlestoredb"
 	// IDAttribute is the idiomatic Terraform ID attribute.
 	IDAttribute = "id"
 	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
@@ -37,7 +37,7 @@ const (
 	// TestReplaceWithAPIServiceURL converts an example tf file into a unit test config.
 	TestReplaceWithAPIServiceURL = "#test_replace_with_api_service_url"
 	// EnvTestAPIKey is the environmental variable for API key for integration tests.
-	EnvTestAPIKey = "TEST_SINGLESTORE_API_KEY"
+	EnvTestAPIKey = "TEST_SINGLESTOREDB_API_KEY"
 	// TestInitialWorkspaceGroupName is the default workspace group name in examples.
 	TestInitialWorkspaceGroupName = "terraform-provider-ci-integration-test-workspace-group"
 	// TestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.

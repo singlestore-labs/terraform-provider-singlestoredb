@@ -3,7 +3,7 @@ package workspaces_test
 import (
 	"testing"
 
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,10 +7,10 @@
 # Consider listing workspace group with the datasource workspace_groups to fetch the ID.
 export WORKSPACE_GROUP_ID=59a0f404-4c23-4541-8fb6-c55f5a23e290
 
-terraform import singlestore_workspace_group.example $WORKSPACE_GROUP_ID
+terraform import singlestoredb_workspace_group.example $WORKSPACE_GROUP_ID
 
 # The command should succeed. Inspect the result, especially the `region_id` field.
-terraform state show singlestore_workspace_group.example
+terraform state show singlestoredb_workspace_group.example
 
 # Manually update `region_id` in `main.tf` to equal to the actual region ID value.
 

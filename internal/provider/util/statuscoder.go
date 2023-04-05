@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 )
 
 type StatusCoder interface {

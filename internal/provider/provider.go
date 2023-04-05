@@ -13,11 +13,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/regions"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspacegroups"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 )
 
 // singlestoreProvider is the provider implementation.

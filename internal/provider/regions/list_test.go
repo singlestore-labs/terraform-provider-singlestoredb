@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,12 +47,12 @@ func TestReadsRegions(t *testing.T) {
 			{
 				Config: examples.Regions,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", config.IDAttribute, config.TestIDValue),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.#", "2"),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), regions[0].RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.0.region", regions[0].Region),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", "regions.0.provider", string(regions[0].Provider)),
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute), regions[1].RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.#", "2"),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region", regions[0].Region),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.provider", string(regions[0].Provider)),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute), regions[1].RegionID.String()),
 				),
 			},
 		},
@@ -88,10 +88,10 @@ func TestReadsRegionsIntegration(t *testing.T) {
 			{
 				Config: examples.Regions,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_regions.all", config.IDAttribute, config.TestIDValue),
-					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute)),
-					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", "regions.0.region"),
-					resource.TestCheckResourceAttrSet("data.singlestore_regions.all", "regions.0.provider"),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute)),
+					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.region"),
+					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.provider"),
 					// Checking that at least 1 element and that element is with the expected fields.
 				),
 			},

@@ -1,4 +1,4 @@
-NAME=singlestore
+NAME=singlestoredb
 BINARY=terraform-provider-${NAME}
 
 default: install

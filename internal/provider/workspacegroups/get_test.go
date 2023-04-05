@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,20 +54,20 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 					WithOverride(config.TestInitialWorkspaceGroupID, workspaceGroup.WorkspaceGroupID.String()).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
-					resource.TestCheckNoResourceAttr("data.singlestore_workspace_group.example", "allow_all_traffic"),
-					resource.TestCheckNoResourceAttr("data.singlestore_workspace_group.example", "expires_at"),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "firewall_ranges.#",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "allow_all_traffic"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "expires_at"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "firewall_ranges.#",
 						strconv.Itoa(len(util.Deref(workspaceGroup.FirewallRanges))),
 					),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "name", workspaceGroup.Name),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "region_id", workspaceGroup.RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "state", string(workspaceGroup.State)),
-					resource.TestCheckNoResourceAttr("data.singlestore_workspace_group.example", "terminated_at"),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "update_window.day",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "name", workspaceGroup.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "region_id", workspaceGroup.RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "state", string(workspaceGroup.State)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "terminated_at"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "update_window.day",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Day)),
 					),
-					resource.TestCheckResourceAttr("data.singlestore_workspace_group.example", "update_window.hour",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "update_window.hour",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Hour)),
 					),
 				),

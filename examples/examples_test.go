@@ -3,7 +3,7 @@ package examples_test
 import (
 	"testing"
 
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/stretchr/testify/require"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
 // waitCondition return nil if it is satisfied.

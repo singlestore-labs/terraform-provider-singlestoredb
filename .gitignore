@@ -1,4 +1,4 @@
-terraform-provider-singlestore
+terraform-provider-singlestoredb
 *.tfstate
 *.tfstate.backup
 .terraformrc

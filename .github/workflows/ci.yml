@@ -47,5 +47,5 @@ jobs:
 
     - name: Run integration tests
       env:
-        TEST_SINGLESTORE_API_KEY: ${{ secrets.TEST_SINGLESTORE_API_KEY }}
+        TEST_SINGLESTOREDB_API_KEY: ${{ secrets.TEST_SINGLESTOREDB_API_KEY }}
       run: make integration

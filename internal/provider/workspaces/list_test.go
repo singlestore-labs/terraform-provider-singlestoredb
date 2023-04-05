@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/workspaces"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,24 +91,24 @@ func TestReadsWorkspaces(t *testing.T) {
 					WithOverride(config.TestInitialWorkspaceGroupID, workspaceGroups[0].WorkspaceGroupID.String()).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", config.IDAttribute, config.TestIDValue),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.#", "2"),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", fmt.Sprintf("workspaces.0.%s", config.IDAttribute), workspaces[0].WorkspaceID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.workspace_group_id", workspaces[0].WorkspaceGroupID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.name", workspaces[0].Name),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.state", string(workspaces[0].State)),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.size", mustSize(workspaces[0])),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.created_at", workspaces[0].CreatedAt),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.endpoint", *workspaces[0].Endpoint),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.0.last_resumed_at", *workspaces[0].LastResumedAt),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", fmt.Sprintf("workspaces.1.%s", config.IDAttribute), workspaces[1].WorkspaceID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.1.workspace_group_id", workspaces[1].WorkspaceGroupID.String()),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.1.name", workspaces[1].Name),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.1.state", string(workspaces[1].State)),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.1.size", mustSize(workspaces[1])),
-					resource.TestCheckResourceAttr("data.singlestore_workspaces.all", "workspaces.1.created_at", workspaces[1].CreatedAt),
-					resource.TestCheckNoResourceAttr("data.singlestore_workspaces.all", "workspaces.1.endpoint"),
-					resource.TestCheckNoResourceAttr("data.singlestore_workspaces.all", "workspaces.1.last_resumed_at"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.#", "2"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", fmt.Sprintf("workspaces.0.%s", config.IDAttribute), workspaces[0].WorkspaceID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.workspace_group_id", workspaces[0].WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.name", workspaces[0].Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.state", string(workspaces[0].State)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.size", mustSize(workspaces[0])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.created_at", workspaces[0].CreatedAt),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.endpoint", *workspaces[0].Endpoint),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.last_resumed_at", *workspaces[0].LastResumedAt),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", fmt.Sprintf("workspaces.1.%s", config.IDAttribute), workspaces[1].WorkspaceID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.workspace_group_id", workspaces[1].WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.name", workspaces[1].Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.state", string(workspaces[1].State)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.size", mustSize(workspaces[1])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.created_at", workspaces[1].CreatedAt),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.endpoint"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.last_resumed_at"),
 				),
 			},
 		},

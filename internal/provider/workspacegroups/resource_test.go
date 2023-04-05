@@ -14,10 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
-	"github.com/singlestore-labs/terraform-provider-singlestore/examples"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/testutil"
-	"github.com/singlestore-labs/terraform-provider-singlestore/internal/provider/util"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -204,12 +204,12 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "region_id", regions[0].RegionID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
 				),
 			},
 			{
@@ -236,12 +236,12 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "expires_at", updatedExpiresAt),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "region_id", regions[0].RegionID.String()),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", updatedExpiresAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
 				),
 			},
 		},
@@ -258,9 +258,9 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("singlestore_workspace_group.example", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
 				),
 			},
 			{
@@ -279,9 +279,9 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					). // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("singlestore_workspace_group.example", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestore_workspace_group.example", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
 				),
 			},
 		},

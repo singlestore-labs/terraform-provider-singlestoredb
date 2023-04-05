@@ -1,19 +1,19 @@
 terraform {
   required_providers {
-    singlestore = {
-      source = "registry.terraform.io/singlestoredb/singlestore"
+    singlestoredb = {
+      source = "registry.terraform.io/singlestore-labs/singlestoredb"
     }
   }
 }
 
-provider "singlestore" {
-  # export SINGLESTORE_API_KEY with a SingleStore Management API key
+provider "singlestoredb" {
+  # export SINGLESTOREDB_API_KEY with a SingleStore Management API key
   #test_replace_with_api_key
   #test_replace_with_api_service_url
 }
 
-data "singlestore_regions" "all" {}
+data "singlestoredb_regions" "all" {}
 
 output "all_regions" {
-  value = data.singlestore_regions.all
+  value = data.singlestoredb_regions.all
 }

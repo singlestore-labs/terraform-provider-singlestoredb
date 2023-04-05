@@ -1,4 +1,4 @@
-# Developing `terraform-provider-singlestore`
+# Developing `terraform-provider-singlestoredb`
 
 ## Prerequisites
 
@@ -10,13 +10,13 @@
 
 ## Installation
 
-1. In a terminal clone the `terraform-provider-singlestore` repository
+1. In a terminal clone the `terraform-provider-singlestoredb` repository
 
     ~~~ shell
-    git clone https://github.com/singlestore-labs/terraform-provider-singlestore
+    git clone https://github.com/singlestore-labs/terraform-provider-singlestoredb
     ~~~
 
-2. Navigate to the `terraform-provider-singlestore` directory and enable direnv
+2. Navigate to the `terraform-provider-singlestoredb` directory and enable direnv
 
     ~~~ shell
     cd terraform-provider-singlestore
