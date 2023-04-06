@@ -73,7 +73,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 			path.Root(config.APIKeyAttribute),
 			"Unknown API key",
 			"The provider cannot create the Management API client as there is an unknown configuration value for the API key. "+
-				fmt.Sprintf("Either target apply the source of the value first, set the value statically in the configuration, or use the %s environment variable.", config.EnvAPIKey),
+				config.InvalidAPIKeyErrorDetail,
 		)
 
 		return
@@ -90,8 +90,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 			path.Root(config.APIKeyAttribute),
 			"Missing SingleStore API key",
 			"The provider cannot create the SingleStore API client as there is a missing or empty value for the SingleStore API key. "+
-				fmt.Sprintf("Set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey)+
-				"If either is already set, ensure the value is not empty.",
+				config.InvalidAPIKeyErrorDetail,
 		)
 
 		return
@@ -101,7 +100,8 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.APIServiceURLAttribute),
 			"Unknown Management API url",
-			"The provider cannot create the Management API client as there is an unknown configuration value for the API server url.",
+			"The provider cannot create the Management API client as there is an unknown configuration value for the API server URL. "+
+				fmt.Sprintf("Not indicate the %s attribute of the provider or set it to %s, which is the default Management API URL.", config.APIServiceURLAttribute, config.APIServiceURL),
 		)
 
 		return
@@ -126,8 +126,9 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		resp.Diagnostics.AddError(
 			"Unable to create SingleStore API client",
 			"An unexpected error occurred when creating the SingleStore API client. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"SingleStore client error: "+err.Error(),
+				config.InvalidAPIKeyErrorDetail+
+				config.CreateProviderIssueIfNotClearErrorDetail+
+				"\n\nSingleStore client error: "+err.Error(),
 		)
 
 		return

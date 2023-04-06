@@ -108,7 +108,7 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 	if workspaceGroup.JSON200.State == management.FAILED {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", workspaceGroup.JSON200.State),
-			"Contact SingleStore support https://www.singlestore.com/support/.",
+			config.ContactSupportErrorDetail,
 		)
 
 		return

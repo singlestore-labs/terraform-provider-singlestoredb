@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	// Version is the version of the provider.
@@ -17,6 +20,8 @@ const (
 	ProviderName = "singlestoredb"
 	// IDAttribute is the idiomatic Terraform ID attribute.
 	IDAttribute = "id"
+	// WorkspaceSizeSuspended is a special size that equals suspension.
+	WorkspaceSizeSuspended = "0"
 	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
@@ -29,6 +34,12 @@ const (
 	WorkspaceResumeTimeout = 6 * time.Hour
 	// WorkspaceScaleTakesAtLeast ensures the least required time for scaling.
 	WorkspaceScaleTakesAtLeast = 30 * time.Second
+	// PortalAPIKeysPageRedirect redirects to the API keys page of the default organization.
+	PortalAPIKeysPageRedirect = "https://portal.singlestore.com/organizations/org-id/api-keys" //nolint:gosec
+	// SupportURL directs to SingleStore support.
+	SupportURL = "https://www.singlestore.com/support/"
+	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
+	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
@@ -52,8 +63,6 @@ const (
 	TestFirewallFirewallRangeAllTraffic = "0.0.0.0/0"
 	// TestInitialWorkspaceID is the workspace ID in the example.
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
-	// WorkspaceSizeSuspended is a special size that equals suspension.
-	WorkspaceSizeSuspended = "0"
 	// TestInitialWorkspaceName is the default workspace name in examples.
 	TestInitialWorkspaceName = "test-workspace"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
@@ -65,4 +74,16 @@ const (
 	// TestWorkspaceGroupExpiration is the time after which a workspace group auto-terminates.
 	// This is an extra safeguard to cleanup resources after running integration tests.
 	TestWorkspaceGroupExpiration = 2 * time.Hour
+)
+
+var (
+	InvalidAPIKeyErrorDetail = fmt.Sprintf("Make sure to create a valid API key in %s and use it as the %s attribute of the provider or as the %s environemental variable.",
+		PortalAPIKeysPageRedirect,
+		APIKeyAttribute,
+		EnvAPIKey,
+	)
+	ContactSupportErrorDetail                = fmt.Sprintf("Contact SingleStore support %s.", SupportURL)
+	ContactSupportLaterErrorDetail           = fmt.Sprintf("If nothing changes in a few hours, contact SingleStore support %s.", SupportURL)
+	CreateProviderIssueErrorDetail           = fmt.Sprintf("Internal errror took place. Please, report the issue %s.", ProviderNewIssueURL)
+	CreateProviderIssueIfNotClearErrorDetail = fmt.Sprintf("If the error is not clear, please report the issue %s.", SupportURL)
 )

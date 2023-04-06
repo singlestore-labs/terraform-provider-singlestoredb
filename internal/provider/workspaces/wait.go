@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
@@ -32,7 +33,7 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 		}
 
 		if workspace.JSON200.State == management.WorkspaceStateFAILED {
-			err := fmt.Errorf("workspace %s failed", workspace.JSON200.WorkspaceID)
+			err := fmt.Errorf("workspace %s failed; %s", workspace.JSON200.WorkspaceID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
@@ -48,7 +49,7 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 		return nil
 	}); err != nil {
 		return result, &util.SummaryWithDetailError{
-			Summary: "Failed to wait for a workspace",
+			Summary: fmt.Sprintf("Failed to wait for a workspace %s creation", id),
 			Detail:  fmt.Sprintf("Workspace is not ready: %s", err.Error()),
 		}
 	}

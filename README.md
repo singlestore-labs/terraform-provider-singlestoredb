@@ -1,4 +1,4 @@
-# Terraform provider for SingleStoreDB Cloud
+# Terraform Provider for SingleStoreDB Cloud
 
 `terraform-provider-singlestoredb` is the Terraform provider for the SingleStoreDB Cloud API.
 

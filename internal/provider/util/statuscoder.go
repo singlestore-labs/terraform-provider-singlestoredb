@@ -21,8 +21,8 @@ func StatusOK(resp StatusCoder, ierr error,
 		return &SummaryWithDetailError{
 			Summary: "SingleStore API client call failed",
 			Detail: "An unexpected error occurred when calling SingleStore API. " +
-				"If the error is not clear, please contact the provider developers.\n\n" +
-				"SingleStore client error: " + ierr.Error(),
+				config.CreateProviderIssueIfNotClearErrorDetail +
+				"\n\nSingleStore client error: " + ierr.Error(),
 		}
 	}
 
@@ -39,8 +39,8 @@ func StatusOK(resp StatusCoder, ierr error,
 		return &SummaryWithDetailError{
 			Summary: fmt.Sprintf("SingleStore API client returned status code %s", http.StatusText(code)),
 			Detail: "An unsuccessful status code occurred when calling SingleStore API. " +
-				fmt.Sprintf("Make sure to set the %s value in the configuration or use the %s environment variable. ", config.APIKeyAttribute, config.EnvAPIKey) +
-				"If the error is not clear, please contact the provider developers.\n\n" +
+				config.InvalidAPIKeyErrorDetail +
+				config.CreateProviderIssueIfNotClearErrorDetail +
 				"SingleStore client response body: " + maybeBody(resp),
 		}
 	}

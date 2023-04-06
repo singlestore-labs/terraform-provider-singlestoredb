@@ -107,7 +107,7 @@ func (d *workspacesDataSourceGet) Read(ctx context.Context, req datasource.ReadR
 	if workspace.JSON200.State == management.WorkspaceStateFAILED {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("Workspace with the specified ID exists, but is at the %s state", workspace.JSON200.State),
-			"Contact SingleStore support https://www.singlestore.com/support/.",
+			config.ContactSupportErrorDetail,
 		)
 
 		return

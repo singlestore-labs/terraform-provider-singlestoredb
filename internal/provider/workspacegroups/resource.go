@@ -184,7 +184,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.ACTIVE),
 			"An unexpected workspace group state.\n\n"+
-				"If nothing changes in a few hours, contact SingleStore support.",
+				config.ContactSupportLaterErrorDetail,
 		)
 
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
@@ -339,7 +339,7 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 		}
 
 		if workspaceGroup.JSON200.State == management.FAILED {
-			err := fmt.Errorf("workspace group %s creation failed", workspaceGroup.JSON200.WorkspaceGroupID)
+			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
@@ -355,7 +355,7 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 		return retry.RetryableError(err)
 	}); err != nil {
 		return management.WorkspaceGroup{}, &util.SummaryWithDetailError{
-			Summary: "Failed to wait for a workspace group creation",
+			Summary: fmt.Sprintf("Failed to wait for a workspace group %s creation", id),
 			Detail:  fmt.Sprintf("Workspace group is not ready: %s", err),
 		}
 	}

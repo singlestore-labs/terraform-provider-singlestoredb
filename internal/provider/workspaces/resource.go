@@ -192,7 +192,7 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("Workspace %s state is %s while it should be %s or %s", state.ID.ValueString(), workspace.JSON200.State, management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED),
 			"An unexpected workspace state.\n\n"+
-				"If nothing changes in a few hours, contact SingleStore support.",
+				config.ContactSupportLaterErrorDetail,
 		)
 
 		return

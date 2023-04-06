@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
@@ -42,7 +43,7 @@ func ParseSize(value string, state management.WorkspaceState) (Size, *util.Summa
 			i, err := strconv.ParseInt(value[2:], 10, 64)
 			if err != nil {
 				return Size{}, &util.SummaryWithDetailError{
-					Summary: "Internal errror took place. Please, contact the provider developers.",
+					Summary: config.CreateProviderIssueErrorDetail,
 					Detail:  err.Error(),
 				}
 			}
@@ -55,7 +56,7 @@ func ParseSize(value string, state management.WorkspaceState) (Size, *util.Summa
 		decimal, err = strconv.ParseFloat(value, 64)
 		if err != nil {
 			return Size{}, &util.SummaryWithDetailError{
-				Summary: "Internal errror took place. Please, contact the provider developers.",
+				Summary: config.CreateProviderIssueErrorDetail,
 				Detail:  err.Error(),
 			}
 		}

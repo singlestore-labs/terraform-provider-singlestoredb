@@ -183,7 +183,7 @@ func updateSize(ctx context.Context, c management.ClientWithResponsesInterface, 
 
 	return workspaceResourceModel{}, &util.SummaryWithDetailError{
 		Summary: fmt.Sprintf("An internal error occurred while resolving the workspace size change from %s to %s.", state.Size.ValueString(), plan.Size.ValueString()),
-		Detail:  "Please, contact the provider developers.",
+		Detail:  config.CreateProviderIssueErrorDetail,
 	}
 }
 
