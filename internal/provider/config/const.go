@@ -20,8 +20,6 @@ const (
 	ProviderName = "singlestoredb"
 	// IDAttribute is the idiomatic Terraform ID attribute.
 	IDAttribute = "id"
-	// WorkspaceSizeSuspended is a special size that equals suspension.
-	WorkspaceSizeSuspended = "0"
 	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
@@ -63,8 +61,8 @@ const (
 	TestFirewallFirewallRangeAllTraffic = "0.0.0.0/0"
 	// TestInitialWorkspaceID is the workspace ID in the example.
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
-	// TestInitialWorkspaceName is the default workspace name in examples.
-	TestInitialWorkspaceName = "test-workspace"
+	// TestWorkspaceName is the default workspace name in examples.
+	TestWorkspaceName = "test-workspace"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "0.25"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.

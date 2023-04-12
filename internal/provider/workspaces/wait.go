@@ -71,7 +71,7 @@ func waitConditionState(states ...management.WorkspaceState) func(management.Wor
 
 func waitConditionSize(desiredSize Size) func(management.Workspace) error {
 	return func(w management.Workspace) error {
-		size, serr := ParseSize(w.Size, w.State)
+		size, serr := ParseSize(w.Size)
 		if serr != nil {
 			return serr
 		}

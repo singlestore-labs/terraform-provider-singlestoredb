@@ -60,7 +60,7 @@ func NewSizeValidator() validator.String {
 }
 
 func ValidateTerraformSize(value string) error {
-	if value == "0" || value == "0.25" || value == "0.5" {
+	if value == "0.25" || value == "0.5" {
 		return nil
 	}
 

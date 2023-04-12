@@ -31,6 +31,7 @@ type workspaceDataSourceModel struct {
 	Name             types.String `tfsdk:"name"`
 	State            types.String `tfsdk:"state"`
 	Size             types.String `tfsdk:"size"`
+	Suspended        types.Bool   `tfsdk:"suspended"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
 	LastResumedAt    types.String `tfsdk:"last_resumed_at"`
@@ -161,6 +162,10 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Size of the workspace (in workspace size notation), such as S-00 or S-1",
 		},
+		"suspended": schema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "State of the workspace, suspended if set to true",
+		},
 		"endpoint": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "Endpoint to connect to the workspace",
@@ -173,7 +178,7 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 }
 
 func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
-	size, perr := ParseSize(workspace.Size, workspace.State)
+	size, perr := ParseSize(workspace.Size)
 	if perr != nil {
 		return workspaceDataSourceModel{}, perr
 	}
@@ -184,6 +189,7 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		Name:             types.StringValue(workspace.Name),
 		State:            util.WorkspaceStateStringValue(workspace.State),
 		Size:             types.StringValue(size.String()),
+		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),

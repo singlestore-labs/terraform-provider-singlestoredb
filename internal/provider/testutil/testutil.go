@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
@@ -104,7 +103,7 @@ func MustWorkspaceDecimalSizeToSFormatSize(s string) string {
 
 // MustWorkspaceDecimalSize converts workspace size to the decimal format and assumes that the workspace is active.
 func MustWorkspaceDecimalSize(s string) string {
-	result, err := workspaces.ParseSize(s, management.WorkspaceStateACTIVE)
+	result, err := workspaces.ParseSize(s)
 	if err != nil {
 		panic(err)
 	}
@@ -162,6 +161,10 @@ func IsConnectableWithAdminPassword(adminPassword string) resource.CheckResource
 
 		return nil
 	}
+}
+
+func resourceTypeName(name string) string {
+	return strings.Join([]string{config.ProviderName, name}, "_")
 }
 
 func compile(conf Config, c string) string {

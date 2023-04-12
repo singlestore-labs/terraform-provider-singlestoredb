@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
@@ -20,14 +19,7 @@ type Size struct {
 // ParseSize parses the response of the Management API.
 //
 // The response of the management API never returns a zero size.
-func ParseSize(value string, state management.WorkspaceState) (Size, *util.SummaryWithDetailError) {
-	if state == management.WorkspaceStateSUSPENDED {
-		return Size{
-			suspended: true,
-			decimal:   0.0,
-		}, nil
-	}
-
+func ParseSize(value string) (Size, *util.SummaryWithDetailError) {
 	decimal := 0.0
 
 	if strings.HasPrefix(value, "S-") {

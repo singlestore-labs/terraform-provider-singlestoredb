@@ -21,7 +21,7 @@ import (
 
 func TestReadsWorkspace(t *testing.T) {
 	mustSize := func(value string) string {
-		result, err := workspaces.ParseSize(value, management.WorkspaceStateACTIVE)
+		result, err := workspaces.ParseSize(value)
 		require.Nil(t, err)
 
 		return result.String()

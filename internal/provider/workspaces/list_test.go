@@ -39,7 +39,7 @@ func TestReadsWorkspaces(t *testing.T) {
 	}
 
 	mustSize := func(ws management.Workspace) string {
-		result, err := workspaces.ParseSize(ws.Size, ws.State)
+		result, err := workspaces.ParseSize(ws.Size)
 		require.Nil(t, err)
 
 		return result.String()
@@ -98,6 +98,7 @@ func TestReadsWorkspaces(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.name", workspaces[0].Name),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.state", string(workspaces[0].State)),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.size", mustSize(workspaces[0])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.suspended", "false"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.created_at", workspaces[0].CreatedAt),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.endpoint", *workspaces[0].Endpoint),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.last_resumed_at", *workspaces[0].LastResumedAt),
@@ -106,6 +107,7 @@ func TestReadsWorkspaces(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.name", workspaces[1].Name),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.state", string(workspaces[1].State)),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.size", mustSize(workspaces[1])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.suspended", "true"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.created_at", workspaces[1].CreatedAt),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.endpoint"),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.last_resumed_at"),

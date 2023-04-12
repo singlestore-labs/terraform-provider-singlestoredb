@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	resourceName = "workspace"
+	ResourceName = "workspace"
 )
 
 var (
@@ -38,6 +39,7 @@ type workspaceResourceModel struct {
 	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
 	Name             types.String `tfsdk:"name"`
 	Size             types.String `tfsdk:"size"`
+	Suspended        types.Bool   `tfsdk:"suspended"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
 }
@@ -49,7 +51,7 @@ func NewResource() resource.Resource {
 
 // Metadata returns the resource type name.
 func (r *workspaceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = util.ResourceTypeName(req, resourceName)
+	resp.TypeName = util.ResourceTypeName(req, ResourceName)
 }
 
 // Schema defines the schema for the resource.
@@ -74,8 +76,14 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"size": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Size of the workspace (in workspace size notation), such as 0 (suspended), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2)",
+				MarkdownDescription: "Size of the workspace (in workspace size notation), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2)",
 				Validators:          []validator.String{NewSizeValidator()},
+			},
+			"suspended": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "State of the workspace, suspended if set to true",
+				Default:             booldefault.StaticBool(false),
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -101,10 +109,11 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	if plan.Size.ValueString() == config.WorkspaceSizeSuspended {
-		resp.Diagnostics.AddError(
+	if plan.Suspended.ValueBool() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("suspended"),
 			"Cannot suspend a workspace during creation",
-			fmt.Sprintf("Invalid workspace size %s during creation, specify at least 0.25 (S-00)", config.WorkspaceSizeSuspended),
+			"Either set value to false or omit the field.",
 		)
 
 		return
@@ -229,7 +238,7 @@ func (r *workspaceResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	var uerr *util.SummaryWithDetailError
-	state, uerr = updateSize(ctx, r.ClientWithResponsesInterface, state, plan)
+	state, uerr = updateSizeOrSuspended(ctx, r.ClientWithResponsesInterface, state, plan)
 	if uerr != nil {
 		resp.Diagnostics.AddError(
 			uerr.Summary,
@@ -308,6 +317,12 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 
 		return
 	}
+
+	if err := isValidSuspendedOrSizeChange(state, plan); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
@@ -316,7 +331,7 @@ func (r *workspaceResource) ImportState(ctx context.Context, req resource.Import
 }
 
 func toWorkspaceResourceModel(workspace management.Workspace) (workspaceResourceModel, *util.SummaryWithDetailError) {
-	size, perr := ParseSize(workspace.Size, workspace.State)
+	size, perr := ParseSize(workspace.Size)
 	if perr != nil {
 		return workspaceResourceModel{}, perr
 	}
@@ -326,7 +341,32 @@ func toWorkspaceResourceModel(workspace management.Workspace) (workspaceResource
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
 		Size:             types.StringValue(size.String()),
+		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 	}, nil
+}
+
+func isValidSuspendedOrSizeChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
+	sizeChanged := !plan.Size.Equal(state.Size)
+	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
+	isSuspended := plan.Suspended.ValueBool()
+
+	// Changing both suspended and size is prohibited.
+	if sizeChanged && suspendedChanged {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update both state and size at the same time",
+			Detail:  "To prevent an inconsistent state either suspend a workspace or scale it.",
+		}
+	}
+
+	// If a workspace is suspended, scaling is prohibited.
+	if isSuspended && sizeChanged {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot scale a suspended workspace",
+			Detail:  "Resume the workspace by setting suspended to false before scaling.",
+		}
+	}
+
+	return nil
 }

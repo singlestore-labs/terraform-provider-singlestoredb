@@ -3,63 +3,61 @@ package workspaces_test
 import (
 	"testing"
 
-	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseSize(t *testing.T) {
-	size, err := workspaces.ParseSize("whatever", management.WorkspaceStateSUSPENDED)
-	require.Nil(t, err)
-	require.Equal(t, "0", size.String())
+	_, err := workspaces.ParseSize("whatever")
+	require.Error(t, err, "zero size is no longer supported")
 
-	size, err = workspaces.ParseSize("S-00", management.WorkspaceStateACTIVE)
+	size, err := workspaces.ParseSize("S-00")
 	require.Nil(t, err)
 	require.Equal(t, "0.25", size.String())
 
-	size, err = workspaces.ParseSize("S-0", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("S-0")
 	require.Nil(t, err)
 	require.Equal(t, "0.5", size.String())
 
-	size, err = workspaces.ParseSize("S-1", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("S-1")
 	require.Nil(t, err)
 	require.Equal(t, "1", size.String())
 
-	size, err = workspaces.ParseSize("S-2", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("S-2")
 	require.Nil(t, err)
 	require.Equal(t, "2", size.String())
 
-	size, err = workspaces.ParseSize("0.25", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("0.25")
 	require.Nil(t, err)
 	require.Equal(t, "0.25", size.String())
 
-	size, err = workspaces.ParseSize("0.5", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("0.5")
 	require.Nil(t, err)
 	require.Equal(t, "0.5", size.String())
 
-	size, err = workspaces.ParseSize("1", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("1")
 	require.Nil(t, err)
 	require.Equal(t, "1", size.String())
 
-	size, err = workspaces.ParseSize("2", management.WorkspaceStateACTIVE)
+	size, err = workspaces.ParseSize("2")
 	require.Nil(t, err)
 	require.Equal(t, "2", size.String())
 }
 
 func TestWorkspaceSizeEq(t *testing.T) {
-	suspended, err := workspaces.ParseSize("", management.WorkspaceStateSUSPENDED)
+	suspended, err := workspaces.ParseSize("")
+	require.Error(t, err)
+
+	s00, err := workspaces.ParseSize("0.25")
 	require.Nil(t, err)
 
-	s00, err := workspaces.ParseSize("0.25", management.WorkspaceStateACTIVE)
+	s0, err := workspaces.ParseSize("0.5")
 	require.Nil(t, err)
 
-	s0, err := workspaces.ParseSize("0.5", management.WorkspaceStateACTIVE)
+	s1, err := workspaces.ParseSize("1")
 	require.Nil(t, err)
 
-	s1, err := workspaces.ParseSize("1", management.WorkspaceStateACTIVE)
-	require.Nil(t, err)
-
-	s2, err := workspaces.ParseSize("2", management.WorkspaceStateACTIVE)
+	s2, err := workspaces.ParseSize("2")
 	require.Nil(t, err)
 
 	require.True(t, suspended.Eq(suspended))
