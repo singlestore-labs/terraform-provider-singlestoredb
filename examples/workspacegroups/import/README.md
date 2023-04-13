@@ -17,4 +17,6 @@ terraform state show singlestoredb_workspace_group.example
 terraform apply # This should propose some updates to the imported resource.
 ~~~
 
+**Note: This Terraform provider is currently unpublished on the Terraform Registry and can only be executed in your local environment.**
+
 **Note: `terraform init` does not work with `dev_overrides` for local development.**
