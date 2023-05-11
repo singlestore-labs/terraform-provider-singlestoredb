@@ -11,3 +11,4 @@ For information on developing `terraform-provider-singlestoredb` see [DEVELOPMEN
 **Note: This Terraform provider is currently unpublished on the Terraform Registry and can only be executed in your local environment.**
 
 **Note: This is a preview release, suitable only for experimental users.**
+FOO
