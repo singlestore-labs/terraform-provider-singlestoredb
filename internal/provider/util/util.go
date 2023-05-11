@@ -115,3 +115,30 @@ func Join[A any](ss []A, separator string) string {
 
 	return strings.Join(result, separator)
 }
+
+// CheckLastN returns true if the last n elements of the array are equal to any of the values.
+// If the array does not have the desired count of elements, it returns false.
+func CheckLastN[T comparable](ts []T, n int, values ...T) bool {
+	if len(ts) < n {
+		return false
+	}
+
+	for i := len(ts) - n; i < len(ts); i++ {
+		if !Any(values, ts[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Any returns true if any element of the array is equal to the value.
+func Any[T comparable](ts []T, value T) bool {
+	for _, t := range ts {
+		if t == value {
+			return true
+		}
+	}
+
+	return false
+}

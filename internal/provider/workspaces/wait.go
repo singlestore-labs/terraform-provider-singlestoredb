@@ -58,14 +58,22 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 }
 
 func waitConditionState(states ...management.WorkspaceState) func(management.Workspace) error {
+	workspaceStateHistory := make([]management.WorkspaceState, 0, config.WorkspaceConsistencyThreshold)
+
 	return func(w management.Workspace) error {
-		for _, s := range states {
-			if w.State == s {
-				return nil
-			}
+		workspaceStateHistory = append(workspaceStateHistory, w.State)
+
+		if !util.Any(states, w.State) {
+			return fmt.Errorf("workspace %s state is %s, but should be %s", w.WorkspaceID, w.State, util.Join(states, ", "))
 		}
 
-		return fmt.Errorf("workspace %s state is %s, but should be %s", w.WorkspaceID, w.State, util.Join(states, ", "))
+		if !util.CheckLastN(workspaceStateHistory, config.WorkspaceConsistencyThreshold, states...) {
+			return fmt.Errorf("workspace %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
+				w.WorkspaceID, w.State, config.WorkspaceConsistencyThreshold,
+			)
+		}
+
+		return nil
 	}
 }
 

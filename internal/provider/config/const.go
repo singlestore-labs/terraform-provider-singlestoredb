@@ -38,6 +38,10 @@ const (
 	SupportURL = "https://www.singlestore.com/support/"
 	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
+	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
+	WorkspaceGroupConsistencyThreshold = 5
+	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
+	WorkspaceConsistencyThreshold = 5
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"

@@ -179,17 +179,6 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspace.JSON200.State == management.WorkspaceStatePENDING {
-		w, werr := wait(ctx, r.ClientWithResponsesInterface, id, config.WorkspaceReadTimeout,
-			// A workspace may be, e.g., PENDING during update windows when all the update activity is prohibited.
-			// Waiting for a bit and erroring only after the timeout.
-			waitConditionState(management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED),
-		)
-		if werr == nil {
-			*workspace.JSON200 = w
-		}
-	}
-
 	if workspace.JSON200.State != management.WorkspaceStateACTIVE &&
 		workspace.JSON200.State != management.WorkspaceStateSUSPENDED {
 		resp.Diagnostics.AddError(

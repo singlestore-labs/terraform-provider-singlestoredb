@@ -73,7 +73,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
 				Required:            true,
-				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that no inbound requests are allowed. To allow all the traffic, set to [\"0.0.0.0/0\"].",
+				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that no inbound requests are allowed. To allow all the traffic, set to [\"0.0.0.0/0\"]. Updates to firewall ranges may incur a brief latency before taking effect.",
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -101,7 +101,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 At least 8 characters
 At least one uppercase character
 At least one lowercase character
-At least one number or special character`,
+At least one number or special character
+
+Updates to the admin password may incur a brief latency before taking effect.`,
 			},
 		},
 	}
@@ -324,6 +326,8 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
 	result := management.WorkspaceGroup{}
 
+	workspaceGroupStateHistory := make([]management.WorkspaceGroupState, 0, config.WorkspaceGroupConsistencyThreshold)
+
 	if err := retry.RetryContext(ctx, config.WorkspaceGroupCreationTimeout, func() *retry.RetryError {
 		workspaceGroup, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
 		if err != nil { // Not status code OK does not get here, not retrying for that reason.
@@ -338,21 +342,31 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 			return retry.RetryableError(err)
 		}
 
+		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
+
 		if workspaceGroup.JSON200.State == management.FAILED {
 			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
 
-		if workspaceGroup.JSON200.State == management.ACTIVE {
-			result = *workspaceGroup.JSON200
+		if workspaceGroup.JSON200.State != management.ACTIVE {
+			err = fmt.Errorf("workspace group %s state is %s", id, workspaceGroup.JSON200.State)
 
-			return nil
+			return retry.RetryableError(err)
 		}
 
-		err = fmt.Errorf("workspace group %s state is %s", id, workspaceGroup.JSON200.State)
+		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.ACTIVE) {
+			err = fmt.Errorf("workspace group %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
+				id, workspaceGroup.JSON200.State, config.WorkspaceGroupConsistencyThreshold,
+			)
 
-		return retry.RetryableError(err)
+			return retry.RetryableError(err)
+		}
+
+		result = *workspaceGroup.JSON200
+
+		return nil
 	}); err != nil {
 		return management.WorkspaceGroup{}, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for a workspace group %s creation", id),
