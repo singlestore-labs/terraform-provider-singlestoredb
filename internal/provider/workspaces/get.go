@@ -178,17 +178,12 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 }
 
 func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
-	size, perr := ParseSize(workspace.Size)
-	if perr != nil {
-		return workspaceDataSourceModel{}, perr
-	}
-
 	return workspaceDataSourceModel{
 		ID:               util.UUIDStringValue(workspace.WorkspaceID),
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
 		State:            util.WorkspaceStateStringValue(workspace.State),
-		Size:             types.StringValue(size.String()),
+		Size:             types.StringValue(workspace.Size),
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),

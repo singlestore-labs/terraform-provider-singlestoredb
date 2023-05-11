@@ -32,15 +32,11 @@ func updateSizeOrSuspended(ctx context.Context, c management.ClientWithResponses
 
 func scale(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
-
-	desiredSize, perr := ParseSize(plan.Size.ValueString())
-	if perr != nil {
-		return workspaceResourceModel{}, perr
-	}
+	desiredSize := plan.Size.ValueString()
 
 	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id,
 		management.WorkspaceUpdate{
-			Size: util.Ptr(desiredSize.String()),
+			Size: util.Ptr(desiredSize),
 		},
 	)
 	if serr := util.StatusOK(workspaceUpdateResponse, err); serr != nil {
@@ -56,12 +52,7 @@ func scale(ctx context.Context, c management.ClientWithResponsesInterface, plan 
 		return workspaceResourceModel{}, werr
 	}
 
-	result, terr := toWorkspaceResourceModel(workspace)
-	if terr != nil {
-		return workspaceResourceModel{}, terr
-	}
-
-	return result, nil
+	return toWorkspaceResourceModel(workspace), nil
 }
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -78,12 +69,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return workspaceResourceModel{}, werr
 	}
 
-	result, terr := toWorkspaceResourceModel(workspace)
-	if terr != nil {
-		return workspaceResourceModel{}, terr
-	}
-
-	return result, nil
+	return toWorkspaceResourceModel(workspace), nil
 }
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -100,10 +86,5 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return workspaceResourceModel{}, werr
 	}
 
-	result, terr := toWorkspaceResourceModel(workspace)
-	if terr != nil {
-		return workspaceResourceModel{}, terr
-	}
-
-	return result, nil
+	return toWorkspaceResourceModel(workspace), nil
 }

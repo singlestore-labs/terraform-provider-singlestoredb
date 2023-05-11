@@ -11,15 +11,15 @@ export endpoint=$(terraform output -raw example_endpoint)
 
 mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password='fooBAR12$' -e 'select 1'
 
-# Manually update size to 0 in `main.tf` to suspend.
+# Manually set suspended in `main.tf` to true.
 
 terraform apply # Suspend.
 
-# Manually update size to 0.25 in `main.tf` to resume.
+# Manually set suspended in `main.tf` to false.
 
 terraform apply # Resume.
 
-# Manually update size to 0.5 in `main.tf` to scale.
+# Manually update size to S-0 in `main.tf` to scale.
 
 terraform apply # Scale.
 

@@ -25,7 +25,7 @@ resource "singlestoredb_workspace_group" "example" {
 resource "singlestoredb_workspace" "example" {
   name               = "test-workspace"
   workspace_group_id = singlestoredb_workspace_group.example.id
-  size               = "0.25"
+  size               = "S-00"
   suspended          = false
 }
 

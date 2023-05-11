@@ -76,7 +76,7 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"size": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Size of the workspace (in workspace size notation), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2)",
+				MarkdownDescription: "Size of the workspace (in workspace size notation), S-00, S-0, S-1, or S-2",
 				Validators:          []validator.String{NewSizeValidator()},
 			},
 			"suspended": schema.BoolAttribute{
@@ -145,13 +145,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	result, terr := toWorkspaceResourceModel(w)
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
-
+	result := toWorkspaceResourceModel(w)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -207,13 +201,7 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	state, terr := toWorkspaceResourceModel(*workspace.JSON200)
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
-
+	state = toWorkspaceResourceModel(*workspace.JSON200)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -330,21 +318,16 @@ func (r *workspaceResource) ImportState(ctx context.Context, req resource.Import
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toWorkspaceResourceModel(workspace management.Workspace) (workspaceResourceModel, *util.SummaryWithDetailError) {
-	size, perr := ParseSize(workspace.Size)
-	if perr != nil {
-		return workspaceResourceModel{}, perr
-	}
-
+func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceModel {
 	return workspaceResourceModel{
 		ID:               util.UUIDStringValue(workspace.WorkspaceID),
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
-		Size:             types.StringValue(size.String()),
+		Size:             types.StringValue(workspace.Size),
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-	}, nil
+	}
 }
 
 func isValidSuspendedOrSizeChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {

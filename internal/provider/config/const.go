@@ -64,7 +64,7 @@ const (
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "test-workspace"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
-	TestInitialWorkspaceSize = "0.25"
+	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.
 	TestMaxIdleConns = 16
 	// TestMaxOpenConns is the maximum number of open connections for a SQL mysql connection for tests.

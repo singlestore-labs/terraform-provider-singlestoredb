@@ -15,7 +15,6 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
-	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,13 +35,6 @@ func TestReadsWorkspaces(t *testing.T) {
 			},
 			WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
 		},
-	}
-
-	mustSize := func(ws management.Workspace) string {
-		result, err := workspaces.ParseSize(ws.Size)
-		require.Nil(t, err)
-
-		return result.String()
 	}
 
 	workspaces := []management.Workspace{
@@ -97,7 +89,7 @@ func TestReadsWorkspaces(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.workspace_group_id", workspaces[0].WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.name", workspaces[0].Name),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.state", string(workspaces[0].State)),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.size", mustSize(workspaces[0])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.size", workspaces[0].Size),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.suspended", "false"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.created_at", workspaces[0].CreatedAt),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.0.endpoint", *workspaces[0].Endpoint),
@@ -106,7 +98,7 @@ func TestReadsWorkspaces(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.workspace_group_id", workspaces[1].WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.name", workspaces[1].Name),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.state", string(workspaces[1].State)),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.size", mustSize(workspaces[1])),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.size", workspaces[1].Size),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.suspended", "true"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.created_at", workspaces[1].CreatedAt),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspaces.all", "workspaces.1.endpoint"),

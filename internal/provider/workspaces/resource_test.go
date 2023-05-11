@@ -21,7 +21,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-var updatedWorkspaceSize = "0.5"
+var updatedWorkspaceSize = "S-0"
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
@@ -59,7 +59,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		Size:             testutil.MustWorkspaceDecimalSizeToSFormatSize(config.TestInitialWorkspaceSize),
+		Size:             config.TestInitialWorkspaceSize,
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
@@ -194,7 +194,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.NoError(t, err)
 		var input management.WorkspaceUpdate
 		require.NoError(t, json.Unmarshal(body, &input))
-		require.Equal(t, updatedWorkspaceSize, testutil.MustWorkspaceDecimalSize(util.Deref(input.Size)))
+		require.Equal(t, updatedWorkspaceSize, util.Deref(input.Size))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -281,7 +281,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "name", workspace.Name),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *workspace.Endpoint),
@@ -293,7 +293,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					WithWorkspace("example")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "true"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "endpoint"),
 				),
@@ -303,7 +303,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					WithWorkspace("example")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", testutil.MustWorkspaceDecimalSize(workspace.Size)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *newEndpoint),
 				),

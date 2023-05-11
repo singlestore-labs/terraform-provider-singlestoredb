@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/stretchr/testify/require"
 
 	// Loading the mysql driver to test connecting to SingleStore DB.
@@ -84,31 +83,6 @@ func MustJSON(s interface{}) []byte {
 	}
 
 	return result
-}
-
-// MustWorkspaceDecimalSizeToSFormatSize converts decimal size to S-format size.
-func MustWorkspaceDecimalSizeToSFormatSize(s string) string {
-	if s == "0.25" {
-		return "S-00"
-	}
-
-	if s == "0.5" {
-		return "S-0"
-	}
-
-	message := fmt.Sprintf("implement conversion from the decimal size %s to the S-format size for the test", s)
-
-	panic(message)
-}
-
-// MustWorkspaceDecimalSize converts workspace size to the decimal format and assumes that the workspace is active.
-func MustWorkspaceDecimalSize(s string) string {
-	result, err := workspaces.ParseSize(s)
-	if err != nil {
-		panic(err)
-	}
-
-	return result.String()
 }
 
 // IsConnectableWithAdminPassword attempts to connect to the workspace and execute a sample SQL query.

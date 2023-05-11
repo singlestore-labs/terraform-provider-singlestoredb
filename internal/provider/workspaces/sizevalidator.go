@@ -2,13 +2,20 @@ package workspaces
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
+
+// SizeError is the error that indicates an invalid workspace size format.
+type SizeError string
+
+func (err SizeError) Error() string {
+	return fmt.Sprintf("expecting size of the workspace (in workspace size notation), such as S-00, S-0, S-1, or S-2; got %q", string(err))
+}
 
 var _ validator.String = sizeValidator{}
 
@@ -23,7 +30,7 @@ func (v sizeValidator) Description(_ context.Context) string {
 		return v.message
 	}
 
-	return "value must be a valid workspace size such as 0 (suspended), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2)"
+	return "value must be a valid workspace size such as S-00, S-0, S-1, or S-2"
 }
 
 // MarkdownDescription describes the validation in Markdown formatting.
@@ -60,21 +67,18 @@ func NewSizeValidator() validator.String {
 }
 
 func ValidateTerraformSize(value string) error {
-	if value == "0.25" || value == "0.5" {
-		return nil
+	prefix := "S-"
+	if !strings.HasPrefix(value, prefix) {
+		return SizeError(value)
 	}
 
-	if strings.HasPrefix(value, "S-") {
-		return errors.New("workspace size should be of the strict decimal form, such as 0 (suspended), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2) without the dot for 0 (suspended) or sizes bigger then 0.5")
+	if len(value) < len(prefix)+1 {
+		return SizeError(value)
 	}
 
-	_, err := strconv.ParseFloat(value, 64)
+	_, err := strconv.ParseInt(value[2:], 10, 64)
 	if err != nil {
-		return err
-	}
-
-	if strings.Contains(value, ".") {
-		return errors.New("workspace size should be of the strict decimal form, such as 0 (suspended), 0.25 (S-00), 0.5 (S-0), 1 (S-1) or 2 (S-2) without the dot for 0 (suspended) or sizes bigger then 0.5")
+		return SizeError(value)
 	}
 
 	return nil
