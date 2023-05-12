@@ -23,7 +23,38 @@ export SINGLESTOREDB_API_KEY="paste your generated SingleStoreDB API key here"
 
 The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
 
-[Example](examples/resources/singlestoredb_workspace/resource.tf ':include type=code')
+```hcl
+provider "singlestoredb" {
+  // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
+  // Please set this environment variable with your SingleStore Management API key.
+  // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
+}
+
+data "singlestoredb_regions" "all" {}
+
+resource "singlestoredb_workspace_group" "example" {
+  name            = "group"
+  firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
+  expires_at      = "2222-01-01T00:00:00Z"
+  region_id       = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
+}
+
+resource "singlestoredb_workspace" "this" {
+  name               = "workspace"
+  workspace_group_id = singlestoredb_workspace_group.example.id
+  size               = "S-00"
+  suspended          = false
+}
+
+output "endpoint" {
+  value = singlestoredb_workspace.this.endpoint
+}
+
+output "admin_password" {
+  value     = singlestoredb_workspace_group.example.admin_password
+  sensitive = true
+}
+```
 
 To try this example, follow these steps:
 
@@ -46,6 +77,10 @@ To try this example, follow these steps:
     ```shell
     terraform destroy
     ```
+
+## Documentation
+
+For more detailed information about `terraform-provider-singlestoredb`, including advanced usage and configuration options, check out our [official documentation](./docs/index.md).
 
 ## Contributing
 

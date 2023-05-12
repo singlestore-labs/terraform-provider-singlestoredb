@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Capture the content of resource.tf and README.md.
+readme_path="README.md"
+resource_path="examples/resources/singlestoredb_workspace/resource.tf"
+resource_content=$(cat $resource_path)
+readme_content=$(cat $readme_path)
+
+# Check if the README contains the content of resource.tf.
+if [[ "$readme_content" == *"$resource_content"* ]]; then
+  echo "Check passed: $readme_path includes the content of $resource_path"
+  exit 0
+else
+  echo "Check failed: $readme_path does not include the updated content of $resource_path. Please update $readme_path accordingly."
+  exit 1
+fi

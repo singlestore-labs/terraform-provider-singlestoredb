@@ -36,3 +36,4 @@ gencheck:
 	git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'make generate' command and commit."; exit 1)
 	tfplugindocs validate
+	./.validate_readme
