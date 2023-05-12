@@ -46,6 +46,7 @@ func (d *workspaceGroupsDataSourceList) Metadata(_ context.Context, req datasour
 // Schema defines the schema for the data source.
 func (d *workspaceGroupsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "This data source provides a list of workspace groups that the user has access to.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,

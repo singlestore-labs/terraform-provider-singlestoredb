@@ -203,31 +203,31 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("example")("name", cty.StringVal(updatedWorkspaceGroupName)).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(updatedAdminPassword)).
-					WithWorkspaceGroupResource("example")("expires_at", cty.StringVal(updatedExpiresAt)).
-					WithWorkspaceGroupResource("example")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
+					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
+					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "created_at", workspaceGroup.CreatedAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", updatedExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "0"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 				),
 			},
 		},
@@ -239,30 +239,30 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
-		WorkspaceGroupName: "example",
+		WorkspaceGroupName: "this",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("example")("name", cty.StringVal(updatedWorkspaceGroupName)).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(updatedAdminPassword)).
-					WithWorkspaceGroupResource("example")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
+					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					String(), // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "0"),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 				),
 			},
 		},

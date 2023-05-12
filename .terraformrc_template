@@ -1,7 +1,7 @@
 provider_installation {
 
   dev_overrides {
-		  "registry.terraform.io/singlestore-labs/singlestoredb" = "$HOME/go/bin"
+		  "singlestoredb" = "$HOME/go/bin"
   }
 
   # For all other providers, install them directly from their origin provider

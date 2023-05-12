@@ -58,6 +58,7 @@ func (d *workspaceGroupsDataSourceGet) Metadata(_ context.Context, req datasourc
 // Schema defines the schema for the data source.
 func (d *workspaceGroupsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieve a specific workspace group using its ID with this data source.",
 		Attributes: newWorkspaceGroupDataSourceSchemaAttributes(workspaceGroupDataSourceSchemaConfig{
 			requireWorkspaceGroupID:    true,
 			workspaceGroupIDValidators: []validator.String{util.NewUUIDValidator()},
@@ -134,49 +135,49 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		config.IDAttribute: schema.StringAttribute{
 			Computed:            conf.computeWorkspaceGroupID,
 			Required:            conf.requireWorkspaceGroupID,
-			MarkdownDescription: "ID of the workspace group",
+			MarkdownDescription: "The unique identifier of the workspace group.",
 			Validators:          conf.workspaceGroupIDValidators,
 		},
 		"name": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Name of the workspace group",
+			MarkdownDescription: "The name of the workspace group.",
 		},
 		"state": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "State of the workspace group",
+			MarkdownDescription: "The state of the workspace group.",
 		},
 		"firewall_ranges": schema.ListAttribute{
 			Computed:            true,
 			ElementType:         types.StringType,
-			MarkdownDescription: "The list of allowed inbound IP addresses",
+			MarkdownDescription: "A list of the allowed inbound IP address ranges.",
 		},
 		"allow_all_traffic": schema.BoolAttribute{
 			Computed:            true,
-			MarkdownDescription: "Whether or not all traffic is allowed to the workspace group",
+			MarkdownDescription: "Indicates whether all traffic is allowed to reach the workspace group.",
 		},
 		"created_at": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The timestamp of when the workspace was created",
+			MarkdownDescription: "The timestamp when the workspace group was created.",
 		},
 		"expires_at": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The timestamp of when the workspace group will expire. At expiration, the workspace group is terminated and all the data is lost.",
+			MarkdownDescription: "The timestamp when the workspace group will expire. Upon expiration, the workspace group is terminated and all its data is lost.",
 		},
 		"region_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "ID of the region",
+			MarkdownDescription: "The unique identifier of the region where the workspace group is located.",
 		},
 		"update_window": schema.SingleNestedAttribute{
 			Computed:            true,
-			MarkdownDescription: "Represents information related to an update window",
+			MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
 			Attributes: map[string]schema.Attribute{
 				"hour": schema.Int64Attribute{
 					Computed:            true,
-					MarkdownDescription: "Hour of day - 0 to 23 (UTC)",
+					MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
 				},
 				"day": schema.Int64Attribute{
 					Computed:            true,
-					MarkdownDescription: "Day of week (0-6), starting on Sunday",
+					MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
 				},
 			},
 		},

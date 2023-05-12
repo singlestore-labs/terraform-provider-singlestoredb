@@ -46,13 +46,17 @@ func (p *singlestoreProvider) Metadata(_ context.Context, _ provider.MetadataReq
 // Schema defines the provider-level schema for configuration data.
 func (p *singlestoreProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB workspace groups and workspaces.",
 		Attributes: map[string]schema.Attribute{
 			config.APIKeyAttribute: schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				MarkdownDescription: fmt.Sprintf("The SingleStore Management API key. This key is used for authentication. If this key is not set, the value from the environment variable %s will be used. You can generate this key from the SingleStore Portal at %s.", config.EnvAPIKey, config.PortalAPIKeysPageRedirect),
+				Optional:            true,
+				Sensitive:           true,
 			},
 			config.APIServiceURLAttribute: schema.StringAttribute{
-				Optional: true,
+				MarkdownDescription: "The URL of the SingleStore Management API service. This URL is used by the provider to interact with the API.",
+				Optional:            true,
+				DeprecationMessage:  "The use of the API service URL is now optional and is intended for testing purposes only.",
 			},
 		},
 	}

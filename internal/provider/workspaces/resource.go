@@ -57,32 +57,33 @@ func (r *workspaceResource) Metadata(_ context.Context, req resource.MetadataReq
 // Schema defines the schema for the resource.
 func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "This resource enables the management of SingleStoreDB workspaces.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
-				MarkdownDescription: "ID of the workspace",
+				MarkdownDescription: "The unique identifier of the workspace.",
 			},
 			"workspace_group_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "ID of the workspace group",
+				MarkdownDescription: "The unique identifier of the workspace group that the workspace belongs to.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the workspace",
+				MarkdownDescription: "The name assigned to the workspace.",
 			},
 			"size": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Size of the workspace (in workspace size notation), S-00, S-0, S-1, or S-2",
+				MarkdownDescription: "The size of the workspace, specified in workspace size notation (S-00, S-0, S-1, S-2).",
 				Validators:          []validator.String{NewSizeValidator()},
 			},
 			"suspended": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "State of the workspace, suspended if set to true",
+				MarkdownDescription: "The status of the workspace. If true, the workspace is suspended.",
 				Default:             booldefault.StaticBool(false),
 			},
 			"created_at": schema.StringAttribute{
@@ -90,11 +91,11 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
-				MarkdownDescription: "The timestamp of when the workspace was created",
+				MarkdownDescription: "The timestamp when the workspace was created.",
 			},
 			"endpoint": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Endpoint to connect to the workspace",
+				MarkdownDescription: "The endpoint used to connect to the workspace.",
 			},
 		},
 	}

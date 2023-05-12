@@ -278,45 +278,45 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			{
 				Config: examples.WorkspacesResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "name", workspace.Name),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "created_at", workspace.CreatedAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *workspace.Endpoint),
-					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "last_resumed_at"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", config.IDAttribute, workspace.WorkspaceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "workspace_group_id", workspace.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", workspace.Name),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", workspace.Size),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "created_at", workspace.CreatedAt),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(true)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "true"),
-					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "endpoint"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", workspace.Size),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "true"),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "endpoint"),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *newEndpoint),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", workspace.Size),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
-					WithWorkspaceResource("example")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", updatedWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "endpoint", *newEndpoint),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
 		},
@@ -326,7 +326,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 }
 
 func TestWorkspaceResourceIntegration(t *testing.T) {
-	isConnectable := testutil.IsConnectableWithAdminPassword(config.TestInitialAdminPassword)
+	adminPassword := "fooBar1$"
+	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
 
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
@@ -334,43 +335,48 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspacesResource,
+				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "name", config.TestWorkspaceName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.example", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(true)).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "true"),
-					resource.TestCheckNoResourceAttr("singlestoredb_workspace.example", "endpoint"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "true"),
+					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "endpoint"),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.example", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
-					WithWorkspaceResource("example")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", updatedWorkspaceSize),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.example", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),
 			},
 		},

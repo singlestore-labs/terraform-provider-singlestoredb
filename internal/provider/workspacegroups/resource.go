@@ -58,52 +58,46 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the schema for the resource.
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manage SingleStoreDB workspace groups with this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
-				MarkdownDescription: "ID of the workspace group",
+				MarkdownDescription: "The unique identifier of the workspace group.",
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the workspace group",
+				MarkdownDescription: "Name of the workspace group.",
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
 				Required:            true,
-				MarkdownDescription: "A list of allowed CIDR ranges. An empty list indicates that no inbound requests are allowed. To allow all the traffic, set to [\"0.0.0.0/0\"]. Updates to firewall ranges may incur a brief latency before taking effect.",
+				MarkdownDescription: "List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use [\"0.0.0.0/0\"]. Note that updates to firewall ranges may take a brief moment to become effective.",
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
-				MarkdownDescription: "The timestamp of when the workspace was created",
+				MarkdownDescription: "The timestamp when the workspace was created.",
 			},
 			"expires_at": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: `The timestamp of when the workspace group will expire. If the expiration time is not specified, the workspace group will have no expiration time. At expiration, the workspace group is terminated and all the data is lost. Expiration time can be specified as an RFC3339 timestamp in UTC. For example, "2021-01-02T15:04:05Z"`,
+				MarkdownDescription: `The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".`,
 				Validators:          []validator.String{util.NewTimeValidator()},
 			},
 			"region_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "ID of the region where the new workspace group is created",
+				MarkdownDescription: "The unique identifier of the region where the workspace group is to be created.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"admin_password": schema.StringAttribute{
-				Optional:  true,
-				Computed:  true,
-				Sensitive: true,
-				MarkdownDescription: `The admin password for the workspace group. The password must contain:
-
-At least 8 characters
-At least one uppercase character
-At least one lowercase character
-At least one number or special character
-
-Updates to the admin password may incur a brief latency before taking effect.`,
+				Optional:            true,
+				Computed:            true,
+				Sensitive:           true,
+				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
 			},
 		},
 	}

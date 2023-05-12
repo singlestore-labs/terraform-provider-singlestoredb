@@ -28,16 +28,22 @@ jobs:
     - name: Install make
       run: sudo apt-get install make -y
 
-    - name: Install tools
-      run: make tools
-
     - name: Configure Terraform
       run: |
         # This replaces the $HOME variable with the appropriate value.
         envsubst < .terraformrc_template > ~/.terraformrc
 
+    - name: Install tools
+      run: make tools
+
     - name: Build
       run: make
+
+    - name: Generate
+      run: make generate
+
+    - name: Run gencheck
+      run: make gencheck
 
     - name: Run lint
       run: make lint

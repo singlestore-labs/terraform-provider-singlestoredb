@@ -21,8 +21,18 @@ integration: install nocache # Integration tests depend on the binary.
 nocache:
 	go clean -testcache
 
+generate: tools
+	terraform fmt -recursive ./examples/
+	tfplugindocs
+
 tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.14.1
 
 lint: tools
 	golangci-lint run ./...
+
+gencheck:
+	git diff --compact-summary --exit-code || \
+            (echo; echo "Unexpected difference in directories after code generation. Run 'make generate' command and commit."; exit 1)
+	tfplugindocs validate

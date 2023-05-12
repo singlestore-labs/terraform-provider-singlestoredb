@@ -48,6 +48,7 @@ func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.Metad
 // Schema defines the schema for the data source.
 func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
@@ -58,15 +59,15 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 					Attributes: map[string]schema.Attribute{
 						config.IDAttribute: schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "ID of the region",
+							MarkdownDescription: "The unique identifier for the region.",
 						},
 						"provider": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "Name of the provider",
+							MarkdownDescription: "The name of the cloud provider hosting the region.",
 						},
 						"region": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "Name of the region",
+							MarkdownDescription: "The name of the region.",
 						},
 					},
 				},

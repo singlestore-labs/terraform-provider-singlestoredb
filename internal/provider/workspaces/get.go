@@ -58,6 +58,7 @@ func (d *workspacesDataSourceGet) Metadata(_ context.Context, req datasource.Met
 // Schema defines the schema for the data source.
 func (d *workspacesDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Retrieve a specific workspace using its ID with this data source.",
 		Attributes: newWorkspaceDataSourceSchemaAttributes(workspaceDataSourceSchemaConfig{
 			requireWorkspaceID:    true,
 			workspaceIDValidators: []validator.String{util.NewUUIDValidator()},
@@ -139,40 +140,40 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 		config.IDAttribute: schema.StringAttribute{
 			Computed:            conf.computeWorkspaceID,
 			Required:            conf.requireWorkspaceID,
-			MarkdownDescription: "ID of the workspace",
+			MarkdownDescription: "The unique identifier of the workspace.",
 			Validators:          conf.workspaceIDValidators,
 		},
 		"workspace_group_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "ID of the workspace group",
+			MarkdownDescription: "The unique identifier of the workspace group that the workspace belongs to. This relationship is established when the workspace is created.",
 		},
 		"name": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Name of the workspace",
+			MarkdownDescription: "The name of the workspace.",
 		},
 		"state": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "State of the workspace",
+			MarkdownDescription: "The current state of the workspace.",
 		},
 		"created_at": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The timestamp of when the workspace was created",
+			MarkdownDescription: "The timestamp indicating when the workspace was initially created.",
 		},
 		"size": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Size of the workspace (in workspace size notation), such as S-00 or S-1",
+			MarkdownDescription: "The size of the workspace, represented in workspace size notation, such as 'S-00' or 'S-1'.",
 		},
 		"suspended": schema.BoolAttribute{
 			Computed:            true,
-			MarkdownDescription: "State of the workspace, suspended if set to true",
+			MarkdownDescription: "A boolean value indicating whether the workspace is currently suspended. If true, the workspace is suspended; if false, the workspace is active.",
 		},
 		"endpoint": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Endpoint to connect to the workspace",
+			MarkdownDescription: "The endpoint to connect to the workspace.",
 		},
 		"last_resumed_at": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "(If included in the output) The timestamp of when the workspace was last resumed",
+			MarkdownDescription: "The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.",
 		},
 	}
 }

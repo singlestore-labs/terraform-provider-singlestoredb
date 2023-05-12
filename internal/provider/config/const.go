@@ -50,19 +50,19 @@ const (
 	// EnvTestAPIKey is the environmental variable for API key for integration tests.
 	EnvTestAPIKey = "TEST_SINGLESTOREDB_API_KEY"
 	// TestInitialWorkspaceGroupName is the default workspace group name in examples.
-	TestInitialWorkspaceGroupName = "terraform-provider-ci-integration-test-workspace-group"
+	TestInitialWorkspaceGroupName = "group"
 	// TestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.
 	TestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
 	// TestInitialAdminPassword is the initial workspace admin password in examples.
 	TestInitialAdminPassword = "fooBAR12$"
 	// TestInitialFirewallRange is the firewall range in the example.
-	TestInitialFirewallRange = "192.168.0.1/32"
+	TestInitialFirewallRange = "0.0.0.0/0"
 	// TestFirewallRangeAllTraffic is the firewall range in the example for allowing all traffic.
 	TestFirewallFirewallRangeAllTraffic = "0.0.0.0/0"
 	// TestInitialWorkspaceID is the workspace ID in the example.
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
 	// TestWorkspaceName is the default workspace name in examples.
-	TestWorkspaceName = "test-workspace"
+	TestWorkspaceName = "workspace"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.

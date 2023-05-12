@@ -1,40 +1,44 @@
 # Developing `terraform-provider-singlestoredb`
 
+This document provides information on how to develop `terraform-provider-singlestoredb`.
+
 ## Prerequisites
 
-1. [go 1.20](https://go.dev/doc/install)
+1. [Go 1.20](https://go.dev/doc/install) or later
 
-2. [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+2. [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) 0.12 or later
 
 3. [direnv](https://direnv.net/docs/installation)
 
 ## Installation
 
-1. In a terminal clone the `terraform-provider-singlestoredb` repository
+1. In a terminal, clone the `terraform-provider-singlestoredb` repository.
 
-    ~~~ shell
+    ```shell
     git clone https://github.com/singlestore-labs/terraform-provider-singlestoredb
-    ~~~
+    ```
 
-2. Navigate to the `terraform-provider-singlestoredb` directory and enable direnv
+2. Navigate to the `terraform-provider-singlestoredb` directory and enable direnv.
 
-    ~~~ shell
-    cd terraform-provider-singlestore
+    ```shell
+    cd terraform-provider-singlestoredb
     direnv allow
     ~~~
+    ```
 
-3. Build and install the binary
-    ~~~ shell
+3. Build and install the binary.
+    ```shell
     make install
-    ~~~
+    ```
 
 ## Examples
 
-Try out any example in [examples](examples), e.g., the [workspace resource example](examples/workspaces/resource)
+Try out any example in the [examples](examples) directory!
 
-**Note: `terraform init` is not compatible with `dev_overrides`, run `terraform plan` directly.**
+Please note that `terraform init` is not compatible with `dev_overrides`, so run `terraform plan` directly.
 
 ## Reference
 
-- [configuring terraform](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider#locally-install-provider-and-verify-with-terraform)
-- [terraform init with dev overrides](https://github.com/hashicorp/terraform/issues/27459)
+- [Configuring Terraform](https://learn.hashicorp.com/tutorials/terraform/providers-plugin-framework/providers-plugin-framework-provider#locally-install-provider-and-verify-with-terraform)
+
+- [Terraform Init with Dev Overrides](https://github.com/hashicorp/terraform/issues/27459)

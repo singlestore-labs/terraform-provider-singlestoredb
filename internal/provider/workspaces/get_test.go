@@ -46,17 +46,17 @@ func TestReadsWorkspace(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesGetDataSource).
-					WithWorkspaceGetDataSource("example")(config.IDAttribute, cty.StringVal(workspace.WorkspaceID.String())).
+					WithWorkspaceGetDataSource("this")(config.IDAttribute, cty.StringVal(workspace.WorkspaceID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", config.IDAttribute, workspace.WorkspaceID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "workspace_group_id", workspace.WorkspaceGroupID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "name", workspace.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "state", string(workspace.State)),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "size", workspace.Size),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "created_at", workspace.CreatedAt),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "endpoint", *workspace.Endpoint),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace.example", "last_resumed_at", *workspace.LastResumedAt),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", config.IDAttribute, workspace.WorkspaceID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "workspace_group_id", workspace.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "name", workspace.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "state", string(workspace.State)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "size", workspace.Size),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "created_at", workspace.CreatedAt),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "last_resumed_at", *workspace.LastResumedAt),
 				),
 			},
 		},
@@ -76,7 +76,7 @@ func TestWorkspaceNotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesGetDataSource).
-					WithWorkspaceGetDataSource("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
 			},
@@ -98,7 +98,7 @@ func TestInvalidInputUUID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesGetDataSource).
-					WithWorkspaceGetDataSource("example")(config.IDAttribute, cty.StringVal("invalid-uuid")).
+					WithWorkspaceGetDataSource("this")(config.IDAttribute, cty.StringVal("invalid-uuid")).
 					String(),
 				ExpectError: regexp.MustCompile("invalid UUID"),
 			},
@@ -113,7 +113,7 @@ func TestGetWorkspaceNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesGetDataSource).
-					WithWorkspaceGetDataSource("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},

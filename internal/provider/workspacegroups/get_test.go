@@ -52,23 +52,23 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
+					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
-					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "allow_all_traffic"),
-					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "expires_at"),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "firewall_ranges.#",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "allow_all_traffic"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "expires_at"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "firewall_ranges.#",
 						strconv.Itoa(len(util.Deref(workspaceGroup.FirewallRanges))),
 					),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "name", workspaceGroup.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "region_id", workspaceGroup.RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "state", string(workspaceGroup.State)),
-					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.example", "terminated_at"),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "update_window.day",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "name", workspaceGroup.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_id", workspaceGroup.RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(workspaceGroup.State)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "terminated_at"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "update_window.day",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Day)),
 					),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", "update_window.hour",
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "update_window.hour",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Hour)),
 					),
 				),
@@ -90,7 +90,7 @@ func TestWorkspaceGroupNotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
 			},
@@ -112,7 +112,7 @@ func TestInvalidInputUUID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal("valid-uuid")).
+					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal("valid-uuid")).
 					String(),
 				ExpectError: regexp.MustCompile("invalid UUID"),
 			},
@@ -127,7 +127,7 @@ func TestGetWorkspaceGroupNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},
