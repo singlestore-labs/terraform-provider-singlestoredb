@@ -8,8 +8,6 @@ terraform {
 
 provider "singlestoredb" {
   # export SINGLESTOREDB_API_KEY with a SingleStore Management API key
-  #test_replace_with_api_key
-  #test_replace_with_api_service_url
 }
 
 data "singlestoredb_workspaces" "all" {

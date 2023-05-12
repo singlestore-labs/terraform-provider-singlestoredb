@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	dataSourceListName = "workspaces"
+	DataSourceListName = "workspaces"
 )
 
 // workspacesDataSourceList is the data source implementation.
@@ -38,7 +38,7 @@ func NewDataSourceList() datasource.DataSource {
 
 // Metadata returns the data source type name.
 func (d *workspacesDataSourceList) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = util.DataSourceTypeName(req, dataSourceListName)
+	resp.TypeName = util.DataSourceTypeName(req, DataSourceListName)
 }
 
 // Schema defines the schema for the data source.
@@ -48,11 +48,11 @@ func (d *workspacesDataSourceList) Schema(_ context.Context, _ datasource.Schema
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
 			},
-			"workspace_group_id": schema.StringAttribute{
+			config.WorkspaceGroupIDAttribute: schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "ID of the workspace group",
 			},
-			dataSourceListName: schema.ListNestedAttribute{
+			DataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: newWorkspaceDataSourceSchemaAttributes(workspaceDataSourceSchemaConfig{
@@ -76,7 +76,7 @@ func (d *workspacesDataSourceList) Read(ctx context.Context, req datasource.Read
 	id, err := uuid.Parse(data.WorkspaceGroupID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("workspace_group_id"),
+			path.Root(config.WorkspaceGroupIDAttribute),
 			"Invalid workspace group ID",
 			"The workspace group ID should be a valid UUID",
 		)

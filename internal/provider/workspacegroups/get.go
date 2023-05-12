@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	dataSourceGetName = "workspace_group"
+	DataSourceGetName = "workspace_group"
 )
 
 // workspaceGroupsDataSourceGet is the data source implementation.
@@ -52,7 +52,7 @@ func NewDataSourceGet() datasource.DataSource {
 
 // Metadata returns the data source type name.
 func (d *workspaceGroupsDataSourceGet) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = util.DataSourceTypeName(req, dataSourceGetName)
+	resp.TypeName = util.DataSourceTypeName(req, DataSourceGetName)
 }
 
 // Schema defines the schema for the data source.

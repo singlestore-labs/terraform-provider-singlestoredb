@@ -14,6 +14,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	// Loading the mysql driver to test connecting to SingleStore DB.
 	_ "github.com/go-sql-driver/mysql"
@@ -23,15 +24,20 @@ const (
 	UnusedAPIKey = "foo"
 )
 
-type Config struct {
+type UnitTestConfig struct {
 	APIKeyFromEnv string
 	APIKey        string
 	APIServiceURL string
 }
 
+type IntegrationTestConfig struct {
+	APIKey             string
+	WorkspaceGroupName string
+}
+
 // UnitTest is a helper around resource.UnitTest with provider factories
 // already configured.
-func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
+func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
 	t.Helper()
 
 	if conf.APIKeyFromEnv == "" {
@@ -41,7 +47,10 @@ func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
 	}
 
 	for i, s := range c.Steps {
-		c.Steps[i].Config = compile(conf, s.Config)
+		c.Steps[i].Config = UpdatableConfig(s.Config).
+			WithAPIKey(conf.APIKey).
+			WithAPIServiceURL(conf.APIServiceURL).
+			String()
 	}
 
 	f := provider.New()
@@ -51,23 +60,27 @@ func UnitTest(t *testing.T, conf Config, c resource.TestCase) {
 	resource.UnitTest(t, c)
 }
 
-func IntegrationTest(t *testing.T, apiKey string, c resource.TestCase) {
+func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCase) {
 	t.Helper()
 
 	if testing.Short() {
 		t.Skip("skipping integration test because go test is run with the flag -short")
 	}
 
-	if apiKey == "" {
-		require.NotEmpty(t, apiKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
-	}
+	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
 	for i, s := range c.Steps {
-		c.Steps[i].Config = withInstantExpiration(s.Config) // Ensures garbage collection.
+		if conf.WorkspaceGroupName != "" {
+			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
+
+			c.Steps[i].Config = UpdatableConfig(s.Config).
+				WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(instantExpiration)).
+				String() // Ensures garbage collection.
+		}
 	}
 
 	t.Setenv("TF_ACC", "on") // Enables running the integration test.
-	t.Setenv(config.EnvAPIKey, apiKey)
+	t.Setenv(config.EnvAPIKey, conf.APIKey)
 
 	f := provider.New()
 	c.ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
@@ -141,34 +154,6 @@ func resourceTypeName(name string) string {
 	return strings.Join([]string{config.ProviderName, name}, "_")
 }
 
-func compile(conf Config, c string) string {
-	for _, kvp := range []struct {
-		key     string
-		value   string
-		pattern string
-	}{
-		{
-			key:     config.APIKeyAttribute,
-			value:   conf.APIKey,
-			pattern: config.TestReplaceWithAPIKey,
-		},
-		{
-			key:     config.APIServiceURLAttribute,
-			value:   conf.APIServiceURL,
-			pattern: config.TestReplaceWithAPIServiceURL,
-		},
-	} {
-		if kvp.value != "" {
-			v := fmt.Sprintf(`%s = %q`, kvp.key, kvp.value)
-			c = strings.ReplaceAll(c, kvp.pattern, v)
-		}
-	}
-
-	return c
-}
-
-func withInstantExpiration(c string) string {
-	instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
-
-	return strings.ReplaceAll(c, config.TestInitialWorkspaceGroupExpiresAt, instantExpiration)
+func dataSourceTypeName(name string) string {
+	return strings.Join([]string{config.ProviderName, name}, "_")
 }

@@ -270,7 +270,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
@@ -290,7 +290,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(true)).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
@@ -300,7 +300,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", workspace.Size),
@@ -310,8 +310,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(false)).
-					WithOverride(config.TestInitialWorkspaceSize, updatedWorkspaceSize).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("example")("size", cty.StringVal(updatedWorkspaceSize)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "suspended", "false"),
@@ -326,11 +326,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 }
 
 func TestWorkspaceResourceIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
 	isConnectable := testutil.IsConnectableWithAdminPassword(config.TestInitialAdminPassword)
 
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "example",
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: examples.WorkspacesResource,
@@ -343,7 +344,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(true)).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
@@ -353,7 +354,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", config.TestInitialWorkspaceSize),
@@ -363,8 +364,8 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspace("example")("suspended", cty.BoolVal(false)).
-					WithOverride(config.TestInitialWorkspaceSize, updatedWorkspaceSize).
+					WithWorkspaceResource("example")("suspended", cty.BoolVal(false)).
+					WithWorkspaceResource("example")("size", cty.StringVal(updatedWorkspaceSize)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.example", "size", updatedWorkspaceSize),

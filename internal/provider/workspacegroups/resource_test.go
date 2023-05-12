@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,12 +18,12 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
 	updatedAdminPassword      = "buzzBAR123$"
-	emptyFirewallRanges       = ""
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) {
@@ -196,7 +195,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
@@ -210,30 +209,16 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", *workspaceGroup.ExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.0", config.TestInitialFirewallRange),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithOverride(
-						config.TestInitialWorkspaceGroupName,
-						updatedWorkspaceGroupName,
-					).
-					WithOverride(
-						config.TestInitialAdminPassword,
-						updatedAdminPassword,
-					).
-					WithOverride(
-						config.TestInitialWorkspaceGroupExpiresAt,
-						updatedExpiresAt,
-					).
-					WithOverride(
-						config.TestInitialWorkspaceGroupExpiresAt,
-						updatedExpiresAt,
-					).
-					WithOverride(
-						strconv.Quote(config.TestInitialFirewallRange),
-						emptyFirewallRanges,
-					).
+					WithWorkspaceGroupResource("example")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(updatedAdminPassword)).
+					WithWorkspaceGroupResource("example")("expires_at", cty.StringVal(updatedExpiresAt)).
+					WithWorkspaceGroupResource("example")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroupID.String()),
@@ -242,6 +227,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "region_id", regions[0].RegionID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "0"),
 				),
 			},
 		},
@@ -251,9 +237,10 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 }
 
 func TestWorkspaceGroupResourceIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "example",
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: examples.WorkspaceGroupsResource,
@@ -261,27 +248,21 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.0", config.TestInitialFirewallRange),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithOverride(
-						config.TestInitialWorkspaceGroupName,
-						updatedWorkspaceGroupName,
-					).
-					WithOverride(
-						config.TestInitialAdminPassword,
-						updatedAdminPassword,
-					).
-					WithOverride(
-						strconv.Quote(config.TestInitialFirewallRange),
-						emptyFirewallRanges,
-					). // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
-					String(),
+					WithWorkspaceGroupResource("example")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(updatedAdminPassword)).
+					WithWorkspaceGroupResource("example")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					String(), // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.example", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.example", "firewall_ranges.#", "0"),
 				),
 			},
 		},

@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	resourceName = "workspace_group"
+	ResourceName = "workspace_group"
 )
 
 var (
@@ -52,7 +52,7 @@ func NewResource() resource.Resource {
 
 // Metadata returns the resource type name.
 func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = util.ResourceTypeName(req, resourceName)
+	resp.TypeName = util.ResourceTypeName(req, ResourceName)
 }
 
 // Schema defines the schema for the resource.

@@ -24,7 +24,7 @@ func TestProviderAuthenticates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        apiKey,
 	}, resource.TestCase{
@@ -48,16 +48,14 @@ func TestProviderAuthenticationError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
-
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        apiKey,
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.Regions,
-				ExpectError: r,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
 			},
 		},
 	})
@@ -74,7 +72,7 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKeyFromEnv: apiKey,
 	}, resource.TestCase{
@@ -89,24 +87,22 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 }
 
 func TestProviderAuthenticationErrorIntegration(t *testing.T) {
-	apiKey := "foo"
-
-	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: "foo",
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.Regions,
-				ExpectError: r,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
 			},
 		},
 	})
 }
 
 func TestProviderAuthenticatesIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: examples.Regions,

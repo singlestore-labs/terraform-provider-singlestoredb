@@ -12,14 +12,16 @@ const (
 	APIKeyAttribute = "api_key"
 	// APIServiceURLAttribute defines the Management API server URL part of the provider configuration.
 	APIServiceURLAttribute = "api_service_url"
+	// IDAttribute is the idiomatic Terraform ID attribute.
+	IDAttribute = "id"
+	// WorkspaceGroupIDAttribute is the attribute of a workspace list data source.
+	WorkspaceGroupIDAttribute = "workspace_group_id"
 	// APIServiceURL is the default URL for the SingleStore Management API service.
 	APIServiceURL = "https://api.singlestore.com"
 	// EnvAPIKey is the environmental variable for fetching the API key.
 	EnvAPIKey = "SINGLESTOREDB_API_KEY"
 	// ProviderName is the name of the provider.
 	ProviderName = "singlestoredb"
-	// IDAttribute is the idiomatic Terraform ID attribute.
-	IDAttribute = "id"
 	// HTTPRequestTimeout limits all the calls to Management API by 10 seconds.
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
@@ -45,10 +47,6 @@ const (
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
-	// TestReplaceWithAPIKey converts an example tf file into a unit test config.
-	TestReplaceWithAPIKey = "#test_replace_with_api_key"
-	// TestReplaceWithAPIServiceURL converts an example tf file into a unit test config.
-	TestReplaceWithAPIServiceURL = "#test_replace_with_api_service_url"
 	// EnvTestAPIKey is the environmental variable for API key for integration tests.
 	EnvTestAPIKey = "TEST_SINGLESTOREDB_API_KEY"
 	// TestInitialWorkspaceGroupName is the default workspace group name in examples.
@@ -57,8 +55,6 @@ const (
 	TestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
 	// TestInitialAdminPassword is the initial workspace admin password in examples.
 	TestInitialAdminPassword = "fooBAR12$"
-	// TestInitialWorkspaceGroupID is the workspace group ID in the example.
-	TestInitialWorkspaceGroupID = "bc8c0deb-50dd-4a58-a5a5-1c62eb5c456d"
 	// TestInitialFirewallRange is the firewall range in the example.
 	TestInitialFirewallRange = "192.168.0.1/32"
 	// TestFirewallRangeAllTraffic is the firewall range in the example for allowing all traffic.

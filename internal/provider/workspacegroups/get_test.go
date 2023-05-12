@@ -17,6 +17,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestReadsWorkspaceGroup(t *testing.T) {
@@ -44,14 +45,14 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, workspaceGroup.WorkspaceGroupID.String()).
+					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.example", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
@@ -82,18 +83,16 @@ func TestWorkspaceGroupNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := regexp.MustCompile(http.StatusText(http.StatusNotFound))
-
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        "bar",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, uuid.New().String()).
+					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
-				ExpectError: r,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
 			},
 		},
 	})
@@ -106,35 +105,31 @@ func TestInvalidInputUUID(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := regexp.MustCompile("invalid UUID")
-
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        "bar",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, "invalid-uuid").
+					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal("valid-uuid")).
 					String(),
-				ExpectError: r,
+				ExpectError: regexp.MustCompile("invalid UUID"),
 			},
 		},
 	})
 }
 
 func TestGetWorkspaceGroupNotFoundIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
-	r := regexp.MustCompile(http.StatusText(http.StatusNotFound))
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, uuid.New().String()).
+					WithWorkspaceGroupGetDataSoure("example")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
-				ExpectError: r, // Checking that at least the expected error.
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},
 		},
 	})

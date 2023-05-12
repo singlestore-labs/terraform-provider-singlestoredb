@@ -16,6 +16,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestReadsWorkspaces(t *testing.T) {
@@ -73,14 +74,14 @@ func TestReadsWorkspaces(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesListDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, workspaceGroups[0].WorkspaceGroupID.String()).
+					WithWorkspaceListDataSoure("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(workspaceGroups[0].WorkspaceGroupID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", config.IDAttribute, config.TestIDValue),
@@ -115,33 +116,29 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
-
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        "bar",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.WorkspacesListDataSource,
-				ExpectError: r,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
 			},
 		},
 	})
 }
 
 func TestListWorkspacesWorkspaceGroupNotFoundIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
-	r := regexp.MustCompile(http.StatusText(http.StatusNotFound))
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithOverride(config.TestInitialWorkspaceGroupID, uuid.New().String()).
+				Config: testutil.UpdatableConfig(examples.WorkspacesListDataSource).
+					WithWorkspaceListDataSoure("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
-				ExpectError: r, // Checking that at least the expected error.
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},
 		},
 	})

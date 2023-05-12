@@ -57,7 +57,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
@@ -108,25 +108,23 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := regexp.MustCompile(http.StatusText(http.StatusUnauthorized))
-
-	testutil.UnitTest(t, testutil.Config{
+	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
 		APIKey:        "bar",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.WorkspaceGroupsListDataSource,
-				ExpectError: r,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
 			},
 		},
 	})
 }
 
 func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
-	apiKey := os.Getenv(config.EnvTestAPIKey)
-
-	testutil.IntegrationTest(t, apiKey, resource.TestCase{
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
 				Config: examples.WorkspaceGroupsListDataSource,
