@@ -21,7 +21,9 @@ import (
 )
 
 // singlestoreProvider is the provider implementation.
-type singlestoreProvider struct{}
+type singlestoreProvider struct {
+	version string
+}
 
 // singlestoreProviderModel maps provider schema data to a Go type.
 type singlestoreProviderModel struct {
@@ -31,16 +33,18 @@ type singlestoreProviderModel struct {
 
 var _ provider.Provider = &singlestoreProvider{}
 
-func New() func() provider.Provider {
+func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &singlestoreProvider{}
+		return &singlestoreProvider{
+			version: version,
+		}
 	}
 }
 
 // Metadata returns the provider type name.
 func (p *singlestoreProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = config.ProviderName
-	resp.Version = config.Version
+	resp.Version = p.version
 }
 
 // Schema defines the provider-level schema for configuration data.
@@ -121,7 +125,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		management.WithHTTPClient(util.NewHTTPClient()),
 		management.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
-			req.Header.Set("User-Agent", util.TerraformProviderUserAgent())
+			req.Header.Set("User-Agent", util.TerraformProviderUserAgent(p.version))
 
 			return nil
 		}),

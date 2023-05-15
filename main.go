@@ -8,6 +8,8 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 )
 
+var version = "dev" // Version is populated by goreleaser with ldflags.
+
 func main() {
 	ctx := context.Background()
 
@@ -15,7 +17,7 @@ func main() {
 		Address: "registry.terraform.io/singlestore-labs/singlestoredb",
 	}
 
-	if err := providerserver.Serve(ctx, provider.New(), opts); err != nil {
+	if err := providerserver.Serve(ctx, provider.New(version), opts); err != nil {
 		log.Fatal(err)
 	}
 }

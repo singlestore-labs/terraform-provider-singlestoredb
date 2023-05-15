@@ -6,8 +6,6 @@ import (
 )
 
 const (
-	// Version is the version of the provider.
-	Version = "0.0.0"
 	// APIKeyAttribute defines the API key as a part of the provider configuration.
 	APIKeyAttribute = "api_key"
 	// APIServiceURLAttribute defines the Management API server URL part of the provider configuration.

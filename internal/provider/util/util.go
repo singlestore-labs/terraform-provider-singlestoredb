@@ -20,8 +20,8 @@ func (swd SummaryWithDetailError) Error() string {
 }
 
 // TerraformProviderUserAgent identifies the provider as a versioned User Agent.
-func TerraformProviderUserAgent() string {
-	return fmt.Sprintf("terraform-provider-%s/%s", config.ProviderName, config.Version)
+func TerraformProviderUserAgent(version string) string {
+	return fmt.Sprintf("terraform-provider-%s/%s", config.ProviderName, version)
 }
 
 // DataSourceTypeName constructs the type name for the data source of the provider.

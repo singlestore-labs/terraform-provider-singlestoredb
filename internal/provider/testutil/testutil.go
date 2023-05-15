@@ -22,6 +22,7 @@ import (
 
 const (
 	UnusedAPIKey = "foo"
+	devVersion   = "dev"
 )
 
 type UnitTestConfig struct {
@@ -53,7 +54,7 @@ func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
 			String()
 	}
 
-	f := provider.New()
+	f := provider.New(devVersion)
 	c.ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
@@ -82,7 +83,7 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	t.Setenv("TF_ACC", "on") // Enables running the integration test.
 	t.Setenv(config.EnvAPIKey, conf.APIKey)
 
-	f := provider.New()
+	f := provider.New(devVersion)
 	c.ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
