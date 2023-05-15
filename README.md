@@ -2,7 +2,7 @@
 
 `terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
 
-> **Important:** This Terraform provider is currently unpublished on the Terraform Registry and must be run in a local environment. It is currently in the preview phase and is recommended for experimental use only.
+> **Important:** This Terraform provider is currently in the preview phase and is recommended for experimental use only.
 
 ## Prerequisites
 
@@ -13,11 +13,32 @@ To use this provider, ensure you have the following:
 
 ## Provider Setup
 
-To set up the provider, export the generated API key to the `SINGLESTOREDB_API_KEY` environment variable:
+To set up the provider, first export the generated API key to the `SINGLESTOREDB_API_KEY` environment variable:
 
 ```bash
 export SINGLESTOREDB_API_KEY="paste your generated SingleStoreDB API key here"
 ```
+
+Then, to specify the SingleStoreDB provider for use in your Terraform configuration, you will need to add a `required_providers` block. The easiest way to get the correct `required_providers` block is to visit the [SingleStoreDB provider page on the Terraform Registry](https://registry.terraform.io/providers/singlestore-labs/singlestoredb/latest). Click the "USE PROVIDER" button to see and copy the `required_providers` block with the latest version of the provider. Paste this block into your Terraform configuration file.
+
+Here is a general template of how the `required_providers` block and provider block might look in your Terraform configuration:
+
+```hcl
+terraform {
+  required_providers {
+    singlestoredb = {
+      source = "singlestore-labs/singlestoredb"
+      # Visit the link above to get the latest version.
+    }
+  }
+}
+
+provider "singlestoredb" {
+  # Configuration options.
+}
+```
+
+The `required_providers` block specifies that your configuration will be using the SingleStoreDB provider, and the `provider` block is where you can specify any necessary configuration options for the provider.
 
 ## Example Usage
 
