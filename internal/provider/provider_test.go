@@ -22,7 +22,7 @@ func TestProviderAuthenticates(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actualAPIKey = r.Header.Get("Authorization")
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -46,7 +46,7 @@ func TestProviderAuthenticationError(t *testing.T) {
 		actualAPIKey = r.Header.Get("Authorization")
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -70,7 +70,7 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actualAPIKey = r.Header.Get("Authorization")
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -92,14 +92,14 @@ func TestProviderAuthenticatesFromAPIKeyPath(t *testing.T) {
 	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
 	require.NoError(t, err)
 
-	defer clean()
+	t.Cleanup(clean)
 
 	actualAPIKey := ""
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actualAPIKey = r.Header.Get("Authorization")
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -127,7 +127,7 @@ func TestProviderAuthenticationErrorFromAPIKeyPathIfNoSuchFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Fail(t, "should not get here because should error with no '%s' file, yet got here and called some Management API endpoint", config.APIKeyPathAttribute)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -149,12 +149,12 @@ func TestProviderAuthenticationErrorFromAPIKeyPathIfEmptyFile(t *testing.T) {
 	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
 	require.NoError(t, err)
 
-	defer clean()
+	t.Cleanup(clean)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Fail(t, "should not get here because should error with empty '%s' file, yet got here and called some Management API endpoint", config.APIKeyPathAttribute)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -176,12 +176,12 @@ func TestProviderAuthenticationErrorIfBothAPIKeyAndAPIKeyPath(t *testing.T) {
 	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
 	require.NoError(t, err)
 
-	defer clean()
+	t.Cleanup(clean)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Fail(t, "should not get here because should error with '%s' and '%s' specified, yet got here and called some Management API endpoint", config.APIKeyAttribute, config.APIKeyPathAttribute)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,

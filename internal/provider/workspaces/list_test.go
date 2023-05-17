@@ -72,7 +72,7 @@ func TestReadsWorkspaces(t *testing.T) {
 		_, err := w.Write(testutil.MustJSON(workspaces))
 		require.NoError(t, err)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -114,7 +114,7 @@ func TestReadWorkspaceGroupsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,

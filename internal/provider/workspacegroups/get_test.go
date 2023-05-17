@@ -43,7 +43,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 		_, err := w.Write(testutil.MustJSON(workspaceGroup))
 		require.NoError(t, err)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -81,7 +81,7 @@ func TestWorkspaceGroupNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -103,7 +103,7 @@ func TestInvalidInputUUID(t *testing.T) {
 		require.False(t, true, "should not get here")
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
