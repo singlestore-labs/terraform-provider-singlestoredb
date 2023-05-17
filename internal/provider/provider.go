@@ -28,10 +28,14 @@ type singlestoreProvider struct {
 // singlestoreProviderModel maps provider schema data to a Go type.
 type singlestoreProviderModel struct {
 	APIKey        types.String `tfsdk:"api_key"`
+	APIKeyPath    types.String `tfsdk:"api_key_path"`
 	APIServiceURL types.String `tfsdk:"api_service_url"`
 }
 
-var _ provider.Provider = &singlestoreProvider{}
+var (
+	_ provider.Provider                   = &singlestoreProvider{}
+	_ provider.ProviderWithValidateConfig = &singlestoreProvider{}
+)
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
@@ -53,7 +57,12 @@ func (p *singlestoreProvider) Schema(_ context.Context, _ provider.SchemaRequest
 		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB workspace groups and workspaces.",
 		Attributes: map[string]schema.Attribute{
 			config.APIKeyAttribute: schema.StringAttribute{
-				MarkdownDescription: fmt.Sprintf("The SingleStore Management API key. This key is used for authentication. If this key is not set, the value from the environment variable %s will be used. You can generate this key from the SingleStore Portal at %s.", config.EnvAPIKey, config.PortalAPIKeysPageRedirect),
+				MarkdownDescription: fmt.Sprintf("The SingleStore Management API key used for authentication. If not provided, the provider will attempt to read the key from the file specified in the '%s' attribute or from the environment variable '%s'. Generate your API key in the SingleStore Portal at %s.", config.APIKeyPathAttribute, config.EnvAPIKey, config.PortalAPIKeysPageRedirect),
+				Optional:            true,
+				Sensitive:           true,
+			},
+			config.APIKeyPathAttribute: schema.StringAttribute{
+				MarkdownDescription: fmt.Sprintf("The absolute path to a file containing the SingleStore Management API key for authentication. If not provided, the provider will use the value in the '%s' attribute or the '%s' environment variable. Generate your API key in the SingleStore Portal at %s.", config.APIKeyAttribute, config.EnvAPIKey, config.PortalAPIKeysPageRedirect),
 				Optional:            true,
 				Sensitive:           true,
 			},
@@ -76,18 +85,21 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
-	if conf.APIKey.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.APIKeyAttribute),
-			"Unknown API key",
-			"The provider cannot create the Management API client as there is an unknown configuration value for the API key. "+
-				config.InvalidAPIKeyErrorDetail,
-		)
-
-		return
-	}
-
 	apiKey := os.Getenv(config.EnvAPIKey)
+
+	if !conf.APIKeyPath.IsNull() {
+		var err error
+		apiKey, err = util.ReadNotEmptyFileTrimmed(conf.APIKeyPath.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root(config.APIKeyPathAttribute),
+				err.Error(),
+				config.InvalidAPIKeyErrorDetail,
+			)
+
+			return
+		}
+	}
 
 	if !conf.APIKey.IsNull() {
 		apiKey = conf.APIKey.ValueString()
@@ -99,17 +111,6 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 			"Missing SingleStore API key",
 			"The provider cannot create the SingleStore API client as there is a missing or empty value for the SingleStore API key. "+
 				config.InvalidAPIKeyErrorDetail,
-		)
-
-		return
-	}
-
-	if conf.APIServiceURL.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.APIServiceURLAttribute),
-			"Unknown Management API url",
-			"The provider cannot create the Management API client as there is an unknown configuration value for the API server URL. "+
-				fmt.Sprintf("Not indicate the %s attribute of the provider or set it to %s, which is the default Management API URL.", config.APIServiceURLAttribute, config.APIServiceURL),
 		)
 
 		return
@@ -164,5 +165,58 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 	return []func() resource.Resource{
 		workspacegroups.NewResource,
 		workspaces.NewResource,
+	}
+}
+
+// ValidateConfig asserts that incompatible fields are not specified.
+func (p *singlestoreProvider) ValidateConfig(ctx context.Context, req provider.ValidateConfigRequest, resp *provider.ValidateConfigResponse) {
+	// Retrieve provider data from configuration.
+	var conf singlestoreProviderModel
+	diags := req.Config.Get(ctx, &conf)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if conf.APIKey.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.APIKeyAttribute),
+			"Unknown API key",
+			"The provider cannot create the Management API client as there is an unknown configuration value for the API key. "+
+				config.InvalidAPIKeyErrorDetail,
+		)
+
+		return
+	}
+
+	if conf.APIKeyPath.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.APIKeyPathAttribute),
+			"Unknown API key path",
+			"The provider cannot create the Management API client as there is an unknown configuration value for the API key path. "+
+				config.InvalidAPIKeyErrorDetail,
+		)
+
+		return
+	}
+
+	if conf.APIServiceURL.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.APIServiceURLAttribute),
+			"Unknown Management API url",
+			"The provider cannot create the Management API client as there is an unknown configuration value for the API server URL. "+
+				fmt.Sprintf("Not indicate the %s attribute of the provider or set it to %s, which is the default Management API URL.", config.APIServiceURLAttribute, config.APIServiceURL),
+		)
+
+		return
+	}
+
+	if !conf.APIKey.IsNull() && !conf.APIKeyPath.IsNull() {
+		resp.Diagnostics.AddError(
+			fmt.Sprintf("Cannot specify both '%s' and '%s'", config.APIKeyAttribute, config.APIKeyPathAttribute),
+			config.InvalidAPIKeyErrorDetail,
+		)
+
+		return
 	}
 }

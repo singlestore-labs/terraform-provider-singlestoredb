@@ -25,5 +25,6 @@ provider "singlestoredb" {
 
 ### Optional
 
-- `api_key` (String, Sensitive) The SingleStore Management API key. This key is used for authentication. If this key is not set, the value from the environment variable SINGLESTOREDB_API_KEY will be used. You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
+- `api_key` (String, Sensitive) The SingleStore Management API key used for authentication. If not provided, the provider will attempt to read the key from the file specified in the 'api_key_path' attribute or from the environment variable 'SINGLESTOREDB_API_KEY'. Generate your API key in the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
+- `api_key_path` (String, Sensitive) The absolute path to a file containing the SingleStore Management API key for authentication. If not provided, the provider will use the value in the 'api_key' attribute or the 'SINGLESTOREDB_API_KEY' environment variable. Generate your API key in the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 - `api_service_url` (String, Deprecated) The URL of the SingleStore Management API service. This URL is used by the provider to interact with the API.

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -73,9 +74,12 @@ const (
 )
 
 var (
-	InvalidAPIKeyErrorDetail = fmt.Sprintf("Make sure to create a valid API key in %s and use it as the %s attribute of the provider or as the %s environemental variable.",
+	// APIKeyPathAttribute defines the API key path as a part of the provider configuration.
+	APIKeyPathAttribute      = strings.Join([]string{APIKeyAttribute, "path"}, "_")
+	InvalidAPIKeyErrorDetail = fmt.Sprintf("Ensure a valid API key is created at %s and it's provided in one of the following ways: \n1. Directly set as the '%s' attribute in the provider configuration.\n2. Stored in a file with its absolute path set in the '%s' attribute.\n3. Set as the '%s' environment variable.",
 		PortalAPIKeysPageRedirect,
 		APIKeyAttribute,
+		APIKeyPathAttribute,
 		EnvAPIKey,
 	)
 	ContactSupportErrorDetail                = fmt.Sprintf("Contact SingleStore support %s.", SupportURL)
