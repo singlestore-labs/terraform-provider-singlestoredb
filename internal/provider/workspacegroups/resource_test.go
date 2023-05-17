@@ -193,7 +193,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 
 		writeHandlers = writeHandlers[1:]
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,

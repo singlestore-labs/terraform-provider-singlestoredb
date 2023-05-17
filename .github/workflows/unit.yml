@@ -1,18 +1,16 @@
-name: CI
+name: Unit
 
 on:
   push:
     branches:
       - master
-  schedule:
-    - cron: '0 1 * * *'
   pull_request:
     branches:
       - master
   workflow_dispatch:
 
 jobs:
-  test:
+  unit:
     runs-on: ubuntu-latest
     environment: test
 
@@ -50,8 +48,3 @@ jobs:
 
     - name: Run unit tests
       run: make unit
-
-    - name: Run integration tests
-      env:
-        TEST_SINGLESTOREDB_API_KEY: ${{ secrets.TEST_SINGLESTOREDB_API_KEY }}
-      run: make integration

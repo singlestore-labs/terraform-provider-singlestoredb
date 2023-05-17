@@ -2,6 +2,8 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -141,4 +143,23 @@ func Any[T comparable](ts []T, value T) bool {
 	}
 
 	return false
+}
+
+// ReadNotEmptyFileTrimmed reads the file at path and returns the white space trimmed non-empty content.
+func ReadNotEmptyFileTrimmed(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("path '%s' is not an absolute file path", path)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	result := strings.TrimSpace(string(body))
+	if len(result) == 0 {
+		return "", fmt.Errorf("file '%s' is empty", path)
+	}
+
+	return result, nil
 }

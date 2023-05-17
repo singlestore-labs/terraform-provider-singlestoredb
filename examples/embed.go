@@ -25,7 +25,7 @@ func mustRead(path string) string {
 	}
 
 	if string(result) == "" {
-		panic(fmt.Sprintf("%s should have content but is empty", path))
+		panic(fmt.Sprintf("path '%s' should have content but is empty", path))
 	}
 
 	return string(result)

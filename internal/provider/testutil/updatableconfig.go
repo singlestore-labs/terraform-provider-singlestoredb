@@ -130,6 +130,22 @@ func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
 	return UpdatableConfig(file.Bytes())
 }
 
+// WithAPIKeyPath extends the config with the API key path.
+func (uc UpdatableConfig) WithAPIKeyPath(apiKeyPath string) UpdatableConfig {
+	file, diags := hclwrite.ParseConfig([]byte(uc), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		panic(diags)
+	}
+
+	provider := file.Body().FirstMatchingBlock("provider", []string{config.ProviderName})
+	if provider == nil {
+		panic("config file should contain a block with the provider to add or update an attribute")
+	}
+	_ = provider.Body().SetAttributeValue(config.APIKeyPathAttribute, cty.StringVal(apiKeyPath))
+
+	return UpdatableConfig(file.Bytes())
+}
+
 // WithAPIKey extends the config with the API service url if the url is not empty.
 func (uc UpdatableConfig) WithAPIServiceURL(url string) UpdatableConfig {
 	if url == "" {

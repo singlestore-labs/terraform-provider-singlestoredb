@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -21,8 +23,9 @@ import (
 )
 
 const (
-	UnusedAPIKey = "foo"
-	devVersion   = "dev"
+	UnusedAPIKey   = "foo"
+	devVersion     = "dev"
+	connectRetries = 10
 )
 
 type UnitTestConfig struct {
@@ -102,53 +105,84 @@ func MustJSON(s interface{}) []byte {
 // IsConnectableWithAdminPassword attempts to connect to the workspace and execute a sample SQL query.
 func IsConnectableWithAdminPassword(adminPassword string) resource.CheckResourceAttrWithFunc {
 	return func(endpoint string) error {
-		defaultParams := map[string]string{
-			"parseTime":         "true",
-			"interpolateParams": "true",
-			"timeout":           "10s",
-			"tls":               "preferred",
-		}
+		b := backoff.WithMaxRetries(backoff.NewExponentialBackOff(), connectRetries)
 
-		mergedParams := []string{}
-		for parameName, paramVal := range defaultParams {
-			mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", parameName, paramVal))
-		}
+		return backoff.Retry(func() error {
+			defaultParams := map[string]string{
+				"parseTime":         "true",
+				"interpolateParams": "true",
+				"timeout":           "10s",
+				"tls":               "preferred",
+			}
 
-		connParams := strings.Join(mergedParams, "&")
+			mergedParams := []string{}
+			for parameName, paramVal := range defaultParams {
+				mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", parameName, paramVal))
+			}
 
-		connString := fmt.Sprintf(
-			"%s:%s@tcp(%s)/?%s",
-			"admin",
-			adminPassword,
-			endpoint,
-			connParams,
-		)
+			connParams := strings.Join(mergedParams, "&")
 
-		conn, err := sql.Open("mysql", connString)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
+			connString := fmt.Sprintf(
+				"%s:%s@tcp(%s)/?%s",
+				"admin",
+				adminPassword,
+				endpoint,
+				connParams,
+			)
 
-		conn.SetConnMaxLifetime(time.Hour)
-		conn.SetMaxIdleConns(config.TestMaxIdleConns)
-		conn.SetMaxOpenConns(config.TestMaxOpenConns)
+			conn, err := sql.Open("mysql", connString)
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
 
-		if err := conn.Ping(); err != nil {
-			return err
-		}
+			conn.SetConnMaxLifetime(time.Hour)
+			conn.SetMaxIdleConns(config.TestMaxIdleConns)
+			conn.SetMaxOpenConns(config.TestMaxOpenConns)
 
-		var one int
-		if err := conn.QueryRow("SELECT 1").Scan(&one); err != nil {
-			return err
-		}
+			if err := conn.Ping(); err != nil {
+				return err
+			}
 
-		if one != 1 {
-			return fmt.Errorf("executing 'SELECT 1' for the endpoint %s failed because the query returned %d while expecting 1", endpoint, one)
-		}
+			var one int
+			if err := conn.QueryRow("SELECT 1").Scan(&one); err != nil {
+				return err
+			}
 
-		return nil
+			if one != 1 {
+				return fmt.Errorf("executing 'SELECT 1' for the endpoint %s failed because the query returned %d while expecting 1", endpoint, one)
+			}
+
+			return nil
+		}, b)
 	}
+}
+
+// CreateTemp creates a temporary file with body and returns the path and the cleanup callback.
+func CreateTemp(body string) (string, func(), error) {
+	f, err := os.CreateTemp("", "*-test.txt")
+	if err != nil {
+		return "", nil, err
+	}
+
+	clean := func() {
+		err := os.Remove(f.Name())
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if _, err = f.Write([]byte(body)); err != nil {
+		if err != nil {
+			return "", nil, err
+		}
+	}
+
+	if err := f.Close(); err != nil {
+		return "", nil, err
+	}
+
+	return f.Name(), clean, nil
 }
 
 func resourceTypeName(name string) string {

@@ -22,7 +22,7 @@ func TestProviderAuthenticates(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actualAPIKey = r.Header.Get("Authorization")
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -46,7 +46,7 @@ func TestProviderAuthenticationError(t *testing.T) {
 		actualAPIKey = r.Header.Get("Authorization")
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -64,13 +64,13 @@ func TestProviderAuthenticationError(t *testing.T) {
 }
 
 func TestProviderAuthenticatesFromEnv(t *testing.T) {
-	apiKey := "bar"
+	apiKey := "buzz"
 	actualAPIKey := ""
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actualAPIKey = r.Header.Get("Authorization")
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -84,6 +84,118 @@ func TestProviderAuthenticatesFromEnv(t *testing.T) {
 	})
 
 	require.Equal(t, fmt.Sprintf("Bearer %s", apiKey), actualAPIKey)
+}
+
+func TestProviderAuthenticatesFromAPIKeyPath(t *testing.T) {
+	apiKey := "bar"
+
+	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
+	require.NoError(t, err)
+
+	t.Cleanup(clean)
+
+	actualAPIKey := ""
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		actualAPIKey = r.Header.Get("Authorization")
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.Regions).
+					WithAPIKeyPath(apiKeyPath).
+					String(),
+			},
+		},
+	})
+
+	require.Equal(t, fmt.Sprintf("Bearer %s", apiKey), actualAPIKey)
+}
+
+func TestProviderAuthenticationErrorFromAPIKeyPathIfNoSuchFile(t *testing.T) {
+	apiKey := "bar"
+
+	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
+	require.NoError(t, err)
+
+	clean()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Fail(t, "should not get here because should error with no '%s' file, yet got here and called some Management API endpoint", config.APIKeyPathAttribute)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.Regions).
+					WithAPIKeyPath(apiKeyPath).
+					String(),
+				ExpectError: regexp.MustCompile(apiKeyPath),
+			},
+		},
+	})
+}
+
+func TestProviderAuthenticationErrorFromAPIKeyPathIfEmptyFile(t *testing.T) {
+	apiKey := ""
+
+	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
+	require.NoError(t, err)
+
+	t.Cleanup(clean)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Fail(t, "should not get here because should error with empty '%s' file, yet got here and called some Management API endpoint", config.APIKeyPathAttribute)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.Regions).
+					WithAPIKeyPath(apiKeyPath).
+					String(),
+				ExpectError: regexp.MustCompile(apiKeyPath),
+			},
+		},
+	})
+}
+
+func TestProviderAuthenticationErrorIfBothAPIKeyAndAPIKeyPath(t *testing.T) {
+	apiKey := "foo"
+
+	apiKeyPath, clean, err := testutil.CreateTemp(apiKey)
+	require.NoError(t, err)
+
+	t.Cleanup(clean)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Fail(t, "should not get here because should error with '%s' and '%s' specified, yet got here and called some Management API endpoint", config.APIKeyAttribute, config.APIKeyPathAttribute)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        apiKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.Regions).
+					WithAPIKeyPath(apiKeyPath).
+					String(),
+				ExpectError: regexp.MustCompile(config.APIKeyPathAttribute),
+			},
+		},
+	})
 }
 
 func TestProviderAuthenticationErrorIntegration(t *testing.T) {
