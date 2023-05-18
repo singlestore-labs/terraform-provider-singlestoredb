@@ -3,7 +3,7 @@
 [![Unit](https://github.com/singlestore-labs/terraform-provider-singlestoredb/actions/workflows/unit.yml/badge.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/actions)
 [![Integration](https://github.com/singlestore-labs/terraform-provider-singlestoredb/actions/workflows/integration.yml/badge.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/singlestore-labs/terraform-provider-singlestoredb)](https://goreportcard.com/report/github.com/singlestore-labs/terraform-provider-singlestoredb)
-[![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
 `terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
 
