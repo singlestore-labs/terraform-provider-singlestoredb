@@ -1,5 +1,6 @@
 NAME=singlestoredb
 BINARY=terraform-provider-${NAME}
+COVERAGE=coverage.out
 
 default: install
 
@@ -13,10 +14,10 @@ install: deps build
 	go install .
 
 unit: install nocache # Unit tests depend on the binary.
-	go test -v -timeout=5m -short ./...
+	go test -race -v -timeout=5m -short ./... -coverprofile=${COVERAGE} -covermode=atomic
 
 integration: install nocache # Integration tests depend on the binary.
-	go test -v -timeout=2h -run Integration ./...
+	go test -race -v -timeout=2h -run Integration ./... -coverprofile=${COVERAGE} -covermode=atomic
 
 nocache:
 	go clean -testcache
