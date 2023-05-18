@@ -40,3 +40,6 @@ jobs:
       env:
         TEST_SINGLESTOREDB_API_KEY: ${{ secrets.TEST_SINGLESTOREDB_API_KEY }}
       run: make integration
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
