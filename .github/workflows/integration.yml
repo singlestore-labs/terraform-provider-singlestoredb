@@ -6,9 +6,6 @@ on:
       - master
   schedule:
     - cron: '0 1 * * *'
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 jobs:
