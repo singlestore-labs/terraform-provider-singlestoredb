@@ -41,7 +41,7 @@ func StatusOK(resp StatusCoder, ierr error,
 			Detail: "An unsuccessful status code occurred when calling SingleStore API. " +
 				config.InvalidAPIKeyErrorDetail +
 				config.CreateProviderIssueIfNotClearErrorDetail +
-				"\n\nSingleStore client response body: " + maybeBody(resp),
+				"\n\nSingleStore client response body: " + MaybeBody(resp),
 		}
 	}
 
@@ -56,7 +56,7 @@ func ReturnNilOnNotFound(code int) (bool, *SummaryWithDetailError) {
 	return false, nil
 }
 
-func maybeBody(resp StatusCoder) string {
+func MaybeBody(resp StatusCoder) string {
 	v := reflect.ValueOf(resp)
 
 	if v.Kind() == reflect.Ptr {

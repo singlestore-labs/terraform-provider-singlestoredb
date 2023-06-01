@@ -1,6 +1,8 @@
 package util
 
 import (
+	"strings"
+
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
@@ -58,7 +60,7 @@ func WorkspaceStateString(wgs types.String) *management.WorkspaceState {
 		management.WorkspaceStateSUSPENDED,
 		management.WorkspaceStateTERMINATED,
 	} {
-		if wgs.ValueString() == string(s) {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return &s
 		}
 	}
