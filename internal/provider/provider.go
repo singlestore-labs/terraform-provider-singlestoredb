@@ -178,28 +178,6 @@ func (p *singlestoreProvider) ValidateConfig(ctx context.Context, req provider.V
 		return
 	}
 
-	if conf.APIKey.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.APIKeyAttribute),
-			"Unknown API key",
-			"The provider cannot create the Management API client as there is an unknown configuration value for the API key. "+
-				config.InvalidAPIKeyErrorDetail,
-		)
-
-		return
-	}
-
-	if conf.APIKeyPath.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.APIKeyPathAttribute),
-			"Unknown API key path",
-			"The provider cannot create the Management API client as there is an unknown configuration value for the API key path. "+
-				config.InvalidAPIKeyErrorDetail,
-		)
-
-		return
-	}
-
 	if conf.APIServiceURL.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.APIServiceURLAttribute),
