@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-var _ validator.String = uuidValidator{}
+var _ validator.String = &uuidValidator{}
 
 // uuidValidator validates that a string Attribute's value matches the UUID format.
 type uuidValidator struct {
@@ -30,7 +30,7 @@ func (v uuidValidator) MarkdownDescription(ctx context.Context) string {
 }
 
 // Validate performs the validation.
-func (v uuidValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
+func (v *uuidValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
 	if request.ConfigValue.IsNull() || request.ConfigValue.IsUnknown() {
 		return
 	}
@@ -54,5 +54,5 @@ func (v uuidValidator) ValidateString(ctx context.Context, request validator.Str
 //
 // Null (unconfigured) and unknown (known after apply) values are skipped.
 func NewUUIDValidator() validator.String {
-	return uuidValidator{}
+	return &uuidValidator{}
 }

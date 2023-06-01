@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
-var _ validator.String = timeValidator{}
+var _ validator.String = &timeValidator{}
 
 // timeValidator validates that a string Attribute's value matches the expected time format.
 type timeValidator struct {
@@ -31,7 +31,7 @@ func (v timeValidator) MarkdownDescription(ctx context.Context) string {
 }
 
 // Validate performs the validation.
-func (v timeValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
+func (v *timeValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
 	if request.ConfigValue.IsNull() || request.ConfigValue.IsUnknown() {
 		return
 	}
@@ -56,7 +56,7 @@ func (v timeValidator) ValidateString(ctx context.Context, request validator.Str
 //
 // Null (unconfigured) and unknown (known after apply) values are skipped.
 func NewTimeValidator() validator.String {
-	return timeValidator{}
+	return &timeValidator{}
 }
 
 // parseTime parses time in RFC3339.
