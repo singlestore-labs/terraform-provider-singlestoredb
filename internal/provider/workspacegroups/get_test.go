@@ -52,7 +52,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
+					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
@@ -90,7 +90,7 @@ func TestWorkspaceGroupNotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
 			},
@@ -112,7 +112,7 @@ func TestInvalidInputUUID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal("valid-uuid")).
+					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal("valid-uuid")).
 					String(),
 				ExpectError: regexp.MustCompile("invalid UUID"),
 			},
@@ -127,7 +127,7 @@ func TestGetWorkspaceGroupNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSoure("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},

@@ -71,6 +71,12 @@ const (
 	// TestWorkspaceGroupExpiration is the time after which a workspace group auto-terminates.
 	// This is an extra safeguard to cleanup resources after running integration tests.
 	TestWorkspaceGroupExpiration = 2 * time.Hour
+	// ResourceTypeName is a type name for accessing resource objects in *.tf files. The other types are data source and provider.
+	ResourceTypeName = "resource"
+	// DataSourceTypeName is a type name for accessing data source objects in *.tf files. The other types are resource and provider.
+	DataSourceTypeName = "data"
+	// ProviderTypeName is a type name for accessing provider objects in *.tf files. The other types are resource and data source.
+	ProviderTypeName = "provider"
 )
 
 var (

@@ -81,7 +81,7 @@ func TestReadsWorkspaces(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesListDataSource).
-					WithWorkspaceListDataSoure("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(workspaceGroups[0].WorkspaceGroupID.String())).
+					WithWorkspaceListDataSource("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(workspaceGroups[0].WorkspaceGroupID.String())).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_workspaces.all", config.IDAttribute, config.TestIDValue),
@@ -136,7 +136,7 @@ func TestListWorkspacesWorkspaceGroupNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesListDataSource).
-					WithWorkspaceListDataSoure("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(uuid.New().String())).
+					WithWorkspaceListDataSource("all")(config.WorkspaceGroupIDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
 			},

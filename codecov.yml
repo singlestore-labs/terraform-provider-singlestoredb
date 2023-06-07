@@ -1,0 +1,2 @@
+ignore:
+  - internal/provider/testutil/testutil.go
