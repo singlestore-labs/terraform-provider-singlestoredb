@@ -184,11 +184,3 @@ func CreateTemp(body string) (string, func(), error) {
 
 	return f.Name(), clean, nil
 }
-
-func resourceTypeName(name string) string {
-	return strings.Join([]string{config.ProviderName, name}, "_")
-}
-
-func dataSourceTypeName(name string) string {
-	return strings.Join([]string{config.ProviderName, name}, "_")
-}
