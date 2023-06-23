@@ -8,7 +8,7 @@
 
 `terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
 
-> **Important:** This Terraform provider is currently in the preview phase and is recommended for experimental use only.
+> **Important:** This Terraform provider is currently in the preview phase and is subject to change.
 
 ## Prerequisites
 
