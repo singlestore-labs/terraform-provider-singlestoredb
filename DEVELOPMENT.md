@@ -6,7 +6,7 @@ This document provides information on how to develop `terraform-provider-singles
 
 1. [Go 1.20](https://go.dev/doc/install) or later
 
-2. [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) 0.12 or later
+2. [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) 0.12 or later
 
 3. [direnv](https://direnv.net/docs/installation)
 
