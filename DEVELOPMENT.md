@@ -41,4 +41,4 @@ Please note that `terraform init` is not compatible with `dev_overrides`, so run
 
 - [Configuring Terraform](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider#locally-install-provider-and-verify-with-terraform)
 
-- [Terraform Init with Dev Overrides](https://github.com/hashicorp/terraform/issues/27459)
+- [Terraform Init with Dev Overrides](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider#prepare-terraform-for-local-provider-install)
