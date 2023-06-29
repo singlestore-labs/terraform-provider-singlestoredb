@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -36,13 +37,14 @@ type workspaceGroupResource struct {
 
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID             types.String   `tfsdk:"id"`
-	Name           types.String   `tfsdk:"name"`
-	FirewallRanges []types.String `tfsdk:"firewall_ranges"`
-	CreatedAt      types.String   `tfsdk:"created_at"`
-	ExpiresAt      types.String   `tfsdk:"expires_at"`
-	RegionID       types.String   `tfsdk:"region_id"`
-	AdminPassword  types.String   `tfsdk:"admin_password"`
+	ID             types.String                 `tfsdk:"id"`
+	Name           types.String                 `tfsdk:"name"`
+	FirewallRanges []types.String               `tfsdk:"firewall_ranges"`
+	CreatedAt      types.String                 `tfsdk:"created_at"`
+	ExpiresAt      types.String                 `tfsdk:"expires_at"`
+	RegionID       types.String                 `tfsdk:"region_id"`
+	AdminPassword  types.String                 `tfsdk:"admin_password"`
+	UpdateWindow   *updateWindowDataSourceModel `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -98,6 +100,20 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed:            true,
 				Sensitive:           true,
 				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
+			},
+			"update_window": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
+				Attributes: map[string]schema.Attribute{
+					"hour": schema.Int64Attribute{
+						Computed:            true,
+						MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
+					},
+					"day": schema.Int64Attribute{
+						Computed:            true,
+						MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
+					},
+				},
 			},
 		},
 	}
@@ -211,6 +227,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+			UpdateWindow:   toManagementUpdateWindow(plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -369,4 +386,18 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 	}
 
 	return result, nil
+}
+
+func toManagementUpdateWindow(uw *updateWindowDataSourceModel) *management.UpdateWindow {
+	if uw == nil {
+		return nil
+	}
+
+	day, _ := strconv.Atoi(fmt.Sprint(uw.Hour))
+	hour, _ := strconv.Atoi(fmt.Sprint(uw.Hour))
+
+	return &management.UpdateWindow{
+		Hour: float32(day),
+		Day:  float32(hour),
+	}
 }
