@@ -5,10 +5,14 @@ provider "singlestoredb" {
 }
 
 resource "singlestoredb_workspace_group" "this" {
-  name            = "group"
+  name            = "Phil Test"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
   admin_password  = "mockPassword193!"
+  update_window = {
+    day  = 6
+    hour = 17
+  }
 }
