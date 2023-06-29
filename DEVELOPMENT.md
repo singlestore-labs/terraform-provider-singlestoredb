@@ -6,7 +6,7 @@ This document provides information on how to develop `terraform-provider-singles
 
 1. [Go 1.20](https://go.dev/doc/install) or later
 
-2. [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) 0.12 or later
+2. [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) 0.12 or later
 
 3. [direnv](https://direnv.net/docs/installation)
 
@@ -39,6 +39,6 @@ Please note that `terraform init` is not compatible with `dev_overrides`, so run
 
 ## Reference
 
-- [Configuring Terraform](https://learn.hashicorp.com/tutorials/terraform/providers-plugin-framework/providers-plugin-framework-provider#locally-install-provider-and-verify-with-terraform)
+- [Configuring Terraform](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider#locally-install-provider-and-verify-with-terraform)
 
-- [Terraform Init with Dev Overrides](https://github.com/hashicorp/terraform/issues/27459)
+- [Terraform Init with Dev Overrides](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework/providers-plugin-framework-provider#prepare-terraform-for-local-provider-install)
