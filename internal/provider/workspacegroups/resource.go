@@ -628,8 +628,14 @@ func toManagementUpdateWindow(uw *updateWindowDataSourceModel) *management.Updat
 		return nil
 	}
 
-	day, _ := strconv.Atoi(fmt.Sprint(uw.Day))
-	hour, _ := strconv.Atoi(fmt.Sprint(uw.Hour))
+	day, err := strconv.Atoi(fmt.Sprint(uw.Day))
+	if err != nil {
+		return nil
+	}
+	hour, err := strconv.Atoi(fmt.Sprint(uw.Hour))
+	if err != nil {
+		return nil
+	}
 
 	return &management.UpdateWindow{
 		Hour: float32(hour),
