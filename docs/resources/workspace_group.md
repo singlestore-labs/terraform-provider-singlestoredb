@@ -27,6 +27,10 @@ resource "singlestoredb_workspace_group" "this" {
   expires_at      = "2222-01-01T00:00:00Z"
   region_id       = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
   admin_password  = "fooBAR12$"
+  update_window = {
+    day  = 6
+    hour = 17
+  }
 }
 ```
 
@@ -48,5 +52,14 @@ resource "singlestoredb_workspace_group" "this" {
 
 - `created_at` (String) The timestamp when the workspace was created.
 - `id` (String) The unique identifier of the workspace group.
+- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
+
+<a id="nestedatt--update_window"></a>
+### Nested Schema for `update_window`
+
+Read-Only:
+
+- `day` (Number) The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.
+- `hour` (Number) The hour of the day, in 24-hour UTC format (0-23), when the update window starts.
 
 
