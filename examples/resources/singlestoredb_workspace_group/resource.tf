@@ -13,6 +13,6 @@ resource "singlestoredb_workspace_group" "this" {
   admin_password  = "mockPassword193!"
   update_window = {
     day  = 6
-    hour = 17
+    hour = 14
   }
 }

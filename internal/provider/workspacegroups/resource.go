@@ -38,22 +38,32 @@ type workspaceGroupResource struct {
 	management.ClientWithResponsesInterface
 }
 
+type updateWindowResourceModel struct {
+	Hour types.Int64 `tfsdk:"hour"`
+	Day  types.Int64 `tfsdk:"day"`
+}
+
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID                       types.String                 `tfsdk:"id"`
-	Name                     types.String                 `tfsdk:"name"`
-	FirewallRanges           []types.String               `tfsdk:"firewall_ranges"`
-	CreatedAt                types.String                 `tfsdk:"created_at"`
-	ExpiresAt                types.String                 `tfsdk:"expires_at"`
-	RegionID                 types.String                 `tfsdk:"region_id"`
-	CloudProvider            types.String                 `tfsdk:"cloud_provider"`
-	RegionName               types.String                 `tfsdk:"region_name"`
-	AdminPassword            types.String                 `tfsdk:"admin_password"`
-	DeploymentType           types.String                 `tfsdk:"deployment_type"`
-	OptInPreviewFeature      types.Bool                   `tfsdk:"opt_in_preview_feature"`
-	HighAvailabilityTwoZones types.Bool                   `tfsdk:"high_availability_two_zones"`
-	OutboundAllowList        types.String                 `tfsdk:"outbound_allow_list"`
-	UpdateWindow             *updateWindowDataSourceModel `tfsdk:"update_window"`
+	ID                       types.String               `tfsdk:"id"`
+	Name                     types.String               `tfsdk:"name"`
+	FirewallRanges           []types.String             `tfsdk:"firewall_ranges"`
+	CreatedAt                types.String               `tfsdk:"created_at"`
+	ExpiresAt                types.String               `tfsdk:"expires_at"`
+	RegionID                 types.String               `tfsdk:"region_id"`
+	CloudProvider            types.String               `tfsdk:"cloud_provider"`
+	RegionName               types.String               `tfsdk:"region_name"`
+	AdminPassword            types.String               `tfsdk:"admin_password"`
+	DeploymentType           types.String               `tfsdk:"deployment_type"`
+	OptInPreviewFeature      types.Bool                 `tfsdk:"opt_in_preview_feature"`
+	HighAvailabilityTwoZones types.Bool                 `tfsdk:"high_availability_two_zones"`
+	OutboundAllowList        types.String               `tfsdk:"outbound_allow_list"`
+	UpdateWindow             *updateWindowResourceModel `tfsdk:"update_window"`
+}
+
+type updateWindowResourceModel struct {
+	Hour types.Int64 `tfsdk:"hour"`
+	Day  types.Int64 `tfsdk:"day"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -149,15 +159,14 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"update_window": schema.SingleNestedAttribute{
 				Optional:            true,
-				Computed:            true,
 				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
 				Attributes: map[string]schema.Attribute{
 					"hour": schema.Int64Attribute{
-						Required:            true,
+						Optional:            true,
 						MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
 					},
 					"day": schema.Int64Attribute{
-						Required:            true,
+						Optional:            true,
 						MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
 					},
 				},
@@ -527,7 +536,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
-		UpdateWindow:             toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
+		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
@@ -622,7 +631,7 @@ func waitConditionFirewallRanges(firewallRanges []types.String) func(management.
 	}
 }
 
-func toManagementUpdateWindow(uw *updateWindowDataSourceModel) *management.UpdateWindow {
+func toManagementUpdateWindow(uw *updateWindowResourceModel) *management.UpdateWindow {
 	if uw == nil {
 		return nil
 	}
@@ -633,12 +642,12 @@ func toManagementUpdateWindow(uw *updateWindowDataSourceModel) *management.Updat
 	}
 }
 
-func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) *updateWindowResourceModel {
 	if uw == nil {
 		return nil
 	}
 
-	return &updateWindowDataSourceModel{
+	return &updateWindowResourceModel{
 		Hour: types.Int64Value(int64(uw.Hour)),
 		Day:  types.Int64Value(int64(uw.Day)),
 	}
