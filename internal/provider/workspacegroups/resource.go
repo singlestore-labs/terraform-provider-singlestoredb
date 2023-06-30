@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -628,18 +627,9 @@ func toManagementUpdateWindow(uw *updateWindowDataSourceModel) *management.Updat
 		return nil
 	}
 
-	day, err := strconv.Atoi(fmt.Sprint(uw.Day))
-	if err != nil {
-		return nil
-	}
-	hour, err := strconv.Atoi(fmt.Sprint(uw.Hour))
-	if err != nil {
-		return nil
-	}
-
 	return &management.UpdateWindow{
-		Hour: float32(hour),
-		Day:  float32(day),
+		Hour: float32(uw.Hour.ValueInt64()),
+		Day:  float32(uw.Day.ValueInt64()),
 	}
 }
 
