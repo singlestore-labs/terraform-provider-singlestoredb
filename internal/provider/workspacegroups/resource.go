@@ -213,6 +213,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
+		UpdateWindow:             toManagementUpdateWindow(plan.UpdateWindow),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
