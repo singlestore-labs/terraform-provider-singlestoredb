@@ -138,6 +138,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		FirewallRanges: util.StringFirewallRanges(plan.FirewallRanges),
 		Name:           plan.Name.ValueString(),
 		RegionID:       uuid.MustParse(plan.RegionID.ValueString()),
+		UpdateWindow:   toManagementUpdateWindow(plan.UpdateWindow),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
