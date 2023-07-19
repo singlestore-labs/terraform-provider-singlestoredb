@@ -29,7 +29,7 @@ resource "singlestoredb_workspace_group" "this" {
   admin_password  = "fooBAR12$"
   update_window = {
     day  = 6
-    hour = 17
+    hour = 14
   }
 }
 ```
@@ -47,17 +47,17 @@ resource "singlestoredb_workspace_group" "this" {
 
 - `admin_password` (String, Sensitive) The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.
 - `expires_at` (String) The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
+- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
 
 ### Read-Only
 
 - `created_at` (String) The timestamp when the workspace was created.
 - `id` (String) The unique identifier of the workspace group.
-- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
 
 <a id="nestedatt--update_window"></a>
 ### Nested Schema for `update_window`
 
-Read-Only:
+Optional:
 
 - `day` (Number) The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.
 - `hour` (Number) The hour of the day, in 24-hour UTC format (0-23), when the update window starts.
