@@ -336,7 +336,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		ExpiresAt:      util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		RegionID:       util.UUIDStringValue(workspaceGroup.RegionID),
 		AdminPassword:  types.StringValue(adminPassword),
-		UpdateWindow:   toupdateWindowResourceModel(workspaceGroup.UpdateWindow),
+		UpdateWindow:   toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 }
 
@@ -405,7 +405,7 @@ func toManagementUpdateWindow(uw *updateWindowResourceModel) *management.UpdateW
 	}
 }
 
-func toupdateWindowResourceModel(uw *management.UpdateWindow) *updateWindowResourceModel {
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) *updateWindowResourceModel {
 	if uw == nil {
 		return nil
 	}

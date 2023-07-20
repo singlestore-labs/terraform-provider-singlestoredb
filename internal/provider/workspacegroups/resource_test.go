@@ -45,7 +45,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		RegionID:         regions[0].RegionID,
 		State:            management.PENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:     nil,
-		UpdateWindow:     nil,
+		UpdateWindow:     &management.UpdateWindow{Day: config.TestInitialUpdateWindowDay, Hour: config.TestInitialUpdateWindowHour},
 		WorkspaceGroupID: workspaceGroupID,
 	}
 
@@ -100,6 +100,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
 		require.Equal(t, regions[0].RegionID, input.RegionID)
+		require.Equal(t, config.TestInitialUpdateWindowDay, int(input.UpdateWindow.Day))
+		require.Equal(t, config.TestInitialUpdateWindowHour, int(input.UpdateWindow.Hour))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
