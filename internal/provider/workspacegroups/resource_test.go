@@ -43,7 +43,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
-		State:            management.PENDING, // During the first poll, the status will still be PENDING.
+		State:            management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
@@ -82,7 +82,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(workspaceGroup))
 		require.NoError(t, err)
-		workspaceGroup.State = management.ACTIVE // Marking the state as ACTIVE to end polling.
+		workspaceGroup.State = management.WorkspaceGroupStateACTIVE // Marking the state as ACTIVE to end polling.
 
 		return true
 	}

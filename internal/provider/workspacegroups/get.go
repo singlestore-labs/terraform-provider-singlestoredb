@@ -106,7 +106,7 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 		return
 	}
 
-	if workspaceGroup.JSON200.State == management.FAILED {
+	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", workspaceGroup.JSON200.State),
 			config.ContactSupportErrorDetail,

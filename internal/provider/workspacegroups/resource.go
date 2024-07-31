@@ -170,15 +170,15 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	if workspaceGroup.JSON200.State == management.TERMINATED {
+	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateTERMINATED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspaceGroup.JSON200.State != management.ACTIVE {
+	if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.ACTIVE),
+			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE),
 			"An unexpected workspace group state.\n\n"+
 				config.ContactSupportLaterErrorDetail,
 		)
@@ -338,19 +338,19 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 
 		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
 
-		if workspaceGroup.JSON200.State == management.FAILED {
+		if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
 			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
 
-		if workspaceGroup.JSON200.State != management.ACTIVE {
+		if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
 			err = fmt.Errorf("workspace group %s state is %s", id, workspaceGroup.JSON200.State)
 
 			return retry.RetryableError(err)
 		}
 
-		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.ACTIVE) {
+		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.WorkspaceGroupStateACTIVE) {
 			err = fmt.Errorf("workspace group %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
 				id, workspaceGroup.JSON200.State, config.WorkspaceGroupConsistencyThreshold,
 			)

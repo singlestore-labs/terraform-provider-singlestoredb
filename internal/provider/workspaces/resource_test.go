@@ -43,7 +43,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
-		State:            management.ACTIVE,
+		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
