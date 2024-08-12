@@ -35,6 +35,7 @@ type workspaceDataSourceModel struct {
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
 	LastResumedAt    types.String `tfsdk:"last_resumed_at"`
+	KaiEnabled       types.Bool   `tfsdk:"kai_api_enabled"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -175,6 +176,10 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.",
 		},
+		"kai_api_enabled": schema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
+		},
 	}
 }
 
@@ -189,5 +194,6 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
+		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
 	}, nil
 }

@@ -323,6 +323,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
+		EnableKai:        util.MaybeBoolValue(workspace.KaiEnabled),
 	}
 }
 
