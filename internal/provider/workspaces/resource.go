@@ -42,7 +42,7 @@ type workspaceResourceModel struct {
 	Suspended        types.Bool   `tfsdk:"suspended"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
-	EnableKai        types.Bool   `tfsdk:"kai_api_enabled"`
+	EnableKai        types.Bool   `tfsdk:"kai_enabled"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -98,7 +98,7 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the workspace.",
 			},
-			"kai_api_enabled": schema.BoolAttribute{
+			"kai_enabled": schema.BoolAttribute{
 				Optional:            true,
 				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 			},
