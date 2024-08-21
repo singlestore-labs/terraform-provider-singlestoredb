@@ -48,6 +48,7 @@ Read-Only:
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `id` (String) The unique identifier of the workspace.
+- `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.
 - `name` (String) The name of the workspace.
 - `size` (String) The size of the workspace, represented in workspace size notation, such as 'S-00' or 'S-1'.
