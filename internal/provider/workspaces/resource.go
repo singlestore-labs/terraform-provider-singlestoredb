@@ -42,7 +42,7 @@ type workspaceResourceModel struct {
 	Suspended        types.Bool   `tfsdk:"suspended"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
-	EnableKai        types.Bool   `tfsdk:"kai_enabled"`
+	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -129,7 +129,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		Name:             plan.Name.ValueString(),
 		Size:             util.MaybeString(plan.Size),
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
-		EnableKai:        util.MaybeBool(plan.EnableKai),
+		EnableKai:        util.MaybeBool(plan.KaiEnabled),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -294,9 +294,9 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	if !plan.EnableKai.Equal(state.EnableKai) {
-		resp.Diagnostics.AddError("Cannot enable kai for workspace",
-			"To prevent accidental deletion of the databases that are attached to the workspace, enabling kai is not permitted.")
+	if !plan.KaiEnabled.Equal(state.KaiEnabled) {
+		resp.Diagnostics.AddError("Cannot change the kai_enabled configuration for the workspace",
+			"Changing the kai_enabled configuration is currently not supported.")
 
 		return
 	}
@@ -330,7 +330,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-		EnableKai:        util.MaybeBoolValue(workspace.KaiEnabled),
+		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
 	}
 }
 
