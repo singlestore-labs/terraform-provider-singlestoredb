@@ -294,6 +294,13 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
+	if !plan.EnableKai.Equal(state.EnableKai) {
+		resp.Diagnostics.AddError("Cannot enable kai for workspace",
+			"To prevent accidental deletion of the databases that are attached to the workspace, enabling kai is not permitted.")
+
+		return
+	}
+
 	if !plan.WorkspaceGroupID.Equal(state.WorkspaceGroupID) {
 		resp.Diagnostics.AddError("Cannot update workspace group ID",
 			"To prevent accidental deletion of the databases that are attached to the workspace, updating the workspace group ID is not permitted. "+
