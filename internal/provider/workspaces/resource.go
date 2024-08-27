@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -99,6 +100,9 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "The endpoint used to connect to the workspace.",
 			},
 			"kai_enabled": schema.BoolAttribute{
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 				Optional:            true,
 				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 			},
