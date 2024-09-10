@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -42,6 +43,7 @@ type workspaceResourceModel struct {
 	Suspended        types.Bool   `tfsdk:"suspended"`
 	CreatedAt        types.String `tfsdk:"created_at"`
 	Endpoint         types.String `tfsdk:"endpoint"`
+	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -97,6 +99,13 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the workspace.",
 			},
+			"kai_enabled": schema.BoolAttribute{
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+				Optional:            true,
+				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
+			},
 		},
 	}
 }
@@ -124,6 +133,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		Name:             plan.Name.ValueString(),
 		Size:             util.MaybeString(plan.Size),
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
+		EnableKai:        util.MaybeBool(plan.KaiEnabled),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -288,6 +298,13 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
+	if !plan.KaiEnabled.Equal(state.KaiEnabled) {
+		resp.Diagnostics.AddError("Cannot change the kai_enabled configuration for the workspace",
+			"Changing the kai_enabled configuration is currently not supported.")
+
+		return
+	}
+
 	if !plan.WorkspaceGroupID.Equal(state.WorkspaceGroupID) {
 		resp.Diagnostics.AddError("Cannot update workspace group ID",
 			"To prevent accidental deletion of the databases that are attached to the workspace, updating the workspace group ID is not permitted. "+
@@ -317,6 +334,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
+		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
 	}
 }
 

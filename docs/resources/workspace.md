@@ -33,6 +33,7 @@ resource "singlestoredb_workspace" "this" {
   workspace_group_id = singlestoredb_workspace_group.example.id
   size               = "S-00"
   suspended          = false
+  kai_enabled        = true
 }
 
 output "endpoint" {
@@ -56,6 +57,7 @@ output "admin_password" {
 
 ### Optional
 
+- `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `suspended` (Boolean) The status of the workspace. If true, the workspace is suspended.
 
 ### Read-Only

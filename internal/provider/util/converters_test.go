@@ -63,7 +63,7 @@ func TestFirewallRanges(t *testing.T) {
 }
 
 func TestWorkspaceGroupStateStringValue(t *testing.T) {
-	state := management.ACTIVE
+	state := management.WorkspaceGroupStateACTIVE
 	require.Equal(t, string(state), util.WorkspaceGroupStateStringValue(state).ValueString())
 }
 

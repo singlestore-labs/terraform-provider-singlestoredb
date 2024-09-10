@@ -57,7 +57,7 @@ func scale(ctx context.Context, c management.ClientWithResponsesInterface, plan 
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
-	workspaceResumeResponse, err := c.PostV1WorkspacesWorkspaceIDResumeWithResponse(ctx, id)
+	workspaceResumeResponse, err := c.PostV1WorkspacesWorkspaceIDResumeWithResponse(ctx, id, management.WorkspaceResume{})
 	if serr := util.StatusOK(workspaceResumeResponse, err); serr != nil {
 		return workspaceResourceModel{}, serr
 	}

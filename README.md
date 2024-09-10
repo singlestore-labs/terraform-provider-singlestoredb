@@ -69,6 +69,7 @@ resource "singlestoredb_workspace" "this" {
   workspace_group_id = singlestoredb_workspace_group.example.id
   size               = "S-00"
   suspended          = false
+  kai_enabled        = true
 }
 
 output "endpoint" {

@@ -43,7 +43,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionID:         regions[0].RegionID,
-		State:            management.ACTIVE,
+		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
@@ -59,6 +59,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
+		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
 	}
 
@@ -285,6 +286,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "true"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
 				),
 			},
