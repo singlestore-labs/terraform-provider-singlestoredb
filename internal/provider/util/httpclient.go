@@ -31,6 +31,10 @@ var _ retryablehttp.ErrorHandler = HandleError
 //
 // The function is called only when server returns 500s.
 func HandleError(resp *http.Response, ierr error, numTries int) (*http.Response, error) {
+	if resp == nil {
+		return nil, maybeWithExtraError(fmt.Sprintf("giving up after %d attempts, unable to read response body", numTries), ierr)
+	}
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, respReadLimit))
