@@ -34,15 +34,21 @@ type workspaceGroupResource struct {
 	management.ClientWithResponsesInterface
 }
 
+type updateWindowResourceModel struct {
+	Hour types.Int64 `tfsdk:"hour"`
+	Day  types.Int64 `tfsdk:"day"`
+}
+
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID             types.String   `tfsdk:"id"`
-	Name           types.String   `tfsdk:"name"`
-	FirewallRanges []types.String `tfsdk:"firewall_ranges"`
-	CreatedAt      types.String   `tfsdk:"created_at"`
-	ExpiresAt      types.String   `tfsdk:"expires_at"`
-	RegionID       types.String   `tfsdk:"region_id"`
-	AdminPassword  types.String   `tfsdk:"admin_password"`
+	ID             types.String               `tfsdk:"id"`
+	Name           types.String               `tfsdk:"name"`
+	FirewallRanges []types.String             `tfsdk:"firewall_ranges"`
+	CreatedAt      types.String               `tfsdk:"created_at"`
+	ExpiresAt      types.String               `tfsdk:"expires_at"`
+	RegionID       types.String               `tfsdk:"region_id"`
+	AdminPassword  types.String               `tfsdk:"admin_password"`
+	UpdateWindow   *updateWindowResourceModel `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -99,6 +105,20 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Sensitive:           true,
 				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
 			},
+			"update_window": schema.SingleNestedAttribute{
+				Optional:            true,
+				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
+				Attributes: map[string]schema.Attribute{
+					"hour": schema.Int64Attribute{
+						Optional:            true,
+						MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
+					},
+					"day": schema.Int64Attribute{
+						Optional:            true,
+						MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
+					},
+				},
+			},
 		},
 	}
 }
@@ -118,6 +138,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		FirewallRanges: util.StringFirewallRanges(plan.FirewallRanges),
 		Name:           plan.Name.ValueString(),
 		RegionID:       uuid.MustParse(plan.RegionID.ValueString()),
+		UpdateWindow:   toManagementUpdateWindow(plan.UpdateWindow),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -211,6 +232,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+			UpdateWindow:   toManagementUpdateWindow(plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -314,6 +336,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		ExpiresAt:      util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		RegionID:       util.UUIDStringValue(workspaceGroup.RegionID),
 		AdminPassword:  types.StringValue(adminPassword),
+		UpdateWindow:   toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 }
 
@@ -369,4 +392,26 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 	}
 
 	return result, nil
+}
+
+func toManagementUpdateWindow(uw *updateWindowResourceModel) *management.UpdateWindow {
+	if uw == nil {
+		return nil
+	}
+
+	return &management.UpdateWindow{
+		Hour: float32(uw.Hour.ValueInt64()),
+		Day:  float32(uw.Day.ValueInt64()),
+	}
+}
+
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) *updateWindowResourceModel {
+	if uw == nil {
+		return nil
+	}
+
+	return &updateWindowResourceModel{
+		Hour: types.Int64Value(int64(uw.Hour)),
+		Day:  types.Int64Value(int64(uw.Day)),
+	}
 }
