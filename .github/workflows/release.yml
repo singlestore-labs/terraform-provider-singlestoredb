@@ -5,6 +5,8 @@ name: Release
 # "v*" (e.g. v0.1.0) is created.
 on:
   push:
+    branches:
+      - debugging-releaser
     tags:
       - 'v*'
   workflow_dispatch:
