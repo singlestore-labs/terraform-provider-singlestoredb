@@ -5,11 +5,8 @@ name: Release
 # "v*" (e.g. v0.1.0) is created.
 on:
   push:
-    branches:
-      - debugging-releaser
     tags:
       - 'v*'
-  workflow_dispatch:
 
 # Releases need permissions to read and write the repository contents.
 # GitHub considers creating releases and uploading assets as writing contents.
@@ -38,7 +35,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --snapshot
+          args: release --clean
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
