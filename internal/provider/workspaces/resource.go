@@ -104,7 +104,9 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					boolplanmodifier.UseStateForUnknown(),
 				},
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
+				Default:             booldefault.StaticBool(false),
 			},
 		},
 	}
@@ -334,7 +336,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
+		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
 	}
 }
 
