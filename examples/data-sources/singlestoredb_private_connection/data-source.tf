@@ -4,10 +4,10 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_workspace" "this" {
-  id = "e3e461ad-61b7-45fd-a108-7e342e9fa0aa" # Replace with the actual ID of the workspace.
+data "singlestoredb_private_connection" "this" {
+  id = "26171125-ecb8-5944-9896-209fbffc1f15" # Replace with the actual ID of the private connection.
 }
 
-output "this_workspace" {
-  value = data.singlestoredb_workspace.this
+output "this_private_connection" {
+  value = data.singlestoredb_private_connection.this
 }

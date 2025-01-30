@@ -26,16 +26,29 @@ type workspacesDataSourceGet struct {
 
 // workspaceDataSourceModel maps workspace schema data.
 type workspaceDataSourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
-	Name             types.String `tfsdk:"name"`
-	State            types.String `tfsdk:"state"`
-	Size             types.String `tfsdk:"size"`
-	Suspended        types.Bool   `tfsdk:"suspended"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	Endpoint         types.String `tfsdk:"endpoint"`
-	LastResumedAt    types.String `tfsdk:"last_resumed_at"`
-	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
+	ID               types.String                         `tfsdk:"id"`
+	WorkspaceGroupID types.String                         `tfsdk:"workspace_group_id"`
+	Name             types.String                         `tfsdk:"name"`
+	State            types.String                         `tfsdk:"state"`
+	Size             types.String                         `tfsdk:"size"`
+	Suspended        types.Bool                           `tfsdk:"suspended"`
+	CreatedAt        types.String                         `tfsdk:"created_at"`
+	Endpoint         types.String                         `tfsdk:"endpoint"`
+	LastResumedAt    types.String                         `tfsdk:"last_resumed_at"`
+	KaiEnabled       types.Bool                           `tfsdk:"kai_enabled"`
+	DeploymentType   types.String                         `tfsdk:"deployment_type"`
+	CacheConfig      types.Float32                        `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32                        `tfsdk:"scale_factor"`
+	AutoSuspend      *workspaceAutoSuspendDataSourceModel `tfsdk:"auto_suspend"`
+}
+
+type workspaceAutoSuspendDataSourceModel struct {
+	IdleAfterSeconds     types.Float32 `tfsdk:"idle_after_seconds"`
+	IdleChangedAt        types.String  `tfsdk:"idle_changed_at"`
+	ScheduledChangedAt   types.String  `tfsdk:"scheduled_changed_at"`
+	ScheduledSuspendAt   types.String  `tfsdk:"scheduled_suspend_at"`
+	SuspendType          types.String  `tfsdk:"suspend_type"`
+	SuspendTypeChangedAt types.String  `tfsdk:"suspend_type_changed_at"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -180,6 +193,48 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 		},
+		"deployment_type": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.",
+		},
+		"cache_config": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.",
+		},
+		"scale_factor": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "(If included in the output) The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.",
+		},
+		"auto_suspend": schema.SingleNestedAttribute{
+			Computed:            true,
+			MarkdownDescription: "(If included in the output) Represents the current auto suspend settings enabled for this workspace. If autoSuspend has an empty value, then the auto suspend settings are disabled.",
+			Attributes: map[string]schema.Attribute{
+				"idle_after_seconds": schema.Float32Attribute{
+					Computed:            true,
+					MarkdownDescription: "(If included in the output) The duration (in seconds) the workspace must be inactive until it automatically suspends.",
+				},
+				"idle_changed_at": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "(If included in the output) The timestamp when idleAfterSeconds was last changed.",
+				},
+				"scheduled_changed_at": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "(If included in the output) The timestamp when scheduledSuspendAt was last changed.",
+				},
+				"scheduled_suspend_at": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "(If included in the output) The timestamp when the workspace will be suspended.",
+				},
+				"suspend_type": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "The type of auto suspend currently enabled.",
+				},
+				"suspend_type_changed_at": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "(If included in the output) The timestamp when suspendType was last changed.",
+				},
+			},
+		},
 	}
 }
 
@@ -195,5 +250,24 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
 		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
+		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
+		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
+		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		AutoSuspend:      toWorkspaceAutoSuspendDataSourceModel(workspace),
 	}, nil
+}
+
+func toWorkspaceAutoSuspendDataSourceModel(ws management.Workspace) *workspaceAutoSuspendDataSourceModel {
+	if ws.AutoSuspend == nil {
+		return nil
+	}
+
+	return &workspaceAutoSuspendDataSourceModel{
+		IdleAfterSeconds:     types.Float32PointerValue(ws.AutoSuspend.IdleAfterSeconds),
+		IdleChangedAt:        types.StringPointerValue(ws.AutoSuspend.IdleChangedAt),
+		ScheduledChangedAt:   types.StringPointerValue(ws.AutoSuspend.ScheduledChangedAt),
+		ScheduledSuspendAt:   types.StringPointerValue(ws.AutoSuspend.ScheduledSuspendAt),
+		SuspendType:          types.StringValue(string(ws.AutoSuspend.SuspendType)),
+		SuspendTypeChangedAt: types.StringPointerValue(ws.AutoSuspend.SuspendTypeChangedAt),
+	}
 }

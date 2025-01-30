@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/zclconf/go-cty/cty"
@@ -18,6 +19,14 @@ type UpdatableConfig string
 
 // AttributeSetter is a type for setting an hcl attribute for a provider, data source, or resource.
 type AttributeSetter func(name string, val cty.Value) UpdatableConfig
+
+func (uc UpdatableConfig) WithPrivateConnectionGetDataSource(privateConnectionName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(privateconnections.DataSourceGetName), privateConnectionName})
+}
+
+func (uc UpdatableConfig) WithPrivateConnectionListDataSource(privateConnectionListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(privateconnections.DataSourceListName), privateConnectionListName})
+}
 
 func (uc UpdatableConfig) WithWorkspaceGroupGetDataSource(workspaceGroupName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspacegroups.DataSourceGetName), workspaceGroupName})
@@ -37,6 +46,10 @@ func (uc UpdatableConfig) WithWorkspaceResource(workspaceName string) AttributeS
 
 func (uc UpdatableConfig) WithWorkspaceGroupResource(workspaceGroupName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(workspacegroups.ResourceName), workspaceGroupName})
+}
+
+func (uc UpdatableConfig) WitPrivateConnectionResource(privateConnectionName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(privateconnections.ResourceName), privateConnectionName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.

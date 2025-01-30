@@ -31,7 +31,7 @@ tools:
 	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.14.1
 
 lint: tools
-	golangci-lint run ./...
+	golangci-lint run --fast ./...
 
 gencheck:
 	git diff --compact-summary --exit-code || \

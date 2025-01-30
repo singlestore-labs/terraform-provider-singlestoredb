@@ -77,3 +77,9 @@ func TestWorkspaceStateStringValue(t *testing.T) {
 	state := management.WorkspaceStateACTIVE
 	require.Equal(t, string(state), util.WorkspaceStateStringValue(state).ValueString())
 }
+
+func TestWorkspaceDeploymentTypeString(t *testing.T) {
+	require.Nil(t, util.WorkspaceDeploymentTypeString(types.StringValue("something")))
+	production := string(management.WorkspaceUpdateDeploymentTypePRODUCTION)
+	require.Equal(t, management.WorkspaceUpdateDeploymentTypePRODUCTION, util.Deref(util.WorkspaceDeploymentTypeString(types.StringValue(production))))
+}

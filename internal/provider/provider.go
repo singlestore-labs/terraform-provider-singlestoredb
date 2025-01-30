@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
@@ -157,6 +158,8 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		workspacegroups.NewDataSourceGet,
 		workspaces.NewDataSourceList,
 		workspaces.NewDataSourceGet,
+		privateconnections.NewDataSourceList,
+		privateconnections.NewDataSourceGet,
 	}
 }
 
@@ -165,6 +168,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 	return []func() resource.Resource{
 		workspacegroups.NewResource,
 		workspaces.NewResource,
+		privateconnections.NewResource,
 	}
 }
 

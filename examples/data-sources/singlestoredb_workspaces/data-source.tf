@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_workspaces" "all" {
-  workspace_group_id = "bc8c0deb-50dd-4a58-a5a5-1c62eb5c456d" # Replace with the actual ID of the workspace group.
+  workspace_group_id = "f5356175-1ae7-4ef1-8356-43e3cfd9d12a" # Replace with the actual ID of the workspace group.
 }
 
 output "all_workspaces" {

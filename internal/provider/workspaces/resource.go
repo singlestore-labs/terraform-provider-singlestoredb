@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -36,14 +37,16 @@ type workspaceResource struct {
 
 // workspaceResourceModel maps the resource schema data.
 type workspaceResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
-	Name             types.String `tfsdk:"name"`
-	Size             types.String `tfsdk:"size"`
-	Suspended        types.Bool   `tfsdk:"suspended"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	Endpoint         types.String `tfsdk:"endpoint"`
-	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
+	ID               types.String  `tfsdk:"id"`
+	WorkspaceGroupID types.String  `tfsdk:"workspace_group_id"`
+	Name             types.String  `tfsdk:"name"`
+	Size             types.String  `tfsdk:"size"`
+	Suspended        types.Bool    `tfsdk:"suspended"`
+	CreatedAt        types.String  `tfsdk:"created_at"`
+	Endpoint         types.String  `tfsdk:"endpoint"`
+	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
+	DeploymentType   types.String  `tfsdk:"deployment_type"`
+	ScaleFactor      types.Float32 `tfsdk:"scale_factor"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -108,6 +111,19 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 				Default:             booldefault.StaticBool(false),
 			},
+			"deployment_type": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(string(management.WorkspaceUpdateDeploymentTypeNONPRODUCTION), string(management.WorkspaceUpdateDeploymentTypePRODUCTION)),
+				},
+			},
+			"scale_factor": schema.Float32Attribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "(If included in the output) The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.",
+			},
 		},
 	}
 }
@@ -136,6 +152,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		Size:             util.MaybeString(plan.Size),
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
 		EnableKai:        util.MaybeBool(plan.KaiEnabled),
+		ScaleFactor:      util.MaybeFloat32(plan.ScaleFactor),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -144,6 +161,23 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		)
 
 		return
+	}
+
+	// Execute PATCH call to proceed deploymentType and autoScale
+	if !plan.DeploymentType.IsNull() && !plan.DeploymentType.IsUnknown() {
+		workspace, err := r.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, workspaceCreateResponse.JSON200.WorkspaceID,
+			management.PatchV1WorkspacesWorkspaceIDJSONRequestBody{
+				DeploymentType: util.WorkspaceDeploymentTypeString(plan.DeploymentType),
+			},
+		)
+		if serr := util.StatusOK(workspace, err); serr != nil {
+			resp.Diagnostics.AddError(
+				serr.Summary,
+				serr.Detail,
+			)
+
+			return
+		}
 	}
 
 	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.WorkspaceID, config.WorkspaceCreationTimeout,
@@ -228,7 +262,7 @@ func (r *workspaceResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	var uerr *util.SummaryWithDetailError
-	state, uerr = updateSizeOrSuspended(ctx, r.ClientWithResponsesInterface, state, plan)
+	state, uerr = updateWorkspace(ctx, r.ClientWithResponsesInterface, state, plan)
 	if uerr != nil {
 		resp.Diagnostics.AddError(
 			uerr.Summary,
@@ -337,6 +371,8 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
+		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
+		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
 	}
 }
 

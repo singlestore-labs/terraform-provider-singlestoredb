@@ -20,7 +20,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_workspace" "this" {
-  id = "26171125-ecb8-5944-9896-209fbffc1f15" # Replace with the actual ID of the workspace.
+  id = "e3e461ad-61b7-45fd-a108-7e342e9fa0aa" # Replace with the actual ID of the workspace.
 }
 
 output "this_workspace" {
@@ -37,14 +37,30 @@ output "this_workspace" {
 
 ### Read-Only
 
+- `auto_suspend` (Attributes) (If included in the output) Represents the current auto suspend settings enabled for this workspace. If autoSuspend has an empty value, then the auto suspend settings are disabled. (see [below for nested schema](#nestedatt--auto_suspend))
+- `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
+- `deployment_type` (String) Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.
 - `name` (String) The name of the workspace.
+- `scale_factor` (Number) (If included in the output) The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.
 - `size` (String) The size of the workspace, represented in workspace size notation, such as 'S-00' or 'S-1'.
 - `state` (String) The current state of the workspace.
 - `suspended` (Boolean) A boolean value indicating whether the workspace is currently suspended. If true, the workspace is suspended; if false, the workspace is active.
 - `workspace_group_id` (String) The unique identifier of the workspace group that the workspace belongs to. This relationship is established when the workspace is created.
+
+<a id="nestedatt--auto_suspend"></a>
+### Nested Schema for `auto_suspend`
+
+Read-Only:
+
+- `idle_after_seconds` (Number) (If included in the output) The duration (in seconds) the workspace must be inactive until it automatically suspends.
+- `idle_changed_at` (String) (If included in the output) The timestamp when idleAfterSeconds was last changed.
+- `scheduled_changed_at` (String) (If included in the output) The timestamp when scheduledSuspendAt was last changed.
+- `scheduled_suspend_at` (String) (If included in the output) The timestamp when the workspace will be suspended.
+- `suspend_type` (String) The type of auto suspend currently enabled.
+- `suspend_type_changed_at` (String) (If included in the output) The timestamp when suspendType was last changed.
 
 
