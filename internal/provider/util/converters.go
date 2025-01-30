@@ -40,6 +40,14 @@ func UUIDStringValue(id otypes.UUID) types.String {
 	return types.StringValue(id.String())
 }
 
+func MaybeUUIDStringValue(id *otypes.UUID) types.String {
+	if id == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(id.String())
+}
+
 func StringFirewallRanges(frs []types.String) []string {
 	return Map(frs, ToString)
 }
@@ -78,6 +86,27 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	}
 
 	return convert(*input)
+}
+
+func PrivateConnectionTypeString(wgs types.String) *management.PrivateConnectionCreateType {
+	for _, s := range []management.PrivateConnectionCreateType{
+		management.PrivateConnectionCreateTypeINBOUND,
+		management.PrivateConnectionCreateTypeOUTBOUND,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func StringValueOrNull[T ~string](value *T) types.String {
+	if value == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(string(*value))
 }
 
 func MaybeFloat32(f types.Float32) *float32 {
