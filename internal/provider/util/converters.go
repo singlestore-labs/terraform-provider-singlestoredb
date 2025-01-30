@@ -79,3 +79,24 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 
 	return convert(*input)
 }
+
+func WorkspaceDeploymentTypeString(wgs types.String) *management.WorkspaceUpdateDeploymentType {
+	for _, s := range []management.WorkspaceUpdateDeploymentType{
+		management.WorkspaceUpdateDeploymentTypePRODUCTION,
+		management.WorkspaceUpdateDeploymentTypeNONPRODUCTION,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func StringValueOrNull[T ~string](value *T) types.String {
+	if value == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(string(*value))
+}

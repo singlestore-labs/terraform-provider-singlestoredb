@@ -38,6 +38,7 @@ output "this_workspace" {
 ### Read-Only
 
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
+- `deployment_type` (String) Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.

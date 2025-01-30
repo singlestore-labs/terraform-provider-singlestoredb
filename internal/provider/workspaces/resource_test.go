@@ -21,7 +21,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-var updatedWorkspaceSize = "S-0"
+var (
+	updatedWorkspaceSize           = "S-0"
+	updatedWorkspaceDeploymentType = "PRODUCTION"
+)
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
@@ -61,6 +64,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
+		DeploymentType:   util.Ptr(management.WorkspaceDeploymentTypeNONPRODUCTION),
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
@@ -177,6 +181,21 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		workspace.Endpoint = util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com") // New endpoint.
 	}
 
+	workspacesPatchHandlerOnCreate := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, strings.Join([]string{"/v1/workspaces", workspace.WorkspaceID.String()}, "/"), r.URL.Path)
+		require.Equal(t, http.MethodPatch, r.Method)
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: workspaceID,
+			},
+		))
+		require.NoError(t, err)
+	}
+
 	returnInternalError := true
 	workspacesPatchHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, strings.Join([]string{"/v1/workspaces", workspace.WorkspaceID.String()}, "/"), r.URL.Path)
@@ -207,6 +226,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		))
 		require.NoError(t, err)
 		workspace.Size = *input.Size // Finally, the desired size after resume.
+		workspace.DeploymentType = (*management.WorkspaceDeploymentType)(input.DeploymentType)
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +268,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	writeHandlers := []func(w http.ResponseWriter, r *http.Request){
 		workspaceGroupsPostHandler,
 		workspacesPostHandler,
+		workspacesPatchHandlerOnCreate,
 		workspacesSuspendHandler,
 		workspacesResumeHandler,
 		workspacesPatchHandler, // Retry.
@@ -288,6 +309,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "true"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "deployment_type", string(*workspace.DeploymentType)),
 				),
 			},
 			{
@@ -314,10 +336,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceResource("this")("deployment_type", cty.StringVal(updatedWorkspaceDeploymentType)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "deployment_type", updatedWorkspaceDeploymentType),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
@@ -345,6 +369,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "deployment_type", config.TestWorkspaceDeploymentType),
 				),
 			},
 			{
@@ -374,11 +399,13 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceResource("this")("deployment_type", cty.StringVal(updatedWorkspaceDeploymentType)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "deployment_type", updatedWorkspaceDeploymentType),
 				),
 			},
 		},

@@ -62,6 +62,8 @@ const (
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "workspace"
+	// TestWorkspaceDeploymentType is the default workspace deployment type in examples.
+	TestWorkspaceDeploymentType = "NON-PRODUCTION"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.

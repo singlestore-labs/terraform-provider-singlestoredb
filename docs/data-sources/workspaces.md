@@ -46,6 +46,7 @@ output "all_workspaces" {
 Read-Only:
 
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
+- `deployment_type` (String) Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `id` (String) The unique identifier of the workspace.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.

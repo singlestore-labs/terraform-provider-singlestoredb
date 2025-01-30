@@ -70,6 +70,7 @@ resource "singlestoredb_workspace" "this" {
   size               = "S-00"
   suspended          = false
   kai_enabled        = true
+  deployment_type    = "NON-PRODUCTION"
 }
 
 output "endpoint" {

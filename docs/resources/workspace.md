@@ -34,6 +34,7 @@ resource "singlestoredb_workspace" "this" {
   size               = "S-00"
   suspended          = false
   kai_enabled        = true
+  deployment_type    = "NON-PRODUCTION"
 }
 
 output "endpoint" {
@@ -57,6 +58,7 @@ output "admin_password" {
 
 ### Optional
 
+- `deployment_type` (String) Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `suspended` (Boolean) The status of the workspace. If true, the workspace is suspended.
 

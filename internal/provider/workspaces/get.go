@@ -36,6 +36,7 @@ type workspaceDataSourceModel struct {
 	Endpoint         types.String `tfsdk:"endpoint"`
 	LastResumedAt    types.String `tfsdk:"last_resumed_at"`
 	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
+	DeploymentType   types.String `tfsdk:"deployment_type"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -180,6 +181,10 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 		},
+		"deployment_type": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "Specifies the deployment type for the workspace. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If the value wasn't changed on creation, then the default will be `PRODUCTION`. If set to `NON-PRODUCTION`, the upgrades are only applied to the non-production workspaces.",
+		},
 	}
 }
 
@@ -195,5 +200,6 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
 		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
+		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
 	}, nil
 }
