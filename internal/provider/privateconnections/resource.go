@@ -211,16 +211,6 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 		return // The resource got deleted externally, deleting it from the state file to recreate.
 	}
 
-	if privateConnection.JSON200.Status == nil || *privateConnection.JSON200.Status != management.PrivateConnectionStatusACTIVE {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("Private connection %s status is %s while it should be %s", state.ID.ValueString(), string(*privateConnection.JSON200.Status), management.PrivateConnectionStatusACTIVE),
-			"An unexpected private connection status.\n\n"+
-				config.ContactSupportLaterErrorDetail,
-		)
-
-		return
-	}
-
 	state, terr := toPrivateConnectionModel(*privateConnection.JSON200)
 	if terr != nil {
 		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
@@ -271,17 +261,17 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	wg, werr := waitStatusActive(ctx, r.ClientWithResponsesInterface, id)
-	if werr != nil {
+	privateConnection, err := r.GetV1PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV1PrivateConnectionsConnectionIDParams{})
+	if serr := util.StatusOK(privateConnection, err); serr != nil {
 		resp.Diagnostics.AddError(
-			werr.Summary,
-			werr.Detail,
+			serr.Summary,
+			serr.Detail,
 		)
 
 		return
 	}
 
-	result, terr := toPrivateConnectionModel(wg)
+	result, terr := toPrivateConnectionModel(*privateConnection.JSON200)
 	if terr != nil {
 		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
 

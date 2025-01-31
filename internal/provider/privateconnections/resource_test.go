@@ -293,7 +293,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", config.IDAttribute, privateConnectionID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "active_at", string("2025-01-21T11:11:38.145343Z")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", string(updateAllowedList)),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", updateAllowedList),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "created_at", string("2025-01-21T11:11:38.145343Z")),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "endpoint", string("com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406")),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "outbound_allow_list", string("127.0.0.0")),
@@ -312,6 +312,8 @@ func TestCRUDPrivateConnection(t *testing.T) {
 }
 
 func createGetHandler(t *testing.T, expectedPath string, expectedMethod string, responseData interface{}) func(w http.ResponseWriter, r *http.Request) bool {
+	t.Helper()
+
 	return func(w http.ResponseWriter, r *http.Request) bool {
 		if r.URL.Path != expectedPath || r.Method != expectedMethod {
 			return false

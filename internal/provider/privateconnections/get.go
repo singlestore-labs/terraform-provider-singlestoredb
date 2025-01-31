@@ -2,7 +2,6 @@ package privateconnections
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -68,15 +67,6 @@ func (d *privateConnectionDataSourceGet) Read(ctx context.Context, req datasourc
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
-		)
-
-		return
-	}
-
-	if privateConnection.JSON200.Status == nil || *privateConnection.JSON200.Status != management.PrivateConnectionStatusACTIVE {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("private connection with the specified ID exists, but is at the %s status", *privateConnection.JSON200.Status),
-			config.ContactSupportErrorDetail,
 		)
 
 		return
