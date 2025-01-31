@@ -4,25 +4,21 @@ linters:
     - varnamelen
     - paralleltest
     - lll
-    - exhaustivestruct
     - exhaustruct
     - ireturn
-    - goerr113
     - forcetypeassert
     - wsl
     - funlen
     - wastedassign
-    - structcheck
     - rowserrcheck
-    - varcheck
-    - structcheck
-    - interfacer
-    - maligned
-    - golint
-    - deadcode
-    - ifshort
-    - scopelint
-    - nosnakecase
     - wrapcheck
     - gochecknoglobals
     - gci
+    - testifylint
+    - err113
+    - mirror
+    - revive
+    - depguard
+    - recvcheck
+    - perfsprint
+    - exportloopref
