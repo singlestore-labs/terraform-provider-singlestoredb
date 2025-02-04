@@ -26,7 +26,7 @@ type privateConnectionsDataSourceList struct {
 type privateConnectionsListDataSourceModel struct {
 	ID                 types.String             `tfsdk:"id"`
 	WorkspaceGroupID   types.String             `tfsdk:"workspace_group_id"`
-	PrivateConnections []privateConnectionModel `tfsdk:"private_connections"`
+	PrivateConnections []PrivateConnectionModel `tfsdk:"private_connections"`
 }
 
 var _ datasource.DataSourceWithConfigure = &privateConnectionsDataSourceList{}
@@ -82,6 +82,7 @@ func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasou
 
 		return
 	}
+
 	privateConnections, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDPrivateConnectionsWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDPrivateConnectionsParams{})
 	if serr := util.StatusOK(privateConnections, err); serr != nil {
 		resp.Diagnostics.AddError(

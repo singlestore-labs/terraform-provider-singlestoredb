@@ -2,19 +2,18 @@ package privateconnections
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -36,21 +35,29 @@ type privateConnectionResource struct {
 }
 
 // privateConnectionModel maps the resource schema data.
-type privateConnectionModel struct {
-	ID                types.String `tfsdk:"id"`
-	ActiveAt          types.String `tfsdk:"active_at"`
-	AllowList         types.String `tfsdk:"allow_list"`
-	CreatedAt         types.String `tfsdk:"created_at"`
-	DeletedAt         types.String `tfsdk:"deleted_at"`
-	Endpoint          types.String `tfsdk:"endpoint"`
-	OutboundAllowList types.String `tfsdk:"outbound_allow_list"`
-	ServiceName       types.String `tfsdk:"service_name"`
-	Status            types.String `tfsdk:"status"`
-	Type              types.String `tfsdk:"type"`
-	UpdatedAt         types.String `tfsdk:"updated_at"`
-	WorkspaceGroupID  types.String `tfsdk:"workspace_group_id"`
-	WorkspaceID       types.String `tfsdk:"workspace_id"`
+type PrivateConnectionModel struct {
+	ID                types.String  `tfsdk:"id"`
+	ActiveAt          types.String  `tfsdk:"active_at"`
+	AllowList         types.String  `tfsdk:"allow_list"`
+	KaiEndpointID     types.String  `tfsdk:"kai_endpoint_id"`
+	CreatedAt         types.String  `tfsdk:"created_at"`
+	DeletedAt         types.String  `tfsdk:"deleted_at"`
+	Endpoint          types.String  `tfsdk:"endpoint"`
+	OutboundAllowList types.String  `tfsdk:"outbound_allow_list"`
+	ServiceName       types.String  `tfsdk:"service_name"`
+	Status            types.String  `tfsdk:"status"`
+	SQLPort           types.Float32 `tfsdk:"sql_port"`
+	Type              types.String  `tfsdk:"type"`
+	WebsocketsPort    types.Float32 `tfsdk:"web_socket_port"`
+	UpdatedAt         types.String  `tfsdk:"updated_at"`
+	WorkspaceGroupID  types.String  `tfsdk:"workspace_group_id"`
+	WorkspaceID       types.String  `tfsdk:"workspace_id"`
 }
+
+const (
+	defaultSQLPort       float32 = 3306
+	defaultWebsocketPort float32 = 443
+)
 
 // NewResource is a helper function to simplify the provider implementation.
 func NewResource() resource.Resource {
@@ -82,6 +89,10 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				Optional:            true,
 				MarkdownDescription: "The private connection allow list. This is the account ID for AWS,  subscription ID for Azure, and the project name GCP.",
 			},
+			"kai_endpoint_id": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "VPC Endpoint ID for AWS.",
+			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -98,7 +109,6 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The timestamp of when the private connection was updated.",
 			},
 			"endpoint": schema.StringAttribute{
-				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "The service endpoint.",
 			},
@@ -107,19 +117,34 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "The account ID which must be allowed for outbound connections.",
 			},
 			"service_name": schema.StringAttribute{
+				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "The name of the private connection service.",
 			},
 			"type": schema.StringAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "The private connection type.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(management.PrivateConnectionCreateTypeINBOUND), string(management.PrivateConnectionCreateTypeOUTBOUND)),
 				},
+				Default: stringdefault.StaticString(string(management.PrivateConnectionCreateTypeINBOUND)),
 			},
 			"status": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The status of the private connection.",
+			},
+			"sql_port": schema.Float32Attribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "The SQL port.",
+				Default:             float32default.StaticFloat32(defaultSQLPort),
+			},
+			"web_socket_port": schema.Float32Attribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "The websockets port.",
+				Default:             float32default.StaticFloat32(defaultWebsocketPort),
 			},
 			"workspace_group_id": schema.StringAttribute{
 				Required:            true,
@@ -135,20 +160,57 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 
 // Create creates the resource and sets the initial Terraform state.
 func (r *privateConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan privateConnectionModel
+	var plan PrivateConnectionModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	workspaceID := uuid.MustParse(plan.WorkspaceID.String())
+	verr := ValidatePrivateConnection(plan, false)
+	if verr != nil {
+		resp.Diagnostics.AddError(
+			verr.Summary,
+			verr.Detail,
+		)
+
+		return
+	}
+
+	privateConnectionType, err := util.PrivateConnectionTypeString(plan.Type)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			err.Error(),
+			err.Error(),
+		)
+	}
+
+	var workspaceID *uuid.UUID
+	if !plan.WorkspaceID.IsNull() {
+		parsedID := uuid.MustParse(plan.WorkspaceID.String())
+		workspaceID = &parsedID
+	}
+
+	// If custom socket are not enabled, sqlPort and websocketPort must be empty
+	var sqlPort *float32
+	if plan.SQLPort.ValueFloat32() != defaultSQLPort {
+		sqlPort = util.MaybeFloat32(plan.SQLPort)
+	}
+
+	var websocketPort *float32
+	if plan.WebsocketsPort.ValueFloat32() != defaultWebsocketPort {
+		websocketPort = util.MaybeFloat32(plan.WebsocketsPort)
+	}
 
 	privateConnectionCreateResponse, err := r.PostV1PrivateConnectionsWithResponse(ctx, management.PostV1PrivateConnectionsJSONRequestBody{
 		AllowList:        util.MaybeString(plan.AllowList),
-		Type:             util.PrivateConnectionTypeString(plan.Type),
+		KaiEndpointID:    util.MaybeString(plan.KaiEndpointID),
+		ServiceName:      util.MaybeString(plan.ServiceName),
+		SqlPort:          sqlPort,
+		Type:             &privateConnectionType,
+		WebsocketsPort:   websocketPort,
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
-		WorkspaceID:      &workspaceID,
+		WorkspaceID:      workspaceID,
 	})
 
 	if serr := util.StatusOK(privateConnectionCreateResponse, err); serr != nil {
@@ -161,7 +223,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	id := privateConnectionCreateResponse.JSON200.PrivateConnectionID
-	wg, werr := waitStatusActive(ctx, r.ClientWithResponsesInterface, id)
+	con, werr := WaitPrivateConnectionStatus(ctx, r.ClientWithResponsesInterface, id, waitConditionStatus(management.PrivateConnectionStatusACTIVE))
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -171,7 +233,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	result, terr := toPrivateConnectionModel(wg)
+	result, terr := toPrivateConnectionModel(con)
 
 	if terr != nil {
 		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
@@ -185,7 +247,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 
 // Read refreshes the Terraform state with the latest data.
 func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state privateConnectionModel
+	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -227,21 +289,31 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *privateConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var state privateConnectionModel
+	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var plan privateConnectionModel
+	var plan PrivateConnectionModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if plan.AllowList.IsNull() || plan.AllowList.IsUnknown() || plan.AllowList.Equal(state.AllowList) {
+	verr := ValidatePrivateConnection(plan, true)
+	if verr != nil {
+		resp.Diagnostics.AddError(
+			verr.Summary,
+			verr.Detail,
+		)
+
+		return
+	}
+
+	if plan.AllowList.Equal(state.AllowList) {
 		return
 	}
 
@@ -261,17 +333,18 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	privateConnection, err := r.GetV1PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV1PrivateConnectionsConnectionIDParams{})
-	if serr := util.StatusOK(privateConnection, err); serr != nil {
+	privateConnection, werr := WaitPrivateConnectionStatus(ctx, r.ClientWithResponsesInterface, id, waitConditionAllowList(util.ToString(plan.AllowList)))
+	if werr != nil {
 		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
+			werr.Summary,
+			werr.Detail,
 		)
 
 		return
 	}
 
-	result, terr := toPrivateConnectionModel(*privateConnection.JSON200)
+	result, terr := toPrivateConnectionModel(privateConnection)
+
 	if terr != nil {
 		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
 
@@ -287,7 +360,7 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *privateConnectionResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state privateConnectionModel
+	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -318,17 +391,27 @@ func (r *privateConnectionResource) Configure(_ context.Context, req resource.Co
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *privateConnectionModel
+	var state *PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() || state == nil {
 		return
 	}
 
-	var plan *privateConnectionModel
+	var plan *PrivateConnectionModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() || plan == nil {
+		return
+	}
+
+	verr := ValidatePrivateConnectionModifyPlan(*plan, *state)
+	if verr != nil {
+		resp.Diagnostics.AddError(
+			verr.Summary,
+			verr.Detail,
+		)
+
 		return
 	}
 }
@@ -338,8 +421,12 @@ func (r *privateConnectionResource) ImportState(ctx context.Context, req resourc
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toPrivateConnectionModel(privateConnection management.PrivateConnection) (privateConnectionModel, *util.SummaryWithDetailError) {
-	return privateConnectionModel{
+func toPrivateConnectionModel(privateConnection management.PrivateConnection) (PrivateConnectionModel, *util.SummaryWithDetailError) {
+	var kaiEndpointID types.String
+	if privateConnection.AllowedPrivateLinkIDs != nil && len(*privateConnection.AllowedPrivateLinkIDs) > 0 {
+		kaiEndpointID = util.MaybeStringValue(&(*privateConnection.AllowedPrivateLinkIDs)[0])
+	}
+	model := PrivateConnectionModel{
 		ID:                util.UUIDStringValue(privateConnection.PrivateConnectionID),
 		ActiveAt:          util.MaybeStringValue(privateConnection.ActiveAt),
 		AllowList:         util.MaybeStringValue(privateConnection.AllowList),
@@ -349,57 +436,20 @@ func toPrivateConnectionModel(privateConnection management.PrivateConnection) (p
 		OutboundAllowList: util.MaybeStringValue(privateConnection.OutboundAllowList),
 		ServiceName:       util.MaybeStringValue(privateConnection.ServiceName),
 		Endpoint:          util.MaybeStringValue(privateConnection.Endpoint),
+		KaiEndpointID:     kaiEndpointID,
 		Type:              util.StringValueOrNull(privateConnection.Type),
 		UpdatedAt:         util.MaybeStringValue(privateConnection.UpdatedAt),
 		WorkspaceGroupID:  util.UUIDStringValue(privateConnection.WorkspaceGroupID),
 		WorkspaceID:       util.MaybeUUIDStringValue(privateConnection.WorkspaceID),
-	}, nil
-}
-
-func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInterface, id management.ConnectionID) (management.PrivateConnection, *util.SummaryWithDetailError) {
-	result := management.PrivateConnection{}
-
-	privateConnectionStatusHistory := make([]management.PrivateConnectionStatus, 0, config.PrivateConnectionConsistencyThreshold)
-
-	if err := retry.RetryContext(ctx, config.PrivateConnectionCreationTimeout, func() *retry.RetryError {
-		privateConnection, err := c.GetV1PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV1PrivateConnectionsConnectionIDParams{})
-		if err != nil { // Not status code OK does not get here, not retrying for that reason.
-			ferr := fmt.Errorf("failed to get private connection %s: %w", id, err)
-
-			return retry.NonRetryableError(ferr)
-		}
-
-		if code := privateConnection.StatusCode(); code != http.StatusOK {
-			err := fmt.Errorf("failed to get private connection %s: status code %s", id, http.StatusText(code))
-
-			return retry.RetryableError(err)
-		}
-
-		privateConnectionStatusHistory = append(privateConnectionStatusHistory, *privateConnection.JSON200.Status)
-
-		if privateConnection.JSON200.Status == nil || *privateConnection.JSON200.Status != management.PrivateConnectionStatusACTIVE {
-			err = fmt.Errorf("private connection %s status is %s", id, string(*privateConnection.JSON200.Status))
-
-			return retry.RetryableError(err)
-		}
-
-		if !util.CheckLastN(privateConnectionStatusHistory, config.PrivateConnectionConsistencyThreshold, management.PrivateConnectionStatusACTIVE) {
-			err = fmt.Errorf("private connection %s status is %s but the Management API did not return the same status for the consequent %d iterations yet",
-				id, string(*privateConnection.JSON200.Status), config.PrivateConnectionConsistencyThreshold,
-			)
-
-			return retry.RetryableError(err)
-		}
-
-		result = *privateConnection.JSON200
-
-		return nil
-	}); err != nil {
-		return management.PrivateConnection{}, &util.SummaryWithDetailError{
-			Summary: fmt.Sprintf("Failed to wait for a private connection %s creation", id),
-			Detail:  fmt.Sprintf("Private connection is not ready: %s", err),
-		}
+		SQLPort:           types.Float32PointerValue(privateConnection.SqlPort),
+		WebsocketsPort:    types.Float32PointerValue(privateConnection.WebsocketsPort),
+	}
+	if model.SQLPort.IsNull() || model.SQLPort.IsUnknown() {
+		model.SQLPort = types.Float32Value(defaultSQLPort)
+	}
+	if model.WebsocketsPort.IsNull() || model.WebsocketsPort.IsUnknown() {
+		model.WebsocketsPort = types.Float32Value(defaultWebsocketPort)
 	}
 
-	return result, nil
+	return model, nil
 }

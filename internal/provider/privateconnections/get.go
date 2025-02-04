@@ -44,7 +44,7 @@ func (d *privateConnectionDataSourceGet) Schema(_ context.Context, _ datasource.
 
 // Read refreshes the Terraform state with the latest data.
 func (d *privateConnectionDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var data privateConnectionModel
+	var data PrivateConnectionModel
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,6 +107,10 @@ func newPrivateConnectionDataSourceSchemaAttributes() map[string]schema.Attribut
 			Computed:            true,
 			MarkdownDescription: "The private connection allow list. This is the account ID for AWS,  subscription ID for Azure, and the project name GCP.",
 		},
+		"kai_endpoint_id": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "VPC Endpoint ID for AWS.",
+		},
 		"created_at": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "The timestamp of when the private connection was created.",
@@ -130,6 +134,14 @@ func newPrivateConnectionDataSourceSchemaAttributes() map[string]schema.Attribut
 		"service_name": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "The name of the private connection service.",
+		},
+		"sql_port": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "The SQL port.",
+		},
+		"web_socket_port": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "The websockets port.",
 		},
 		"type": schema.StringAttribute{
 			Computed:            true,

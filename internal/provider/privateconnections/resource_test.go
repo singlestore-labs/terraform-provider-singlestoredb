@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
@@ -58,6 +59,7 @@ var (
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
+		ScaleFactor:      util.MaybeFloat32(types.Float32Value(1)),
 	}
 
 	privateConnection = management.PrivateConnection{

@@ -67,8 +67,11 @@ output "private_connection_id" {
 ### Optional
 
 - `allow_list` (String) The private connection allow list. This is the account ID for AWS,  subscription ID for Azure, and the project name GCP.
-- `endpoint` (String) The service endpoint.
+- `kai_endpoint_id` (String) VPC Endpoint ID for AWS.
+- `service_name` (String) The name of the private connection service.
+- `sql_port` (Number) The SQL port.
 - `type` (String) The private connection type.
+- `web_socket_port` (Number) The websockets port.
 - `workspace_id` (String) The ID of the workspace to connect with.
 
 ### Read-Only
@@ -76,9 +79,9 @@ output "private_connection_id" {
 - `active_at` (String) The timestamp of when the private connection became active.
 - `created_at` (String) The timestamp of when the private connection was created.
 - `deleted_at` (String) The timestamp of when the private connection was deleted.
+- `endpoint` (String) The service endpoint.
 - `id` (String) The unique identifier of the private connection.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections.
-- `service_name` (String) The name of the private connection service.
 - `status` (String) The status of the private connection.
 - `updated_at` (String) The timestamp of when the private connection was updated.
 

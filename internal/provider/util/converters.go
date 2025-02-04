@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"strings"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
@@ -88,17 +89,17 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	return convert(*input)
 }
 
-func PrivateConnectionTypeString(wgs types.String) *management.PrivateConnectionCreateType {
+func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateType, error) {
 	for _, s := range []management.PrivateConnectionCreateType{
 		management.PrivateConnectionCreateTypeINBOUND,
 		management.PrivateConnectionCreateTypeOUTBOUND,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
-			return &s
+			return s, nil
 		}
 	}
 
-	return nil
+	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
 }
 
 func StringValueOrNull[T ~string](value *T) types.String {

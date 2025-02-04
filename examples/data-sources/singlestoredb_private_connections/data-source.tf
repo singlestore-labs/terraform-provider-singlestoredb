@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_private_connections" "all" {
-  workspace_group_id = "f5356175-1ae7-4ef1-8356-43e3cfd9d12a"
+  workspace_group_id = "319a4b58-0f84-4933-bc19-3b5d11297a1a"
 }
 
 output "all_private_connections" {

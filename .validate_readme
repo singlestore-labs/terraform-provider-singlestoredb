@@ -2,7 +2,7 @@
 
 # Capture the content of resource.tf and README.md.
 readme_path="README.md"
-resource_path="examples/resources/singlestoredb_private_connection/resource.tf"
+resource_path="examples/resources/singlestoredb_workspace/resource.tf"
 resource_content=$(cat $resource_path)
 readme_content=$(cat $readme_path)
 

@@ -20,7 +20,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_private_connections" "all" {
-  workspace_group_id = "f5356175-1ae7-4ef1-8356-43e3cfd9d12a"
+  workspace_group_id = "319a4b58-0f84-4933-bc19-3b5d11297a1a"
 }
 
 output "all_private_connections" {
@@ -54,11 +54,14 @@ Read-Only:
 - `created_at` (String) The timestamp of when the private connection was created.
 - `deleted_at` (String) The timestamp of when the private connection was deleted.
 - `endpoint` (String) The service endpoint.
+- `kai_endpoint_id` (String) VPC Endpoint ID for AWS.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections.
 - `service_name` (String) The name of the private connection service.
+- `sql_port` (Number) The SQL port.
 - `status` (String) The status of the private connection.
 - `type` (String) The private connection type.
 - `updated_at` (String) The timestamp of when the private connection was updated.
+- `web_socket_port` (Number) The websockets port.
 - `workspace_group_id` (String) The ID of the workspace group containing the private connection.
 - `workspace_id` (String) The ID of the workspace to connect with.
 

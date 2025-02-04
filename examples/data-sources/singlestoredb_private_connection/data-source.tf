@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_private_connection" "this" {
-  id = "26171125-ecb8-5944-9896-209fbffc1f15" # Replace with the actual ID of the private connection.
+  id = "44b5e1a5-a761-4ee0-8240-fb6381541600" # Replace with the actual ID of the private connection.
 }
 
 output "this_private_connection" {
