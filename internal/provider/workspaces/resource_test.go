@@ -2,6 +2,7 @@ package workspaces_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
@@ -21,7 +23,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-var updatedWorkspaceSize = "S-0"
+var (
+	updatedWorkspaceSize         = "S-0"
+	updatedCacheConfig   float32 = 4
+)
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
@@ -61,6 +66,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
+		CacheConfig:      util.MaybeFloat32(types.Float32Value(2)),
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
@@ -196,6 +202,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		var input management.WorkspaceUpdate
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, updatedWorkspaceSize, util.Deref(input.Size))
+		require.Equal(t, updatedCacheConfig, util.Deref(input.CacheConfig))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -207,6 +214,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		))
 		require.NoError(t, err)
 		workspace.Size = *input.Size // Finally, the desired size after resume.
+		workspace.CacheConfig = input.CacheConfig
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -314,10 +322,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(4)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
@@ -374,9 +384,11 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
+					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(4)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),

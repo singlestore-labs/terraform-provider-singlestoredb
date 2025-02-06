@@ -34,6 +34,7 @@ resource "singlestoredb_workspace" "this" {
   size               = "S-00"
   suspended          = false
   kai_enabled        = true
+  cache_config       = 2
 }
 
 output "endpoint" {
@@ -57,6 +58,7 @@ output "admin_password" {
 
 ### Optional
 
+- `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `suspended` (Boolean) The status of the workspace. If true, the workspace is suspended.
 

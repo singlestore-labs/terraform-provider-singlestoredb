@@ -79,3 +79,11 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 
 	return convert(*input)
 }
+
+func MaybeFloat32(f types.Float32) *float32 {
+	if f.IsNull() || f.IsUnknown() {
+		return nil
+	}
+
+	return Ptr(f.ValueFloat32())
+}

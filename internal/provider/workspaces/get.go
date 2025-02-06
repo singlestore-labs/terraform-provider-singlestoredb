@@ -26,16 +26,17 @@ type workspacesDataSourceGet struct {
 
 // workspaceDataSourceModel maps workspace schema data.
 type workspaceDataSourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
-	Name             types.String `tfsdk:"name"`
-	State            types.String `tfsdk:"state"`
-	Size             types.String `tfsdk:"size"`
-	Suspended        types.Bool   `tfsdk:"suspended"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	Endpoint         types.String `tfsdk:"endpoint"`
-	LastResumedAt    types.String `tfsdk:"last_resumed_at"`
-	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
+	ID               types.String  `tfsdk:"id"`
+	WorkspaceGroupID types.String  `tfsdk:"workspace_group_id"`
+	Name             types.String  `tfsdk:"name"`
+	State            types.String  `tfsdk:"state"`
+	Size             types.String  `tfsdk:"size"`
+	Suspended        types.Bool    `tfsdk:"suspended"`
+	CreatedAt        types.String  `tfsdk:"created_at"`
+	Endpoint         types.String  `tfsdk:"endpoint"`
+	LastResumedAt    types.String  `tfsdk:"last_resumed_at"`
+	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32 `tfsdk:"cache_config"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -180,11 +181,15 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 		},
+		"cache_config": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.",
+		},
 	}
 }
 
 func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
-	return workspaceDataSourceModel{
+	model := workspaceDataSourceModel{
 		ID:               util.UUIDStringValue(workspace.WorkspaceID),
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
@@ -195,5 +200,11 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
 		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
-	}, nil
+		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
+	}
+	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
+		model.CacheConfig = types.Float32Value(1)
+	}
+
+	return model, nil
 }
