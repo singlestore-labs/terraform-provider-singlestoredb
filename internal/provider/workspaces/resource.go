@@ -120,9 +120,9 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"cache_config": schema.Float32Attribute{
 				Computed:            true,
 				Optional:            true,
-				Default:             float32default.StaticFloat32(1),
+				Default:             float32default.StaticFloat32(cacheMultiplierX1),
 				Validators:          []validator.Float32{float32validator.OneOf(cacheMultiplierX1, cacheMultiplierX2, cacheMultiplierX4)},
-				MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.",
+				MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.",
 			},
 		},
 	}
@@ -245,7 +245,7 @@ func (r *workspaceResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	var uerr *util.SummaryWithDetailError
-	state, uerr = updateWorkspace(ctx, r.ClientWithResponsesInterface, state, plan)
+	state, uerr = applyWorkspaceConfigOrToggleSuspension(ctx, r.ClientWithResponsesInterface, state, plan)
 	if uerr != nil {
 		resp.Diagnostics.AddError(
 			uerr.Summary,
@@ -332,7 +332,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	if err := isValidSuspendedOrSizeChange(state, plan); err != nil {
+	if err := validateSuspendedSizeOrCacheChange(state, plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -363,24 +363,25 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 	return model
 }
 
-func isValidSuspendedOrSizeChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
+func validateSuspendedSizeOrCacheChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
 	sizeChanged := !plan.Size.Equal(state.Size)
+	cacheChanged := !plan.CacheConfig.Equal(state.CacheConfig)
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	isSuspended := plan.Suspended.ValueBool()
 
-	// Changing both suspended and size is prohibited.
-	if sizeChanged && suspendedChanged {
+	// Changing both suspended and other configurations is prohibited.
+	if (sizeChanged || cacheChanged) && suspendedChanged {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update both state and size at the same time",
-			Detail:  "To prevent an inconsistent state either suspend a workspace or scale it.",
+			Summary: "Cannot update both the suspension state and other configurations (such as size or cache_config) at the same time",
+			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size or cache_config).",
 		}
 	}
 
 	// If a workspace is suspended, scaling is prohibited.
-	if isSuspended && sizeChanged {
+	if isSuspended && (sizeChanged || cacheChanged) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot scale a suspended workspace",
-			Detail:  "Resume the workspace by setting suspended to false before scaling.",
+			Summary: "Cannot update the configuration (such as size or cache_config) for a suspended workspace.",
+			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size or cache_config).",
 		}
 	}
 

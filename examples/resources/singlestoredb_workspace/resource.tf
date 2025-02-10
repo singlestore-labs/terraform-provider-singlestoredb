@@ -19,7 +19,6 @@ resource "singlestoredb_workspace" "this" {
   size               = "S-00"
   suspended          = false
   kai_enabled        = true
-  cache_config       = 2
 }
 
 output "endpoint" {

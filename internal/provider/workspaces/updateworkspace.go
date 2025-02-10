@@ -10,13 +10,10 @@ import (
 )
 
 // updateWorkspace updates workspace configuration(deploymentType, size) and suspends/resumes if necessary.
-func updateWorkspace(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
-	if !isWorkspaceUpdated(state, plan) && plan.Suspended.Equal(state.Suspended) {
-		return state, nil
-	}
-
-	if isWorkspaceUpdated(state, plan) {
-		return update(ctx, c, state, plan)
+func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
+	if !plan.Size.Equal(state.Size) ||
+		!plan.CacheConfig.Equal(state.CacheConfig) {
+		return applyWorkspaceConfiguration(ctx, c, state, plan)
 	}
 
 	if suspendedChanged := !plan.Suspended.Equal(state.Suspended); suspendedChanged {
@@ -30,16 +27,7 @@ func updateWorkspace(ctx context.Context, c management.ClientWithResponsesInterf
 	return state, nil
 }
 
-func isWorkspaceUpdated(state, plan workspaceResourceModel) bool {
-	if !plan.Size.Equal(state.Size) ||
-		!plan.CacheConfig.Equal(state.CacheConfig) {
-		return true
-	}
-
-	return false
-}
-
-func update(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
+func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 

@@ -66,7 +66,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
-		CacheConfig:      util.MaybeFloat32(types.Float32Value(2)),
+		CacheConfig:      util.MaybeFloat32(types.Float32Value(1)),
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
