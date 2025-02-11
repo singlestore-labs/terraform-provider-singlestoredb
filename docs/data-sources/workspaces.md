@@ -45,6 +45,7 @@ output "all_workspaces" {
 
 Read-Only:
 
+- `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `id` (String) The unique identifier of the workspace.

@@ -5,11 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/float32validator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -36,14 +38,15 @@ type workspaceResource struct {
 
 // workspaceResourceModel maps the resource schema data.
 type workspaceResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	WorkspaceGroupID types.String `tfsdk:"workspace_group_id"`
-	Name             types.String `tfsdk:"name"`
-	Size             types.String `tfsdk:"size"`
-	Suspended        types.Bool   `tfsdk:"suspended"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	Endpoint         types.String `tfsdk:"endpoint"`
-	KaiEnabled       types.Bool   `tfsdk:"kai_enabled"`
+	ID               types.String  `tfsdk:"id"`
+	WorkspaceGroupID types.String  `tfsdk:"workspace_group_id"`
+	Name             types.String  `tfsdk:"name"`
+	Size             types.String  `tfsdk:"size"`
+	Suspended        types.Bool    `tfsdk:"suspended"`
+	CreatedAt        types.String  `tfsdk:"created_at"`
+	Endpoint         types.String  `tfsdk:"endpoint"`
+	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32 `tfsdk:"cache_config"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -55,6 +58,12 @@ func NewResource() resource.Resource {
 func (r *workspaceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = util.ResourceTypeName(req, ResourceName)
 }
+
+const (
+	cacheMultiplierX1 = 1
+	cacheMultiplierX2 = 2
+	cacheMultiplierX4 = 4
+)
 
 // Schema defines the schema for the resource.
 func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -108,6 +117,13 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "Whether the Kai API is enabled for the workspace.",
 				Default:             booldefault.StaticBool(false),
 			},
+			"cache_config": schema.Float32Attribute{
+				Computed:            true,
+				Optional:            true,
+				Default:             float32default.StaticFloat32(cacheMultiplierX1),
+				Validators:          []validator.Float32{float32validator.OneOf(cacheMultiplierX1, cacheMultiplierX2, cacheMultiplierX4)},
+				MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.",
+			},
 		},
 	}
 }
@@ -136,6 +152,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		Size:             util.MaybeString(plan.Size),
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
 		EnableKai:        util.MaybeBool(plan.KaiEnabled),
+		CacheConfig:      util.MaybeFloat32(plan.CacheConfig),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -228,7 +245,7 @@ func (r *workspaceResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	var uerr *util.SummaryWithDetailError
-	state, uerr = updateSizeOrSuspended(ctx, r.ClientWithResponsesInterface, state, plan)
+	state, uerr = applyWorkspaceConfigOrToggleSuspension(ctx, r.ClientWithResponsesInterface, state, plan)
 	if uerr != nil {
 		resp.Diagnostics.AddError(
 			uerr.Summary,
@@ -315,7 +332,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	if err := isValidSuspendedOrSizeChange(state, plan); err != nil {
+	if err := validateSuspendedSizeOrCacheChange(state, plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -328,7 +345,7 @@ func (r *workspaceResource) ImportState(ctx context.Context, req resource.Import
 }
 
 func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceModel {
-	return workspaceResourceModel{
+	model := workspaceResourceModel{
 		ID:               util.UUIDStringValue(workspace.WorkspaceID),
 		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
 		Name:             types.StringValue(workspace.Name),
@@ -337,27 +354,34 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		CreatedAt:        types.StringValue(workspace.CreatedAt),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
+		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
 	}
+	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
+		model.CacheConfig = types.Float32Value(1)
+	}
+
+	return model
 }
 
-func isValidSuspendedOrSizeChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
+func validateSuspendedSizeOrCacheChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
 	sizeChanged := !plan.Size.Equal(state.Size)
+	cacheChanged := !plan.CacheConfig.Equal(state.CacheConfig)
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	isSuspended := plan.Suspended.ValueBool()
 
-	// Changing both suspended and size is prohibited.
-	if sizeChanged && suspendedChanged {
+	// Changing both suspended and other configurations is prohibited.
+	if (sizeChanged || cacheChanged) && suspendedChanged {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update both state and size at the same time",
-			Detail:  "To prevent an inconsistent state either suspend a workspace or scale it.",
+			Summary: "Cannot update both the suspension state and other configurations (such as size or cache_config) at the same time",
+			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size or cache_config).",
 		}
 	}
 
 	// If a workspace is suspended, scaling is prohibited.
-	if isSuspended && sizeChanged {
+	if isSuspended && (sizeChanged || cacheChanged) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot scale a suspended workspace",
-			Detail:  "Resume the workspace by setting suspended to false before scaling.",
+			Summary: "Cannot update the configuration (such as size or cache_config) for a suspended workspace.",
+			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size or cache_config).",
 		}
 	}
 

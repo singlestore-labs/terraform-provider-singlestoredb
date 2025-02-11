@@ -9,14 +9,11 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
-// updateSizeOrSuspended either scales or suspends/resumes if necessary.
-func updateSizeOrSuspended(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
-	if plan.Size.Equal(state.Size) && plan.Suspended.Equal(state.Suspended) {
-		return state, nil
-	}
-
-	if sizeChanged := !plan.Size.Equal(state.Size); sizeChanged {
-		return scale(ctx, c, plan)
+// updateWorkspace updates workspace configuration(deploymentType, size) and suspends/resumes if necessary.
+func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
+	if !plan.Size.Equal(state.Size) ||
+		!plan.CacheConfig.Equal(state.CacheConfig) {
+		return applyWorkspaceConfiguration(ctx, c, state, plan)
 	}
 
 	if suspendedChanged := !plan.Suspended.Equal(state.Suspended); suspendedChanged {
@@ -30,15 +27,21 @@ func updateSizeOrSuspended(ctx context.Context, c management.ClientWithResponses
 	return state, nil
 }
 
-func scale(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
+func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 
-	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id,
-		management.WorkspaceUpdate{
-			Size: util.Ptr(desiredSize),
-		},
-	)
+	worspaceUpdate := management.WorkspaceUpdate{}
+
+	if !plan.Size.Equal(state.Size) {
+		worspaceUpdate.Size = util.Ptr(desiredSize)
+	}
+
+	if plan.CacheConfig != state.CacheConfig {
+		worspaceUpdate.CacheConfig = util.MaybeFloat32(plan.CacheConfig)
+	}
+
+	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id, worspaceUpdate)
 	if serr := util.StatusOK(workspaceUpdateResponse, err); serr != nil {
 		return workspaceResourceModel{}, serr
 	}
