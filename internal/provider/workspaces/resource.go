@@ -47,6 +47,7 @@ type workspaceResourceModel struct {
 	Endpoint         types.String  `tfsdk:"endpoint"`
 	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
 	CacheConfig      types.Float32 `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32 `tfsdk:"scale_factor"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -63,6 +64,9 @@ const (
 	cacheMultiplierX1 = 1
 	cacheMultiplierX2 = 2
 	cacheMultiplierX4 = 4
+	scaleX1           = 1
+	scaleX2           = 2
+	scaleX4           = 4
 )
 
 // Schema defines the schema for the resource.
@@ -124,6 +128,13 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Validators:          []validator.Float32{float32validator.OneOf(cacheMultiplierX1, cacheMultiplierX2, cacheMultiplierX4)},
 				MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.",
 			},
+			"scale_factor": schema.Float32Attribute{
+				Computed:            true,
+				Optional:            true,
+				Default:             float32default.StaticFloat32(scaleX1),
+				Validators:          []validator.Float32{float32validator.OneOf(scaleX1, scaleX2, scaleX4)},
+				MarkdownDescription: "Specifies the scale factor for the workspace. The scale factor can be 1, 2 or 4. Default is 1.",
+			},
 		},
 	}
 }
@@ -153,6 +164,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
 		EnableKai:        util.MaybeBool(plan.KaiEnabled),
 		CacheConfig:      util.MaybeFloat32(plan.CacheConfig),
+		ScaleFactor:      util.MaybeFloat32(plan.ScaleFactor),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -332,7 +344,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	if err := validateSuspendedSizeOrCacheChange(state, plan); err != nil {
+	if err := validateSuspendedAndConfigChanges(state, plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -355,6 +367,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
 		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
 		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
+		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
@@ -363,25 +376,26 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 	return model
 }
 
-func validateSuspendedSizeOrCacheChange(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
+func validateSuspendedAndConfigChanges(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
 	sizeChanged := !plan.Size.Equal(state.Size)
 	cacheChanged := !plan.CacheConfig.Equal(state.CacheConfig)
+	scaleChanged := !plan.ScaleFactor.Equal(state.ScaleFactor)
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	isSuspended := plan.Suspended.ValueBool()
 
 	// Changing both suspended and other configurations is prohibited.
-	if (sizeChanged || cacheChanged) && suspendedChanged {
+	if (sizeChanged || cacheChanged || scaleChanged) && suspendedChanged {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update both the suspension state and other configurations (such as size or cache_config) at the same time",
-			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size or cache_config).",
+			Summary: "Cannot update both the suspension state and other configurations (such as size, scale_factor or cache_config) at the same time",
+			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size, scale_factor or cache_config).",
 		}
 	}
 
 	// If a workspace is suspended, scaling is prohibited.
-	if isSuspended && (sizeChanged || cacheChanged) {
+	if isSuspended && (sizeChanged || cacheChanged || scaleChanged) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update the configuration (such as size or cache_config) for a suspended workspace.",
-			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size or cache_config).",
+			Summary: "Cannot update the configuration (such as size, scale_factor or cache_config) for a suspended workspace.",
+			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size, scale_factor or cache_config).",
 		}
 	}
 

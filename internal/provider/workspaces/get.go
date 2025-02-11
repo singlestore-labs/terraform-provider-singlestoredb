@@ -37,6 +37,7 @@ type workspaceDataSourceModel struct {
 	LastResumedAt    types.String  `tfsdk:"last_resumed_at"`
 	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
 	CacheConfig      types.Float32 `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32 `tfsdk:"scale_factor"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -185,6 +186,10 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.",
 		},
+		"scale_factor": schema.Float32Attribute{
+			Computed:            true,
+			MarkdownDescription: "The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.",
+		},
 	}
 }
 
@@ -201,6 +206,7 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
 		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
 		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
+		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)

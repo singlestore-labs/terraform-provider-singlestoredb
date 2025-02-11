@@ -26,6 +26,7 @@ import (
 var (
 	updatedWorkspaceSize         = "S-0"
 	updatedCacheConfig   float32 = 4
+	updatedScaleFactor   float32 = 2
 )
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
@@ -67,6 +68,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
 		CacheConfig:      util.MaybeFloat32(types.Float32Value(1)),
+		ScaleFactor:      util.MaybeFloat32(types.Float32Value(1)),
 	}
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
@@ -203,6 +205,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, updatedWorkspaceSize, util.Deref(input.Size))
 		require.Equal(t, updatedCacheConfig, util.Deref(input.CacheConfig))
+		require.Equal(t, updatedScaleFactor, util.Deref(input.ScaleFactor))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -215,6 +218,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		require.NoError(t, err)
 		workspace.Size = *input.Size // Finally, the desired size after resume.
 		workspace.CacheConfig = input.CacheConfig
+		workspace.ScaleFactor = input.ScaleFactor
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -322,12 +326,14 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
-					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(4)).
+					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
+					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
@@ -384,11 +390,13 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					WithWorkspaceResource("this")("suspended", cty.BoolVal(false)).
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
-					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(4)).
+					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
+					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),

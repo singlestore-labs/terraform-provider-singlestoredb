@@ -59,6 +59,7 @@ output "admin_password" {
 
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
+- `scale_factor` (Number) Specifies the scale factor for the workspace. The scale factor can be 1, 2 or 4. Default is 1.
 - `suspended` (Boolean) The status of the workspace. If true, the workspace is suspended.
 
 ### Read-Only
