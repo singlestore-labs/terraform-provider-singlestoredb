@@ -12,7 +12,8 @@ import (
 // updateWorkspace updates workspace configuration(deploymentType, size) and suspends/resumes if necessary.
 func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	if !plan.Size.Equal(state.Size) ||
-		!plan.CacheConfig.Equal(state.CacheConfig) {
+		!plan.CacheConfig.Equal(state.CacheConfig) ||
+		!plan.ScaleFactor.Equal(state.ScaleFactor) {
 		return applyWorkspaceConfiguration(ctx, c, state, plan)
 	}
 
@@ -37,8 +38,12 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 		worspaceUpdate.Size = util.Ptr(desiredSize)
 	}
 
-	if plan.CacheConfig != state.CacheConfig {
+	if !plan.CacheConfig.Equal(state.CacheConfig) {
 		worspaceUpdate.CacheConfig = util.MaybeFloat32(plan.CacheConfig)
+	}
+
+	if !plan.ScaleFactor.Equal(state.ScaleFactor) {
+		worspaceUpdate.ScaleFactor = util.MaybeFloat32(plan.ScaleFactor)
 	}
 
 	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id, worspaceUpdate)

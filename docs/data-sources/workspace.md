@@ -43,6 +43,7 @@ output "this_workspace" {
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.
 - `name` (String) The name of the workspace.
+- `scale_factor` (Number) The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.
 - `size` (String) The size of the workspace, represented in workspace size notation, such as 'S-00' or 'S-1'.
 - `state` (String) The current state of the workspace.
 - `suspended` (Boolean) A boolean value indicating whether the workspace is currently suspended. If true, the workspace is suspended; if false, the workspace is active.
