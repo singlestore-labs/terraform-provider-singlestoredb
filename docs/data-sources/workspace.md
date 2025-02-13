@@ -37,6 +37,7 @@ output "this_workspace" {
 
 ### Read-Only
 
+- `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the workspace. (see [below for nested schema](#nestedatt--auto_scale))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
 - `endpoint` (String) The endpoint to connect to the workspace.
@@ -48,5 +49,13 @@ output "this_workspace" {
 - `state` (String) The current state of the workspace.
 - `suspended` (Boolean) A boolean value indicating whether the workspace is currently suspended. If true, the workspace is suspended; if false, the workspace is active.
 - `workspace_group_id` (String) The unique identifier of the workspace group that the workspace belongs to. This relationship is established when the workspace is created.
+
+<a id="nestedatt--auto_scale"></a>
+### Nested Schema for `auto_scale`
+
+Read-Only:
+
+- `max_scale_factor` (Number) The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4.
+- `sensitivity` (String) Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`.
 
 

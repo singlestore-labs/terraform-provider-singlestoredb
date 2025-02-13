@@ -26,18 +26,19 @@ type workspacesDataSourceGet struct {
 
 // workspaceDataSourceModel maps workspace schema data.
 type workspaceDataSourceModel struct {
-	ID               types.String  `tfsdk:"id"`
-	WorkspaceGroupID types.String  `tfsdk:"workspace_group_id"`
-	Name             types.String  `tfsdk:"name"`
-	State            types.String  `tfsdk:"state"`
-	Size             types.String  `tfsdk:"size"`
-	Suspended        types.Bool    `tfsdk:"suspended"`
-	CreatedAt        types.String  `tfsdk:"created_at"`
-	Endpoint         types.String  `tfsdk:"endpoint"`
-	LastResumedAt    types.String  `tfsdk:"last_resumed_at"`
-	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
-	CacheConfig      types.Float32 `tfsdk:"cache_config"`
-	ScaleFactor      types.Float32 `tfsdk:"scale_factor"`
+	ID               types.String            `tfsdk:"id"`
+	WorkspaceGroupID types.String            `tfsdk:"workspace_group_id"`
+	Name             types.String            `tfsdk:"name"`
+	State            types.String            `tfsdk:"state"`
+	Size             types.String            `tfsdk:"size"`
+	Suspended        types.Bool              `tfsdk:"suspended"`
+	CreatedAt        types.String            `tfsdk:"created_at"`
+	Endpoint         types.String            `tfsdk:"endpoint"`
+	LastResumedAt    types.String            `tfsdk:"last_resumed_at"`
+	KaiEnabled       types.Bool              `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32           `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
+	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -190,6 +191,20 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.",
 		},
+		"auto_scale": schema.SingleNestedAttribute{
+			Computed:            true,
+			MarkdownDescription: "Specifies the autoscale setting (scale factor) for the workspace.",
+			Attributes: map[string]schema.Attribute{
+				"max_scale_factor": schema.Float32Attribute{
+					Computed:            true,
+					MarkdownDescription: "The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4.",
+				},
+				"sensitivity": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`.",
+				},
+			},
+		},
 	}
 }
 
@@ -207,6 +222,7 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
 		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
 		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		AutoScale:        toAutoScaleResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)

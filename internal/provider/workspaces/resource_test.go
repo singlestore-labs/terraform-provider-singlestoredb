@@ -24,9 +24,11 @@ import (
 )
 
 var (
-	updatedWorkspaceSize         = "S-0"
-	updatedCacheConfig   float32 = 4
-	updatedScaleFactor   float32 = 2
+	updatedWorkspaceSize          = "S-0"
+	updatedCacheConfig    float32 = 4
+	updatedScaleFactor    float32 = 2
+	updatedMaxScaleFactor float32 = 4
+	updatedeSensitivity           = "LOW"
 )
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
@@ -219,6 +221,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		workspace.Size = *input.Size // Finally, the desired size after resume.
 		workspace.CacheConfig = input.CacheConfig
 		workspace.ScaleFactor = input.ScaleFactor
+		workspace.AutoScale = &struct {
+			MaxScaleFactor float32 `json:"maxScaleFactor"`
+			Sensitivity    *string `json:"sensitivity,omitempty"`
+		}{
+			MaxScaleFactor: *input.AutoScale.MaxScaleFactor,
+			Sensitivity:    (*string)(input.AutoScale.Sensitivity),
+		}
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -328,12 +337,18 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
 					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
 					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
+					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
+					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+					"sensitivity":      cty.StringVal(updatedeSensitivity),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedeSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
@@ -392,11 +407,17 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithWorkspaceResource("this")("size", cty.StringVal(updatedWorkspaceSize)).
 					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
 					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
+					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
+					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+					"sensitivity":      cty.StringVal(updatedeSensitivity),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedeSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
 				),
