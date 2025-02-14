@@ -40,6 +40,7 @@ type workspaceDataSourceModel struct {
 	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
 	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
 	DeploymentType   types.String            `tfsdk:"deployment_type"`
+	AutoSuspend      *workspaceAutoSuspendResourceModel `tfsdk:"auto_suspend"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -210,6 +211,20 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 			Computed:            true,
 			MarkdownDescription: "Deployment type of the workspace.",
 		},
+		"auto_suspend": schema.SingleNestedAttribute{
+			Computed:            true,
+			MarkdownDescription: "Represents the current auto suspend settings enabled for this workspace.",
+			Attributes: map[string]schema.Attribute{
+				"suspend_after_seconds": schema.Float32Attribute{
+					Computed:            true,
+					MarkdownDescription: "The duration (in seconds) after which the workspace will be suspended if the suspend type is SCHEDULED, or the period of inactivity before automatic suspension if the suspend type is IDLE.",
+				},
+				"suspend_type": schema.StringAttribute{
+					Computed:            true,
+					MarkdownDescription: "The type of auto suspend currently enabled.",
+				},
+			},
+		},
 	}
 }
 
@@ -229,6 +244,7 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
 		AutoScale:        toAutoScaleResourceModel(workspace),
 		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
+		AutoSuspend:      toAutoSuspendResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)

@@ -16,6 +16,8 @@ func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.Cl
 		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
 		!plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) ||
 		!plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) {
+		!plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) ||
+		!plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds) {
 		return applyWorkspaceConfiguration(ctx, c, state, plan)
 	}
 
@@ -51,6 +53,11 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 	if !plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) ||
 		!plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) {
 		worspaceUpdate.AutoScale = toAutoScale(plan)
+	}
+
+	if !plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) ||
+		!plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds) {
+		worspaceUpdate.AutoSuspend = toUpdateAutoSuspend(plan)
 	}
 
 	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id, worspaceUpdate)
@@ -102,4 +109,17 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 	}
 
 	return toWorkspaceResourceModel(workspace), nil
+}
+
+func toUpdateAutoSuspend(plan workspaceResourceModel) *struct {
+	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
+	SuspendType         *management.WorkspaceUpdateAutoSuspendSuspendType `json:"suspendType,omitempty"`
+} {
+	return &struct {
+		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
+		SuspendType         *management.WorkspaceUpdateAutoSuspendSuspendType `json:"suspendType,omitempty"`
+	}{
+		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
+		SuspendType:         util.WorkspaceUpdateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
+	}
 }
