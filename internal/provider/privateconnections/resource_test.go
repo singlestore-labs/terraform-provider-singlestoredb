@@ -23,10 +23,11 @@ import (
 )
 
 var (
-	updateAllowedList   = strings.Join([]string{"updated", "12345"}, "-")
-	privateConnectionID = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
-	workspaceID         = uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
-	workspaceGroupID    = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
+	updateAllowedList     = strings.Join([]string{"updated", "12345"}, "-")
+	privateConnectionID   = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
+	workspaceID           = uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	workspaceGroupID      = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
+	defaultDeploymentType = management.WorkspaceGroupDeploymentTypePRODUCTION
 
 	regions = []management.Region{
 		{
@@ -47,6 +48,7 @@ var (
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
+		DeploymentType:   &defaultDeploymentType,
 	}
 
 	workspace = management.Workspace{
