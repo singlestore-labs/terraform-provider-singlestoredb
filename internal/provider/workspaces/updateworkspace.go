@@ -11,13 +11,7 @@ import (
 
 // updateWorkspace updates workspace configuration(deploymentType, size) and suspends/resumes if necessary.
 func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
-	if !plan.Size.Equal(state.Size) ||
-		!plan.CacheConfig.Equal(state.CacheConfig) ||
-		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
-		!plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) ||
-		!plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) {
-		!plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) ||
-		!plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds) {
+	if hasGeneralConfigChanged(state, plan) {
 		return applyWorkspaceConfiguration(ctx, c, state, plan)
 	}
 
@@ -30,6 +24,14 @@ func applyWorkspaceConfigOrToggleSuspension(ctx context.Context, c management.Cl
 	}
 
 	return state, nil
+}
+
+func hasGeneralConfigChanged(state, plan workspaceResourceModel) bool {
+	return !plan.Size.Equal(state.Size) ||
+		!plan.CacheConfig.Equal(state.CacheConfig) ||
+		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
+		!plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) || !plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) ||
+		!plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) || !plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds)
 }
 
 func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {

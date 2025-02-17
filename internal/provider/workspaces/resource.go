@@ -43,17 +43,17 @@ type workspaceResource struct {
 
 // workspaceResourceModel maps the resource schema data.
 type workspaceResourceModel struct {
-	ID               types.String            `tfsdk:"id"`
-	WorkspaceGroupID types.String            `tfsdk:"workspace_group_id"`
-	Name             types.String            `tfsdk:"name"`
-	Size             types.String            `tfsdk:"size"`
-	Suspended        types.Bool              `tfsdk:"suspended"`
-	CreatedAt        types.String            `tfsdk:"created_at"`
-	Endpoint         types.String            `tfsdk:"endpoint"`
-	KaiEnabled       types.Bool              `tfsdk:"kai_enabled"`
-	CacheConfig      types.Float32           `tfsdk:"cache_config"`
-	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
-	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
+	ID               types.String                       `tfsdk:"id"`
+	WorkspaceGroupID types.String                       `tfsdk:"workspace_group_id"`
+	Name             types.String                       `tfsdk:"name"`
+	Size             types.String                       `tfsdk:"size"`
+	Suspended        types.Bool                         `tfsdk:"suspended"`
+	CreatedAt        types.String                       `tfsdk:"created_at"`
+	Endpoint         types.String                       `tfsdk:"endpoint"`
+	KaiEnabled       types.Bool                         `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32                      `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32                      `tfsdk:"scale_factor"`
+	AutoScale        *autoScaleResourceModel            `tfsdk:"auto_scale"`
 	AutoSuspend      *workspaceAutoSuspendResourceModel `tfsdk:"auto_suspend"`
 }
 
@@ -310,19 +310,6 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 	resp.Diagnostics.Append(diags...)
 }
 
-func toCreateAutoSuspend(plan workspaceResourceModel) *struct {
-	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-	SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-} {
-	return &struct {
-		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-		SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-	}{
-		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
-		SuspendType:         util.WorkspaceCreateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
-	}
-}
-
 // Read refreshes the Terraform state with the latest data.
 func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state workspaceResourceModel
@@ -509,6 +496,38 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 	return model
 }
 
+func toCreateAutoSuspend(plan workspaceResourceModel) *struct {
+	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
+	SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
+} {
+	return &struct {
+		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
+		SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
+	}{
+		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
+		SuspendType:         util.WorkspaceCreateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
+	}
+}
+
+func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendResourceModel {
+	if ws.AutoSuspend == nil {
+		return &workspaceAutoSuspendResourceModel{
+			SuspendType: types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+		}
+	}
+	var suspendAfterSeconds *float32
+	if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeIDLE {
+		suspendAfterSeconds = ws.AutoSuspend.IdleAfterSeconds
+	} else if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeSCHEDULED {
+		suspendAfterSeconds = ws.AutoSuspend.ScheduledAfterSeconds
+	}
+
+	return &workspaceAutoSuspendResourceModel{
+		SuspendAfterSeconds: types.Float32PointerValue(suspendAfterSeconds),
+		SuspendType:         util.StringValueOrNull(&ws.AutoSuspend.SuspendType),
+	}
+}
+
 func toAutoScale(plan workspaceResourceModel) *struct {
 	MaxScaleFactor *float32                                        `json:"maxScaleFactor,omitempty"`
 	Sensitivity    *management.WorkspaceUpdateAutoScaleSensitivity `json:"sensitivity,omitempty"`
@@ -525,25 +544,6 @@ func toAutoScale(plan workspaceResourceModel) *struct {
 	}{
 		MaxScaleFactor: util.MaybeFloat32(plan.AutoScale.MaxScaleFactor),
 		Sensitivity:    sensitivity,
-	}
-}
-
-func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendResourceModel {
-	if ws.AutoSuspend == nil {
-		return &workspaceAutoSuspendResourceModel{
-			SuspendType: types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
-		}
-	}
-	var suspendAfterSeconds *float32
-	if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeIDLE {
-		suspendAfterSeconds = ws.AutoSuspend.IdleAfterSeconds
-	} else if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeSCHEDULED {
-		suspendAfterSeconds = ws.AutoSuspend.IdleAfterSeconds // todo change
-	}
-
-	return &workspaceAutoSuspendResourceModel{
-		SuspendAfterSeconds: types.Float32PointerValue(suspendAfterSeconds),
-		SuspendType:         util.StringValueOrNull(&ws.AutoSuspend.SuspendType),
 	}
 }
 
@@ -570,29 +570,24 @@ func validateSuspendedAndConfigChanges(state, plan *workspaceResourceModel) *uti
 		return err
 	}
 
-	sizeChanged := !plan.Size.Equal(state.Size)
-	cacheChanged := !plan.CacheConfig.Equal(state.CacheConfig)
-	scaleChanged := !plan.ScaleFactor.Equal(state.ScaleFactor)
-	autoScaleChanged := !plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) || !plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor)
-	autoSuspendChanged := !plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) || !plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds)
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	isSuspended := plan.Suspended.ValueBool()
 
-	otherConfigChanged := sizeChanged || cacheChanged || scaleChanged || autoScaleChanged || autoSuspendChanged
+	otherConfigChanged := hasGeneralConfigChanged(*state, *plan)
 
 	// Changing both suspended and other configurations is prohibited.
 	if otherConfigChanged && suspendedChanged {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update both the suspension state and other configurations (such as size, scale_factor, auto_suspend or cache_config) at the same time",
-			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size, scale_factor, auto_suspend or cache_config).",
+			Summary: "Cannot update both the suspension state and other configurations (such as size, cache_config, scale_factor, auto_scale or auto_suspend) at the same time",
+			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size, cache_config, scale_factor, auto_scale or auto_suspend).",
 		}
 	}
 
 	// If a workspace is suspended, other configurations is prohibited.
 	if otherConfigChanged && isSuspended {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update the configuration (such as size, scale_factor, auto_suspend or cache_config) for a suspended workspace.",
-			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size, scale_factor, auto_suspend or cache_config).",
+			Summary: "Cannot update the configuration (such as size, cache_config, scale_factor, auto_scale or auto_suspend) for a suspended workspace.",
+			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size, cache_config, scale_factor, auto_scale or auto_suspend).",
 		}
 	}
 
