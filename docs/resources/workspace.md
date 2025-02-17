@@ -58,6 +58,7 @@ output "admin_password" {
 ### Optional
 
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the workspace. (see [below for nested schema](#nestedatt--auto_scale))
+- `auto_suspend` (Attributes) Auto suspend settings for the workspace. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `scale_factor` (Number) Specifies the scale factor for the workspace. The scale factor can be 1, 2 or 4. Default is 1.
@@ -76,5 +77,14 @@ Optional:
 
 - `max_scale_factor` (Number) The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1.
 - `sensitivity` (String) Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`. Default is `NORMAL`.
+
+
+<a id="nestedatt--auto_suspend"></a>
+### Nested Schema for `auto_suspend`
+
+Optional:
+
+- `suspend_after_seconds` (Number) When to suspend the workspace, according to the suspend type chosen.
+- `suspend_type` (String) The auto suspend mode for the workspace can have the values `IDLE`, `SCHEDULED`, or `DISABLED` (to create the workspace with no auto suspend settings). Default is `DISABLED`.
 
 
