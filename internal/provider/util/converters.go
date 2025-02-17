@@ -124,6 +124,32 @@ func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.Workspace
 	return nil
 }
 
+func WorkspaceGroupCreateDeploymentTypeString(wgs types.String) *management.WorkspaceGroupCreateDeploymentType {
+	for _, s := range []management.WorkspaceGroupCreateDeploymentType{
+		management.WorkspaceGroupCreateDeploymentTypePRODUCTION,
+		management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func WorkspaceGroupUpdateDeploymentTypeString(wgs types.String) *management.WorkspaceGroupUpdateDeploymentType {
+	for _, s := range []management.WorkspaceGroupUpdateDeploymentType{
+		management.WorkspaceGroupUpdateDeploymentTypePRODUCTION,
+		management.WorkspaceGroupUpdateDeploymentTypeNONPRODUCTION,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 func StringValueOrNull[T ~string](value *T) types.String {
 	if value == nil {
 		return types.StringNull()

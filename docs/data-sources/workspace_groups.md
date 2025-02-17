@@ -42,6 +42,7 @@ Read-Only:
 
 - `allow_all_traffic` (Boolean) Indicates whether all traffic is allowed to reach the workspace group.
 - `created_at` (String) The timestamp when the workspace group was created.
+- `deployment_type` (String) Deployment type of the workspace group.
 - `expires_at` (String) The timestamp when the workspace group will expire. Upon expiration, the workspace group is terminated and all its data is lost.
 - `firewall_ranges` (List of String) A list of the allowed inbound IP address ranges.
 - `id` (String) The unique identifier of the workspace group.

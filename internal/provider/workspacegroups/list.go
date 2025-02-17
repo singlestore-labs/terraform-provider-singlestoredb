@@ -104,6 +104,7 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) w
 		ExpiresAt:       util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		RegionID:        util.UUIDStringValue(workspaceGroup.RegionID),
 		UpdateWindow:    toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
+		DeploymentType:  util.StringValueOrNull(workspaceGroup.DeploymentType),
 	}
 }
 

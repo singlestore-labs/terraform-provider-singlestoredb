@@ -35,6 +35,7 @@ type workspaceGroupDataSourceModel struct {
 	ExpiresAt       types.String                 `tfsdk:"expires_at"`
 	RegionID        types.String                 `tfsdk:"region_id"`
 	UpdateWindow    *updateWindowDataSourceModel `tfsdk:"update_window"`
+	DeploymentType  types.String                 `tfsdk:"deployment_type"`
 }
 
 type workspaceGroupDataSourceSchemaConfig struct {
@@ -180,6 +181,10 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 					MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
 				},
 			},
+		},
+		"deployment_type": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "Deployment type of the workspace group.",
 		},
 	}
 }

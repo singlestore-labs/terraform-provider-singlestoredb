@@ -34,6 +34,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 				Hour: 15,
 			},
 			WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+			DeploymentType:   &defaultDeploymentType,
 		},
 		{
 			AllowAllTraffic:  util.Ptr(true),
@@ -82,6 +83,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.update_window.hour",
 						strconv.Itoa(int(workspaceGroups[0].UpdateWindow.Hour)),
 					),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.allow_all_traffic",
 						strconv.FormatBool(util.Deref(workspaceGroups[1].AllowAllTraffic)),
 					),

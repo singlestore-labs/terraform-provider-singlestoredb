@@ -24,6 +24,8 @@ import (
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
 	updatedAdminPassword      = "buzzBAR123$"
+	defaultDeploymentType     = management.WorkspaceGroupDeploymentTypePRODUCTION
+	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) {
@@ -47,6 +49,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
+		DeploymentType:   &defaultDeploymentType,
 	}
 
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
@@ -135,6 +138,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
 		require.Empty(t, util.Deref(input.FirewallRanges))
 		require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
+		require.Equal(t, string(updatedDeploymentType), string(*input.DeploymentType))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -149,6 +153,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		workspaceGroup.Name = updatedWorkspaceGroupName
 		workspaceGroup.AllowAllTraffic = util.Ptr(true)
 		workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
+		workspaceGroup.DeploymentType = &updatedDeploymentType
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +216,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 				),
 			},
 			{
@@ -219,6 +225,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
@@ -228,6 +235,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regions[0].RegionID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 				),
 			},
 		},
@@ -250,6 +258,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 				),
 			},
 			{
@@ -257,12 +266,14 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					String(), // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 				),
 			},
 		},
