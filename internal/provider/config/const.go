@@ -13,7 +13,7 @@ const (
 	APIServiceURLAttribute = "api_service_url"
 	// IDAttribute is the idiomatic Terraform ID attribute.
 	IDAttribute = "id"
-	// WorkspaceGroupIDAttribute is the attribute of a workspace list data source.
+	// WorkspaceGroupIDAttribute is the attribute of a workspace group list data source.
 	WorkspaceGroupIDAttribute = "workspace_group_id"
 	// APIServiceURL is the default URL for the SingleStore Management API service.
 	APIServiceURL = "https://api.singlestore.com"
@@ -33,6 +33,8 @@ const (
 	WorkspaceResumeTimeout = 6 * time.Hour
 	// WorkspaceScaleTakesAtLeast ensures the least required time for scaling.
 	WorkspaceScaleTakesAtLeast = 30 * time.Second
+	// PrivateConnectionCreationTimeout limits the private connection creation time.
+	PrivateConnectionCreationTimeout = 10 * time.Minute
 	// PortalAPIKeysPageRedirect redirects to the API keys page of the default organization.
 	PortalAPIKeysPageRedirect = "https://portal.singlestore.com/organizations/org-id/api-keys" //nolint:gosec
 	// SupportURL directs to SingleStore support.
@@ -43,6 +45,8 @@ const (
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceConsistencyThreshold = 5
+	// PrivateConnectionConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
+	PrivateConnectionConsistencyThreshold = 5
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
