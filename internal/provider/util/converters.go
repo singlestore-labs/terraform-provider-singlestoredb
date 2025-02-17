@@ -87,3 +87,25 @@ func MaybeFloat32(f types.Float32) *float32 {
 
 	return Ptr(f.ValueFloat32())
 }
+
+func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.WorkspaceUpdateAutoScaleSensitivity {
+	for _, s := range []management.WorkspaceUpdateAutoScaleSensitivity{
+		management.LOW,
+		management.NORMAL,
+		management.HIGH,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func StringValueOrNull[T ~string](value *T) types.String {
+	if value == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(string(*value))
+}

@@ -57,6 +57,7 @@ output "admin_password" {
 
 ### Optional
 
+- `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the workspace. (see [below for nested schema](#nestedatt--auto_scale))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4. Default is 1.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `scale_factor` (Number) Specifies the scale factor for the workspace. The scale factor can be 1, 2 or 4. Default is 1.
@@ -67,5 +68,13 @@ output "admin_password" {
 - `created_at` (String) The timestamp when the workspace was created.
 - `endpoint` (String) The endpoint used to connect to the workspace.
 - `id` (String) The unique identifier of the workspace.
+
+<a id="nestedatt--auto_scale"></a>
+### Nested Schema for `auto_scale`
+
+Optional:
+
+- `max_scale_factor` (Number) The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1.
+- `sensitivity` (String) Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`. Default is `NORMAL`.
 
 

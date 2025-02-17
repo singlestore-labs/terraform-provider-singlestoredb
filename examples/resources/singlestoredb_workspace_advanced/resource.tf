@@ -21,6 +21,10 @@ resource "singlestoredb_workspace" "this" {
   kai_enabled        = true
   cache_config       = 2
   scale_factor       = 2
+  auto_scale = {
+    max_scale_factor = 2
+    sensitivity      = "LOW"
+  }
 }
 
 output "workspace" {

@@ -6,16 +6,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -38,16 +43,22 @@ type workspaceResource struct {
 
 // workspaceResourceModel maps the resource schema data.
 type workspaceResourceModel struct {
-	ID               types.String  `tfsdk:"id"`
-	WorkspaceGroupID types.String  `tfsdk:"workspace_group_id"`
-	Name             types.String  `tfsdk:"name"`
-	Size             types.String  `tfsdk:"size"`
-	Suspended        types.Bool    `tfsdk:"suspended"`
-	CreatedAt        types.String  `tfsdk:"created_at"`
-	Endpoint         types.String  `tfsdk:"endpoint"`
-	KaiEnabled       types.Bool    `tfsdk:"kai_enabled"`
-	CacheConfig      types.Float32 `tfsdk:"cache_config"`
-	ScaleFactor      types.Float32 `tfsdk:"scale_factor"`
+	ID               types.String            `tfsdk:"id"`
+	WorkspaceGroupID types.String            `tfsdk:"workspace_group_id"`
+	Name             types.String            `tfsdk:"name"`
+	Size             types.String            `tfsdk:"size"`
+	Suspended        types.Bool              `tfsdk:"suspended"`
+	CreatedAt        types.String            `tfsdk:"created_at"`
+	Endpoint         types.String            `tfsdk:"endpoint"`
+	KaiEnabled       types.Bool              `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32           `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
+	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
+}
+
+type autoScaleResourceModel struct {
+	MaxScaleFactor types.Float32 `tfsdk:"max_scale_factor"`
+	Sensitivity    types.String  `tfsdk:"sensitivity"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -71,6 +82,16 @@ const (
 
 // Schema defines the schema for the resource.
 func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	autoScaleDefaultValue, _ := basetypes.NewObjectValue(
+		map[string]attr.Type{
+			"max_scale_factor": basetypes.Float32Type{},
+			"sensitivity":      basetypes.StringType{},
+		},
+		map[string]attr.Value{
+			"max_scale_factor": basetypes.NewFloat32Value(scaleX1),
+			"sensitivity":      basetypes.NewStringValue(string(management.NORMAL)),
+		},
+	)
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "This resource enables the management of SingleStoreDB workspaces.",
 		Attributes: map[string]schema.Attribute{
@@ -135,6 +156,30 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Validators:          []validator.Float32{float32validator.OneOf(scaleX1, scaleX2, scaleX4)},
 				MarkdownDescription: "Specifies the scale factor for the workspace. The scale factor can be 1, 2 or 4. Default is 1.",
 			},
+			"auto_scale": schema.SingleNestedAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             objectdefault.StaticValue(autoScaleDefaultValue),
+				MarkdownDescription: "Specifies the autoscale setting (scale factor) for the workspace.",
+				Attributes: map[string]schema.Attribute{
+					"max_scale_factor": schema.Float32Attribute{
+						Optional:            true,
+						Computed:            true,
+						Default:             float32default.StaticFloat32(scaleX1),
+						Validators:          []validator.Float32{float32validator.OneOf(scaleX1, scaleX2, scaleX4)},
+						MarkdownDescription: "The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1.",
+					},
+					"sensitivity": schema.StringAttribute{
+						Optional:            true,
+						Computed:            true,
+						MarkdownDescription: "Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`. Default is `NORMAL`.",
+						Default:             stringdefault.StaticString(string(management.NORMAL)),
+						Validators: []validator.String{
+							stringvalidator.OneOf(string(management.LOW), string(management.NORMAL), string(management.HIGH)),
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -158,6 +203,15 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
+	if err := validateAutoScaleConfig(&plan); err != nil {
+		resp.Diagnostics.AddError(
+			err.Summary,
+			err.Detail,
+		)
+
+		return
+	}
+
 	workspaceCreateResponse, err := r.PostV1WorkspacesWithResponse(ctx, management.PostV1WorkspacesJSONRequestBody{
 		Name:             plan.Name.ValueString(),
 		Size:             util.MaybeString(plan.Size),
@@ -173,6 +227,23 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		)
 
 		return
+	}
+
+	// Execute PATCH call to proceed autoScale
+	if !plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+		workspace, err := r.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, workspaceCreateResponse.JSON200.WorkspaceID,
+			management.PatchV1WorkspacesWorkspaceIDJSONRequestBody{
+				AutoScale: toAutoScale(plan),
+			},
+		)
+		if serr := util.StatusOK(workspace, err); serr != nil {
+			resp.Diagnostics.AddError(
+				serr.Summary,
+				serr.Detail,
+			)
+
+			return
+		}
 	}
 
 	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.WorkspaceID, config.WorkspaceCreationTimeout,
@@ -368,6 +439,7 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
 		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
 		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		AutoScale:        toAutoScaleResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
@@ -376,26 +448,79 @@ func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceM
 	return model
 }
 
+func toAutoScale(plan workspaceResourceModel) *struct {
+	MaxScaleFactor *float32                                        `json:"maxScaleFactor,omitempty"`
+	Sensitivity    *management.WorkspaceUpdateAutoScaleSensitivity `json:"sensitivity,omitempty"`
+} {
+	// If MaxScaleFactor = 1 ignore sensitivity to disable autoscaling
+	var sensitivity *management.WorkspaceUpdateAutoScaleSensitivity
+	if !plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+		sensitivity = util.WorkspaceAutoScaleSensitivityString(plan.AutoScale.Sensitivity)
+	}
+
+	return &struct {
+		MaxScaleFactor *float32                                        `json:"maxScaleFactor,omitempty"`
+		Sensitivity    *management.WorkspaceUpdateAutoScaleSensitivity `json:"sensitivity,omitempty"`
+	}{
+		MaxScaleFactor: util.MaybeFloat32(plan.AutoScale.MaxScaleFactor),
+		Sensitivity:    sensitivity,
+	}
+}
+
+func toAutoScaleResourceModel(ws management.Workspace) *autoScaleResourceModel {
+	if ws.AutoScale == nil {
+		return &autoScaleResourceModel{
+			MaxScaleFactor: types.Float32Value(scaleX1),
+			Sensitivity:    types.StringValue(string(management.NORMAL)),
+		}
+	}
+
+	return &autoScaleResourceModel{
+		MaxScaleFactor: types.Float32Value(ws.AutoScale.MaxScaleFactor),
+		Sensitivity:    util.StringValueOrNull(ws.AutoScale.Sensitivity),
+	}
+}
+
 func validateSuspendedAndConfigChanges(state, plan *workspaceResourceModel) *util.SummaryWithDetailError {
+	if err := validateAutoScaleConfig(plan); err != nil {
+		return err
+	}
+
 	sizeChanged := !plan.Size.Equal(state.Size)
 	cacheChanged := !plan.CacheConfig.Equal(state.CacheConfig)
 	scaleChanged := !plan.ScaleFactor.Equal(state.ScaleFactor)
+	autoScaleChanged := !plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) || !plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor)
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	isSuspended := plan.Suspended.ValueBool()
 
+	otherConfigChanged := sizeChanged || cacheChanged || scaleChanged || autoScaleChanged
+
 	// Changing both suspended and other configurations is prohibited.
-	if (sizeChanged || cacheChanged || scaleChanged) && suspendedChanged {
+	if otherConfigChanged && suspendedChanged {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update both the suspension state and other configurations (such as size, scale_factor or cache_config) at the same time",
 			Detail:  "To avoid an inconsistent state, either suspend the workspace or update the other configurations (such as size, scale_factor or cache_config).",
 		}
 	}
 
-	// If a workspace is suspended, scaling is prohibited.
-	if isSuspended && (sizeChanged || cacheChanged || scaleChanged) {
+	// If a workspace is suspended, other configurations is prohibited.
+	if otherConfigChanged && isSuspended {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update the configuration (such as size, scale_factor or cache_config) for a suspended workspace.",
 			Detail:  "Resume the workspace by setting suspended to false before updating the configuration (such as size, scale_factor or cache_config).",
+		}
+	}
+
+	return nil
+}
+
+func validateAutoScaleConfig(plan *workspaceResourceModel) *util.SummaryWithDetailError {
+	// If Sensitivity is not default and MaxScaleFactor is set to 1 throw error
+	if !plan.AutoScale.Sensitivity.Equal(types.StringValue(string(management.NORMAL))) &&
+		plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid auto_scale configuration.",
+			Detail:  "If max_scale_factor is set to 1, the sensitivity parameter (if not set to its default value) is not allowed.",
 		}
 	}
 
