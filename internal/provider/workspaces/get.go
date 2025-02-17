@@ -26,20 +26,20 @@ type workspacesDataSourceGet struct {
 
 // workspaceDataSourceModel maps workspace schema data.
 type workspaceDataSourceModel struct {
-	ID               types.String            `tfsdk:"id"`
-	WorkspaceGroupID types.String            `tfsdk:"workspace_group_id"`
-	Name             types.String            `tfsdk:"name"`
-	State            types.String            `tfsdk:"state"`
-	Size             types.String            `tfsdk:"size"`
-	Suspended        types.Bool              `tfsdk:"suspended"`
-	CreatedAt        types.String            `tfsdk:"created_at"`
-	Endpoint         types.String            `tfsdk:"endpoint"`
-	LastResumedAt    types.String            `tfsdk:"last_resumed_at"`
-	KaiEnabled       types.Bool              `tfsdk:"kai_enabled"`
-	CacheConfig      types.Float32           `tfsdk:"cache_config"`
-	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
-	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
-	DeploymentType   types.String            `tfsdk:"deployment_type"`
+	ID               types.String                       `tfsdk:"id"`
+	WorkspaceGroupID types.String                       `tfsdk:"workspace_group_id"`
+	Name             types.String                       `tfsdk:"name"`
+	State            types.String                       `tfsdk:"state"`
+	Size             types.String                       `tfsdk:"size"`
+	Suspended        types.Bool                         `tfsdk:"suspended"`
+	CreatedAt        types.String                       `tfsdk:"created_at"`
+	Endpoint         types.String                       `tfsdk:"endpoint"`
+	LastResumedAt    types.String                       `tfsdk:"last_resumed_at"`
+	KaiEnabled       types.Bool                         `tfsdk:"kai_enabled"`
+	CacheConfig      types.Float32                      `tfsdk:"cache_config"`
+	ScaleFactor      types.Float32                      `tfsdk:"scale_factor"`
+	AutoScale        *autoScaleResourceModel            `tfsdk:"auto_scale"`
+	DeploymentType   types.String                       `tfsdk:"deployment_type"`
 	AutoSuspend      *workspaceAutoSuspendResourceModel `tfsdk:"auto_suspend"`
 }
 

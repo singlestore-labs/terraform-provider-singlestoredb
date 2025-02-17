@@ -38,6 +38,7 @@ output "this_workspace" {
 ### Read-Only
 
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the workspace. (see [below for nested schema](#nestedatt--auto_scale))
+- `auto_suspend` (Attributes) Represents the current auto suspend settings enabled for this workspace. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
 - `deployment_type` (String) Deployment type of the workspace.
@@ -58,5 +59,14 @@ Read-Only:
 
 - `max_scale_factor` (Number) The maximum scale factor allowed for the workspace. It can have the following values: 1, 2, or 4.
 - `sensitivity` (String) Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`.
+
+
+<a id="nestedatt--auto_suspend"></a>
+### Nested Schema for `auto_suspend`
+
+Read-Only:
+
+- `suspend_after_seconds` (Number) The duration (in seconds) after which the workspace will be suspended if the suspend type is SCHEDULED, or the period of inactivity before automatic suspension if the suspend type is IDLE.
+- `suspend_type` (String) The type of auto suspend currently enabled.
 
 

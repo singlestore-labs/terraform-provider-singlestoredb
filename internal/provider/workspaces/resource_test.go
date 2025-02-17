@@ -30,6 +30,8 @@ var (
 	updatedMaxScaleFactor float32 = 4
 	updatedeSensitivity           = "LOW"
 	defaultDeploymentType         = management.WorkspaceGroupDeploymentTypePRODUCTION
+	updatedSuspendSeconds float32 = 1200
+	updatedSuspendType            = "IDLE"
 )
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
@@ -230,6 +232,18 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 			MaxScaleFactor: *input.AutoScale.MaxScaleFactor,
 			Sensitivity:    (*string)(input.AutoScale.Sensitivity),
 		}
+		workspace.AutoSuspend = &struct {
+			IdleAfterSeconds      *float32                                   `json:"idleAfterSeconds,omitempty"`
+			IdleChangedAt         *string                                    `json:"idleChangedAt,omitempty"`
+			ScheduledAfterSeconds *float32                                   `json:"scheduledAfterSeconds,omitempty"`
+			ScheduledChangedAt    *string                                    `json:"scheduledChangedAt,omitempty"`
+			ScheduledSuspendAt    *string                                    `json:"scheduledSuspendAt,omitempty"`
+			SuspendType           management.WorkspaceAutoSuspendSuspendType `json:"suspendType"`
+			SuspendTypeChangedAt  *string                                    `json:"suspendTypeChangedAt,omitempty"`
+		}{
+			SuspendType:      management.WorkspaceAutoSuspendSuspendTypeIDLE,
+			IdleAfterSeconds: input.AutoSuspend.SuspendAfterSeconds,
+		}
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -311,6 +325,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "true"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
 				),
 			},
 			{
@@ -343,6 +358,10 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
 					"sensitivity":      cty.StringVal(updatedeSensitivity),
 				})).
+					WithWorkspaceResource("this")("auto_suspend", cty.ObjectVal(map[string]cty.Value{
+					"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
+					"suspend_type":          cty.StringVal(updatedSuspendType),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
@@ -351,6 +370,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedeSensitivity),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_after_seconds", fmt.Sprintf("%.0f", updatedSuspendSeconds)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", updatedSuspendType),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *newEndpoint),
 				),
 			},
@@ -378,6 +399,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
 				),
 			},
 			{
@@ -413,11 +435,17 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
 					"sensitivity":      cty.StringVal(updatedeSensitivity),
 				})).
+					WithWorkspaceResource("this")("auto_suspend", cty.ObjectVal(map[string]cty.Value{
+					"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
+					"suspend_type":          cty.StringVal(updatedSuspendType),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", updatedWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "cache_config", fmt.Sprintf("%.0f", updatedCacheConfig)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "scale_factor", fmt.Sprintf("%.0f", updatedScaleFactor)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_after_seconds", fmt.Sprintf("%.0f", updatedSuspendSeconds)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", updatedSuspendType),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedeSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
