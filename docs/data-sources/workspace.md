@@ -40,6 +40,7 @@ output "this_workspace" {
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the workspace. (see [below for nested schema](#nestedatt--auto_scale))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the workspace. It can have one of the following values: 1, 2, or 4.
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
+- `deployment_type` (String) Deployment type of the workspace.
 - `endpoint` (String) The endpoint to connect to the workspace.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.

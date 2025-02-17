@@ -35,6 +35,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 			Hour: 15,
 		},
 		WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		DeploymentType:   &defaultDeploymentType,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +72,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "update_window.hour",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Hour)),
 					),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 				),
 			},
 		},

@@ -39,6 +39,7 @@ type workspaceDataSourceModel struct {
 	CacheConfig      types.Float32           `tfsdk:"cache_config"`
 	ScaleFactor      types.Float32           `tfsdk:"scale_factor"`
 	AutoScale        *autoScaleResourceModel `tfsdk:"auto_scale"`
+	DeploymentType   types.String            `tfsdk:"deployment_type"`
 }
 
 type workspaceDataSourceSchemaConfig struct {
@@ -205,6 +206,10 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 				},
 			},
 		},
+		"deployment_type": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "Deployment type of the workspace.",
+		},
 	}
 }
 
@@ -223,6 +228,7 @@ func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSo
 		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
 		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
 		AutoScale:        toAutoScaleResourceModel(workspace),
+		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
