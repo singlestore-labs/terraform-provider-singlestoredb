@@ -183,6 +183,8 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 			err.Error(),
 			err.Error(),
 		)
+
+		return
 	}
 
 	var workspaceID *uuid.UUID
@@ -424,7 +426,7 @@ func (r *privateConnectionResource) ImportState(ctx context.Context, req resourc
 func toPrivateConnectionModel(privateConnection management.PrivateConnection) (PrivateConnectionModel, *util.SummaryWithDetailError) {
 	var kaiEndpointID types.String
 	if privateConnection.AllowedPrivateLinkIDs != nil && len(*privateConnection.AllowedPrivateLinkIDs) > 0 {
-		kaiEndpointID = util.MaybeStringValue(&(*privateConnection.AllowedPrivateLinkIDs)[0])
+		kaiEndpointID = types.StringValue((*privateConnection.AllowedPrivateLinkIDs)[0])
 	}
 	model := PrivateConnectionModel{
 		ID:                util.UUIDStringValue(privateConnection.PrivateConnectionID),

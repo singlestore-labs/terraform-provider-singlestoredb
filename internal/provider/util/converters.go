@@ -102,14 +102,6 @@ func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnection
 	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
 }
 
-func StringValueOrNull[T ~string](value *T) types.String {
-	if value == nil {
-		return types.StringNull()
-	}
-
-	return types.StringValue(string(*value))
-}
-
 func MaybeFloat32(f types.Float32) *float32 {
 	if f.IsNull() || f.IsUnknown() {
 		return nil

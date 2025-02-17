@@ -117,6 +117,3 @@ func (d *privateConnectionsDataSourceList) Configure(_ context.Context, req data
 
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
-
-func (d *privateConnectionsDataSourceList) GetPrivateConnections() {
-}

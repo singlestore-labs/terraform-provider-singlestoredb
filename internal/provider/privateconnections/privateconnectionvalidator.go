@@ -1,6 +1,8 @@
 package privateconnections
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -32,7 +34,7 @@ func ValidatePrivateConnection(plan PrivateConnectionModel, isUpdate bool) *util
 	default:
 		return &util.SummaryWithDetailError{
 			Summary: "Unknown private connection type.",
-			Detail:  "Unknown private connection type.",
+			Detail:  fmt.Sprintf("Invalid private connection type %s while it should be %s or %s", privateConnectionType, management.PrivateConnectionCreateTypeINBOUND, management.PrivateConnectionCreateTypeOUTBOUND),
 		}
 	}
 
