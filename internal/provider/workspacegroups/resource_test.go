@@ -2,6 +2,7 @@ package workspacegroups_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		RegionID:         regions[0].RegionID,
 		State:            management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:     nil,
-		UpdateWindow:     nil,
+		UpdateWindow:     &management.UpdateWindow{Day: config.TestInitialUpdateWindowDay, Hour: config.TestInitialUpdateWindowHour},
 		WorkspaceGroupID: workspaceGroupID,
 	}
 
@@ -100,6 +101,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
 		require.Equal(t, regions[0].RegionID, input.RegionID)
+		require.Equal(t, config.TestInitialUpdateWindowDay, int(input.UpdateWindow.Day))
+		require.Equal(t, config.TestInitialUpdateWindowHour, int(input.UpdateWindow.Hour))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -211,6 +214,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 			{
@@ -250,6 +255,8 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 			{
