@@ -19,6 +19,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const scheduledAfterSeconds float32 = 1200
+
 func TestReadsWorkspace(t *testing.T) {
 	workspace := management.Workspace{
 		CreatedAt:        "2023-02-28T05:33:06.3003Z",
@@ -29,6 +31,18 @@ func TestReadsWorkspace(t *testing.T) {
 		LastResumedAt:    util.Ptr("2023-03-14T17:28:32.430878Z"),
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		Size:             "S-00",
+		AutoSuspend: &struct {
+			IdleAfterSeconds      *float32                                   `json:"idleAfterSeconds,omitempty"`
+			IdleChangedAt         *string                                    `json:"idleChangedAt,omitempty"`
+			ScheduledAfterSeconds *float32                                   `json:"scheduledAfterSeconds,omitempty"`
+			ScheduledChangedAt    *string                                    `json:"scheduledChangedAt,omitempty"`
+			ScheduledSuspendAt    *string                                    `json:"scheduledSuspendAt,omitempty"`
+			SuspendType           management.WorkspaceAutoSuspendSuspendType `json:"suspendType"`
+			SuspendTypeChangedAt  *string                                    `json:"suspendTypeChangedAt,omitempty"`
+		}{
+			SuspendType:           management.WorkspaceAutoSuspendSuspendTypeSCHEDULED,
+			ScheduledAfterSeconds: util.Ptr(scheduledAfterSeconds),
+		},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +71,8 @@ func TestReadsWorkspace(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "last_resumed_at", *workspace.LastResumedAt),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "auto_suspend.suspend_type", "SCHEDULED"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace.this", "auto_suspend.suspend_after_seconds", fmt.Sprintf("%.0f", scheduledAfterSeconds)),
 				),
 			},
 		},
