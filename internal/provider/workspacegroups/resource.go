@@ -6,10 +6,12 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -43,6 +45,7 @@ type workspaceGroupResourceModel struct {
 	ExpiresAt      types.String   `tfsdk:"expires_at"`
 	RegionID       types.String   `tfsdk:"region_id"`
 	AdminPassword  types.String   `tfsdk:"admin_password"`
+	DeploymentType types.String   `tfsdk:"deployment_type"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -99,6 +102,15 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Sensitive:           true,
 				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
 			},
+			"deployment_type": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "The deployment type that will be applied to all the workspaces within the workspace group. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.",
+				Default:             stringdefault.StaticString(string(management.WorkspaceGroupCreateDeploymentTypePRODUCTION)),
+				Validators: []validator.String{
+					stringvalidator.OneOf(string(management.WorkspaceGroupCreateDeploymentTypePRODUCTION), string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION)),
+				},
+			},
 		},
 	}
 }
@@ -118,6 +130,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		FirewallRanges: util.StringFirewallRanges(plan.FirewallRanges),
 		Name:           plan.Name.ValueString(),
 		RegionID:       uuid.MustParse(plan.RegionID.ValueString()),
+		DeploymentType: util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -211,6 +224,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -314,6 +328,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		ExpiresAt:      util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		RegionID:       util.UUIDStringValue(workspaceGroup.RegionID),
 		AdminPassword:  types.StringValue(adminPassword),
+		DeploymentType: util.StringValueOrNull(workspaceGroup.DeploymentType),
 	}
 }
 

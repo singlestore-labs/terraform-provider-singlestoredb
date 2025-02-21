@@ -29,6 +29,7 @@ var (
 	updatedScaleFactor    float32 = 2
 	updatedMaxScaleFactor float32 = 4
 	updatedeSensitivity           = "LOW"
+	defaultDeploymentType         = management.WorkspaceGroupDeploymentTypePRODUCTION
 )
 
 func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
@@ -55,6 +56,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: workspaceGroupID,
+		DeploymentType:   &defaultDeploymentType,
 	}
 
 	workspaceID := uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
