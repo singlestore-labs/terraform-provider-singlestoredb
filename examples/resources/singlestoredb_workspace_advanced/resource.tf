@@ -7,7 +7,7 @@ provider "singlestoredb" {
 data "singlestoredb_regions" "all" {}
 
 resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
+  name            = "terraform_test_group_advanced"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   region_id       = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
@@ -24,6 +24,10 @@ resource "singlestoredb_workspace" "this" {
   auto_scale = {
     max_scale_factor = 2
     sensitivity      = "LOW"
+  }
+  auto_suspend = {
+    suspend_after_seconds = 1000
+    suspend_type          = "SCHEDULED"
   }
 }
 

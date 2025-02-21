@@ -124,6 +124,34 @@ func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.Workspace
 	return nil
 }
 
+func WorkspaceCreateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceCreateAutoSuspendSuspendType {
+	for _, s := range []management.WorkspaceCreateAutoSuspendSuspendType{
+		management.WorkspaceCreateAutoSuspendSuspendTypeIDLE,
+		management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED,
+		management.WorkspaceCreateAutoSuspendSuspendTypeSCHEDULED,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceUpdateAutoSuspendSuspendType {
+	for _, s := range []management.WorkspaceUpdateAutoSuspendSuspendType{
+		management.IDLE,
+		management.DISABLED,
+		management.SCHEDULED,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 func WorkspaceGroupCreateDeploymentTypeString(wgs types.String) *management.WorkspaceGroupCreateDeploymentType {
 	for _, s := range []management.WorkspaceGroupCreateDeploymentType{
 		management.WorkspaceGroupCreateDeploymentTypePRODUCTION,
