@@ -47,6 +47,7 @@ Read-Only:
 - `firewall_ranges` (List of String) A list of the allowed inbound IP address ranges.
 - `id` (String) The unique identifier of the workspace group.
 - `name` (String) The name of the workspace group.
+- `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
 - `region_id` (String) The unique identifier of the region where the workspace group is located.
 - `state` (String) The state of the workspace group.
 - `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--workspace_groups--update_window))

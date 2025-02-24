@@ -20,7 +20,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_workspace_group" "this" {
-  id = "bc8c0deb-50dd-4a58-a5a5-1c62eb5c456d" # Replace with the actual ID of the workspace group.
+  id = "7be43ca1-77bd-4075-9a21-f49d9079f8dc" # Replace with the actual ID of the workspace group.
 }
 
 output "this_workspace_group" {
@@ -43,6 +43,7 @@ output "this_workspace_group" {
 - `expires_at` (String) The timestamp when the workspace group will expire. Upon expiration, the workspace group is terminated and all its data is lost.
 - `firewall_ranges` (List of String) A list of the allowed inbound IP address ranges.
 - `name` (String) The name of the workspace group.
+- `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
 - `region_id` (String) The unique identifier of the region where the workspace group is located.
 - `state` (String) The state of the workspace group.
 - `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
