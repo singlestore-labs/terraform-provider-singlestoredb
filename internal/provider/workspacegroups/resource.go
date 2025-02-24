@@ -39,15 +39,16 @@ type workspaceGroupResource struct {
 
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID                  types.String   `tfsdk:"id"`
-	Name                types.String   `tfsdk:"name"`
-	FirewallRanges      []types.String `tfsdk:"firewall_ranges"`
-	CreatedAt           types.String   `tfsdk:"created_at"`
-	ExpiresAt           types.String   `tfsdk:"expires_at"`
-	RegionID            types.String   `tfsdk:"region_id"`
-	AdminPassword       types.String   `tfsdk:"admin_password"`
-	DeploymentType      types.String   `tfsdk:"deployment_type"`
-	OptInPreviewFeature types.Bool     `tfsdk:"opt_in_preview_feature"`
+	ID                       types.String   `tfsdk:"id"`
+	Name                     types.String   `tfsdk:"name"`
+	FirewallRanges           []types.String `tfsdk:"firewall_ranges"`
+	CreatedAt                types.String   `tfsdk:"created_at"`
+	ExpiresAt                types.String   `tfsdk:"expires_at"`
+	RegionID                 types.String   `tfsdk:"region_id"`
+	AdminPassword            types.String   `tfsdk:"admin_password"`
+	DeploymentType           types.String   `tfsdk:"deployment_type"`
+	OptInPreviewFeature      types.Bool     `tfsdk:"opt_in_preview_feature"`
+	HighAvailabilityTwoZones types.Bool     `tfsdk:"high_availability_two_zones"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -119,6 +120,12 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.",
 			},
+			"high_availability_two_zones": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "Enables deployment across two Availability Zones.",
+			},
 		},
 	}
 }
@@ -142,13 +149,14 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
-		AdminPassword:       util.MaybeString(plan.AdminPassword),
-		ExpiresAt:           util.MaybeString(plan.ExpiresAt),
-		FirewallRanges:      util.StringFirewallRanges(plan.FirewallRanges),
-		Name:                plan.Name.ValueString(),
-		RegionID:            uuid.MustParse(plan.RegionID.ValueString()),
-		DeploymentType:      util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
-		OptInPreviewFeature: util.MaybeBool(plan.OptInPreviewFeature),
+		AdminPassword:            util.MaybeString(plan.AdminPassword),
+		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
+		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
+		Name:                     plan.Name.ValueString(),
+		RegionID:                 uuid.MustParse(plan.RegionID.ValueString()),
+		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
+		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
+		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -331,6 +339,13 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
+	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
+		resp.Diagnostics.AddError("Cannot change the high_availability_two_zones configuration for the workspace group.",
+			"Changing the high_availability_two_zones configuration is currently not supported.")
+
+		return
+	}
+
 	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
 		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the workspace group.",
 			"Changing the opt_in_preview_feature configuration is currently not supported.")
@@ -355,15 +370,16 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string) workspaceGroupResourceModel {
 	return workspaceGroupResourceModel{
-		ID:                  util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
-		Name:                types.StringValue(workspaceGroup.Name),
-		FirewallRanges:      util.FirewallRanges(workspaceGroup.FirewallRanges),
-		CreatedAt:           types.StringValue(workspaceGroup.CreatedAt),
-		ExpiresAt:           util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:            util.UUIDStringValue(workspaceGroup.RegionID),
-		AdminPassword:       types.StringValue(adminPassword),
-		DeploymentType:      util.StringValueOrNull(workspaceGroup.DeploymentType),
-		OptInPreviewFeature: types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
+		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		Name:                     types.StringValue(workspaceGroup.Name),
+		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
+		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
+		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		RegionID:                 util.UUIDStringValue(workspaceGroup.RegionID),
+		AdminPassword:            types.StringValue(adminPassword),
+		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
+		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
+		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 	}
 }
 

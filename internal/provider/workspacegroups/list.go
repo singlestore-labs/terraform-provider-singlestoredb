@@ -95,17 +95,18 @@ func (d *workspaceGroupsDataSourceList) Configure(_ context.Context, req datasou
 
 func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) workspaceGroupDataSourceModel {
 	return workspaceGroupDataSourceModel{
-		ID:                  util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
-		Name:                types.StringValue(workspaceGroup.Name),
-		State:               util.WorkspaceGroupStateStringValue(workspaceGroup.State),
-		FirewallRanges:      util.FirewallRanges(workspaceGroup.FirewallRanges),
-		AllowAllTraffic:     util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
-		CreatedAt:           types.StringValue(workspaceGroup.CreatedAt),
-		ExpiresAt:           util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:            util.UUIDStringValue(workspaceGroup.RegionID),
-		UpdateWindow:        toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
-		DeploymentType:      util.StringValueOrNull(workspaceGroup.DeploymentType),
-		OptInPreviewFeature: util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),
+		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		Name:                     types.StringValue(workspaceGroup.Name),
+		State:                    util.WorkspaceGroupStateStringValue(workspaceGroup.State),
+		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
+		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
+		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
+		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		RegionID:                 util.UUIDStringValue(workspaceGroup.RegionID),
+		UpdateWindow:             toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
+		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
+		OptInPreviewFeature:      util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),
+		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.HighAvailabilityTwoZones),
 	}
 }
 

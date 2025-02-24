@@ -26,17 +26,18 @@ type workspaceGroupsDataSourceGet struct {
 
 // workspaceGroupDataSourceModel maps workspace groups schema data.
 type workspaceGroupDataSourceModel struct {
-	ID                  types.String                 `tfsdk:"id"`
-	Name                types.String                 `tfsdk:"name"`
-	State               types.String                 `tfsdk:"state"`
-	FirewallRanges      []types.String               `tfsdk:"firewall_ranges"`
-	AllowAllTraffic     types.Bool                   `tfsdk:"allow_all_traffic"`
-	CreatedAt           types.String                 `tfsdk:"created_at"`
-	ExpiresAt           types.String                 `tfsdk:"expires_at"`
-	RegionID            types.String                 `tfsdk:"region_id"`
-	UpdateWindow        *updateWindowDataSourceModel `tfsdk:"update_window"`
-	DeploymentType      types.String                 `tfsdk:"deployment_type"`
-	OptInPreviewFeature types.Bool                   `tfsdk:"opt_in_preview_feature"`
+	ID                       types.String                 `tfsdk:"id"`
+	Name                     types.String                 `tfsdk:"name"`
+	State                    types.String                 `tfsdk:"state"`
+	FirewallRanges           []types.String               `tfsdk:"firewall_ranges"`
+	AllowAllTraffic          types.Bool                   `tfsdk:"allow_all_traffic"`
+	CreatedAt                types.String                 `tfsdk:"created_at"`
+	ExpiresAt                types.String                 `tfsdk:"expires_at"`
+	RegionID                 types.String                 `tfsdk:"region_id"`
+	UpdateWindow             *updateWindowDataSourceModel `tfsdk:"update_window"`
+	DeploymentType           types.String                 `tfsdk:"deployment_type"`
+	OptInPreviewFeature      types.Bool                   `tfsdk:"opt_in_preview_feature"`
+	HighAvailabilityTwoZones types.Bool                   `tfsdk:"high_availability_two_zones"`
 }
 
 type workspaceGroupDataSourceSchemaConfig struct {
@@ -190,6 +191,10 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		"opt_in_preview_feature": schema.BoolAttribute{
 			Computed:            true,
 			MarkdownDescription: "Whether 'Opt-in to Preview Features & Updates' is enabled.",
+		},
+		"high_availability_two_zones": schema.BoolAttribute{
+			Computed:            true,
+			MarkdownDescription: "Whether deployment across two Availability Zones is enabled.",
 		},
 	}
 }
