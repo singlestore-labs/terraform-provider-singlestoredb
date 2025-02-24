@@ -45,6 +45,7 @@ Read-Only:
 - `deployment_type` (String) Deployment type of the workspace group.
 - `expires_at` (String) The timestamp when the workspace group will expire. Upon expiration, the workspace group is terminated and all its data is lost.
 - `firewall_ranges` (List of String) A list of the allowed inbound IP address ranges.
+- `high_availability_two_zones` (Boolean) Whether deployment across two Availability Zones is enabled.
 - `id` (String) The unique identifier of the workspace group.
 - `name` (String) The name of the workspace group.
 - `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
