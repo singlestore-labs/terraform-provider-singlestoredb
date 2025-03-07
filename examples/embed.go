@@ -10,6 +10,7 @@ var f embed.FS
 
 var (
 	Regions                          = mustRead("data-sources/singlestoredb_regions/data-source.tf")
+	RegionsV2                        = mustRead("data-sources/singlestoredb_regions_v2/data-source.tf")
 	PrivateConnectionsGetDataSource  = mustRead("data-sources/singlestoredb_private_connection/data-source.tf")
 	PrivateConnectionsResource       = mustRead("resources/singlestoredb_private_connection/resource.tf")
 	PrivateConnectionsListDataSource = mustRead("data-sources/singlestoredb_private_connections/data-source.tf")
