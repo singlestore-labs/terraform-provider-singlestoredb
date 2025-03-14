@@ -41,7 +41,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		{
 			RegionID: uuid.MustParse("2ca3d358-021d-45ed-86cb-38b8d14ac507"),
 			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider: management.AWS,
+			Provider: management.RegionProviderAWS,
 		},
 	}
 

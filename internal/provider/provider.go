@@ -16,6 +16,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
+	regions_v2 "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
@@ -154,6 +155,7 @@ func (p *singlestoreProvider) Configure(ctx context.Context, req provider.Config
 func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		regions.NewDataSourceList,
+		regions_v2.NewDataSourceList,
 		workspacegroups.NewDataSourceList,
 		workspacegroups.NewDataSourceGet,
 		workspaces.NewDataSourceList,
