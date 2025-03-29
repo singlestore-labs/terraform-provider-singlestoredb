@@ -102,7 +102,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
-		require.Equal(t, regions[0].RegionID, input.RegionID)
+		require.Equal(t, regions[0].RegionID, *input.RegionID)
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(

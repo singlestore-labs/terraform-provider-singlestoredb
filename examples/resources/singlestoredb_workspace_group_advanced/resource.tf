@@ -4,13 +4,12 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_regions" "all" {}
-
 resource "singlestoredb_workspace_group" "this" {
   name                        = "terraform_test_group_advanced"
   firewall_ranges             = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at                  = "2222-01-01T00:00:00Z"
-  region_id                   = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
+  region_name                 = "us-west-2"
+  cloud_provider              = "AWS"
   admin_password              = "fooBAR12$"
   deployment_type             = "NON-PRODUCTION"
   opt_in_preview_feature      = true

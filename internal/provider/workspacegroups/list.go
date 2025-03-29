@@ -103,6 +103,8 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) w
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		RegionID:                 util.UUIDStringValue(workspaceGroup.RegionID),
+		CloudProvider:            types.StringValue(string(workspaceGroup.Provider)),
+		RegionName:               types.StringValue(workspaceGroup.RegionName),
 		UpdateWindow:             toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),

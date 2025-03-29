@@ -28,6 +28,8 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 		FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 		Name:            "foo",
 		RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
+		Provider:        management.WorkspaceGroupProviderAWS,
+		RegionName:      "us-west-2",
 		State:           management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:    nil,
 		UpdateWindow: &management.UpdateWindow{
@@ -64,6 +66,8 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "name", workspaceGroup.Name),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_id", workspaceGroup.RegionID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "cloud_provider", string(workspaceGroup.Provider)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_name", "us-west-2"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(workspaceGroup.State)),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "update_window.day",

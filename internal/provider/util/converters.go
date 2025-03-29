@@ -178,6 +178,20 @@ func WorkspaceGroupUpdateDeploymentTypeString(wgs types.String) *management.Work
 	return nil
 }
 
+func WorkspaceGroupCloudProviderString(provider types.String) *management.WorkspaceGroupCreateProvider {
+	for _, s := range []management.WorkspaceGroupCreateProvider{
+		management.WorkspaceGroupCreateProviderAWS,
+		management.WorkspaceGroupCreateProviderAzure,
+		management.WorkspaceGroupCreateProviderGCP,
+	} {
+		if strings.EqualFold(provider.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
 func StringValueOrNull[T ~string](value *T) types.String {
 	if value == nil {
 		return types.StringNull()

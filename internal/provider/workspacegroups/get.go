@@ -34,6 +34,8 @@ type workspaceGroupDataSourceModel struct {
 	CreatedAt                types.String                 `tfsdk:"created_at"`
 	ExpiresAt                types.String                 `tfsdk:"expires_at"`
 	RegionID                 types.String                 `tfsdk:"region_id"`
+	CloudProvider            types.String                 `tfsdk:"cloud_provider"`
+	RegionName               types.String                 `tfsdk:"region_name"`
 	UpdateWindow             *updateWindowDataSourceModel `tfsdk:"update_window"`
 	DeploymentType           types.String                 `tfsdk:"deployment_type"`
 	OptInPreviewFeature      types.Bool                   `tfsdk:"opt_in_preview_feature"`
@@ -169,6 +171,14 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		"region_id": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "The unique identifier of the region where the workspace group is located.",
+		},
+		"cloud_provider": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.",
+		},
+		"region_name": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The region code name used to resolve region.",
 		},
 		"update_window": schema.SingleNestedAttribute{
 			Computed:            true,
