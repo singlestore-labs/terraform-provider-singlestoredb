@@ -38,6 +38,7 @@ output "this_workspace_group" {
 ### Read-Only
 
 - `allow_all_traffic` (Boolean) Indicates whether all traffic is allowed to reach the workspace group.
+- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.
 - `created_at` (String) The timestamp when the workspace group was created.
 - `deployment_type` (String) Deployment type of the workspace group.
 - `expires_at` (String) The timestamp when the workspace group will expire. Upon expiration, the workspace group is terminated and all its data is lost.
@@ -46,6 +47,7 @@ output "this_workspace_group" {
 - `name` (String) The name of the workspace group.
 - `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
 - `region_id` (String) The unique identifier of the region where the workspace group is located.
+- `region_name` (String) The region code name used to resolve region.
 - `state` (String) The state of the workspace group.
 - `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
 

@@ -45,6 +45,8 @@ type workspaceGroupResourceModel struct {
 	CreatedAt                types.String   `tfsdk:"created_at"`
 	ExpiresAt                types.String   `tfsdk:"expires_at"`
 	RegionID                 types.String   `tfsdk:"region_id"`
+	CloudProvider            types.String   `tfsdk:"cloud_provider"`
+	RegionName               types.String   `tfsdk:"region_name"`
 	AdminPassword            types.String   `tfsdk:"admin_password"`
 	DeploymentType           types.String   `tfsdk:"deployment_type"`
 	OptInPreviewFeature      types.Bool     `tfsdk:"opt_in_preview_feature"`
@@ -95,9 +97,21 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Validators:          []validator.String{util.NewTimeValidator()},
 			},
 			"region_id": schema.StringAttribute{
-				Required:            true,
+				Optional:            true,
+				DeprecationMessage:  "Use 'cloud_provider' and 'region_name' instead.",
 				MarkdownDescription: "The unique identifier of the region where the workspace group is to be created.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
+			},
+			"cloud_provider": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(string(management.RegionV2ProviderAWS), string(management.RegionV2ProviderGCP), string(management.RegionV2ProviderAzure)),
+				},
+			},
+			"region_name": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The region code name used to resolve region.",
 			},
 			"admin_password": schema.StringAttribute{
 				Optional:            true,
@@ -139,13 +153,22 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
-		resp.Diagnostics.AddError(
-			"Wrong configuration for opt_in_preview_feature and deployment_type",
-			"The enabled opt_in_preview_feature configuration is suitable only for the 'NON-PRODUCTION' deployment_type.",
-		)
+	if err := validateCreateRegionParameters(plan); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
+	}
+
+	if err := validateCreateOptInPreviewFeatureParameter(plan); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	var regionID *uuid.UUID
+	if regionIDIsSet {
+		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
@@ -153,7 +176,9 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
 		Name:                     plan.Name.ValueString(),
-		RegionID:                 uuid.MustParse(plan.RegionID.ValueString()),
+		RegionID:                 regionID,
+		Provider:                 util.WorkspaceGroupCloudProviderString(plan.CloudProvider),
+		RegionName:               util.MaybeString(plan.RegionName),
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
@@ -181,10 +206,36 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	))
+	), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+func validateCreateRegionParameters(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	providerAndRegionNameAreSet := !plan.CloudProvider.IsNull() && !plan.CloudProvider.IsUnknown() && !plan.RegionName.IsNull() && !plan.RegionName.IsUnknown()
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+
+	if regionIDIsSet && (providerAndRegionNameAreSet) ||
+		!regionIDIsSet && (!providerAndRegionNameAreSet) {
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid region configuration",
+			Detail:  "Either 'region_id' must be set or both 'cloud_provider' and 'region_name' must be provided.",
+		}
+	}
+
+	return nil
+}
+
+func validateCreateOptInPreviewFeatureParameter(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
+		return &util.SummaryWithDetailError{
+			Summary: "Wrong configuration for opt_in_preview_feature and deployment_type",
+			Detail:  "The enabled opt_in_preview_feature configuration is suitable only for the 'NON-PRODUCTION' deployment_type.",
+		}
+	}
+
+	return nil
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -225,8 +276,8 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
 	}
 
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString())
-
+	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -272,7 +323,8 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString())
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -331,10 +383,8 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if !plan.RegionID.Equal(state.RegionID) {
-		resp.Diagnostics.AddError("Cannot update workspace group region ID",
-			"To prevent accidental deletion of the workspace group and loss of data, updating the region ID is not permitted. "+
-				"Please explicitly delete the workspace group before changing its region ID.")
+	if err := validateModifyPlanRegionParameters(plan, state); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
 	}
@@ -363,24 +413,56 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 }
 
+func validateModifyPlanRegionParameters(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.RegionID.Equal(state.RegionID) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group region_id",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_id is not permitted. Please explicitly delete the workspace group before changing its region_id.",
+		}
+	}
+
+	if !plan.RegionName.Equal(state.RegionName) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group region_name",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_name is not permitted. Please explicitly delete the workspace group before changing its region_name.",
+		}
+	}
+
+	if !plan.CloudProvider.Equal(state.CloudProvider) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group cloud_provider",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the cloud_provider is not permitted. Please explicitly delete the workspace group before changing its cloud_provider.",
+		}
+	}
+
+	return nil
+}
+
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string) workspaceGroupResourceModel {
-	return workspaceGroupResourceModel{
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {
+	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:                 util.UUIDStringValue(workspaceGroup.RegionID),
 		AdminPassword:            types.StringValue(adminPassword),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 	}
+	if regionIDIsSet {
+		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
+	} else {
+		result.CloudProvider = types.StringValue(string(workspaceGroup.Provider))
+		result.RegionName = types.StringValue(workspaceGroup.RegionName)
+	}
+
+	return result
 }
 
 func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID) (management.WorkspaceGroup, *util.SummaryWithDetailError) {

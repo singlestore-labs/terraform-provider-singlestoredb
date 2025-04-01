@@ -37,15 +37,17 @@ resource "singlestoredb_workspace_group" "this" {
 
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
 - `name` (String) Name of the workspace group.
-- `region_id` (String) The unique identifier of the region where the workspace group is to be created.
 
 ### Optional
 
 - `admin_password` (String, Sensitive) The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.
+- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.
 - `deployment_type` (String) The deployment type that will be applied to all the workspaces within the workspace group. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
 - `expires_at` (String) The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
 - `high_availability_two_zones` (Boolean) Enables deployment across two Availability Zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
+- `region_id` (String, Deprecated) The unique identifier of the region where the workspace group is to be created.
+- `region_name` (String) The region code name used to resolve region.
 
 ### Read-Only
 
