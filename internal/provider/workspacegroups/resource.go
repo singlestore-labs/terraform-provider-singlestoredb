@@ -98,6 +98,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"region_id": schema.StringAttribute{
 				Optional:            true,
+				DeprecationMessage:  "Use 'cloud_provider' and 'region_name' instead.",
 				MarkdownDescription: "The unique identifier of the region where the workspace group is to be created.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
@@ -164,9 +165,9 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	regionIDMissed := plan.RegionID.IsNull() || plan.RegionID.IsUnknown()
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 	var regionID *uuid.UUID
-	if !regionIDMissed {
+	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
 
@@ -205,19 +206,18 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	), regionIDMissed)
+	), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
 
 func validateCreateRegionParameters(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	providerMissed := plan.CloudProvider.IsNull() || plan.CloudProvider.IsUnknown()
-	regionNameMissed := plan.RegionName.IsNull() || plan.RegionName.IsUnknown()
-	regionIDMissed := plan.RegionID.IsNull() || plan.RegionID.IsUnknown()
+	providerAndRegionNameAreSet := !plan.CloudProvider.IsNull() && !plan.CloudProvider.IsUnknown() && !plan.RegionName.IsNull() && !plan.RegionName.IsUnknown()
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 
-	if regionIDMissed && (providerMissed || regionNameMissed) ||
-		!regionIDMissed && (!providerMissed || !regionNameMissed) {
+	if regionIDIsSet && (providerAndRegionNameAreSet) ||
+		!regionIDIsSet && (!providerAndRegionNameAreSet) {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid region configuration",
 			Detail:  "Either 'region_id' must be set or both 'cloud_provider' and 'region_name' must be provided.",
@@ -276,8 +276,8 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
 	}
 
-	regionIDMissed := state.RegionID.IsNull() || state.RegionID.IsUnknown()
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDMissed)
+	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -323,8 +323,8 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	regionIDMissed := plan.RegionID.IsNull() || plan.RegionID.IsUnknown()
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDMissed)
+	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -416,22 +416,22 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 func validateModifyPlanRegionParameters(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	if !plan.RegionID.Equal(state.RegionID) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update workspace group region ID",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region ID is not permitted. Please explicitly delete the workspace group before changing its region ID.",
+			Summary: "Cannot update workspace group region_id",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_id is not permitted. Please explicitly delete the workspace group before changing its region_id.",
 		}
 	}
 
 	if !plan.RegionName.Equal(state.RegionName) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update workspace group region name",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region name is not permitted. Please explicitly delete the workspace group before changing its region name.",
+			Summary: "Cannot update workspace group region_name",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_name is not permitted. Please explicitly delete the workspace group before changing its region_name.",
 		}
 	}
 
 	if !plan.CloudProvider.Equal(state.CloudProvider) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update workspace group provider",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the provider is not permitted. Please explicitly delete the workspace group before changing its provider.",
+			Summary: "Cannot update workspace group cloud_provider",
+			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the cloud_provider is not permitted. Please explicitly delete the workspace group before changing its cloud_provider.",
 		}
 	}
 
@@ -443,7 +443,7 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDMissed bool) workspaceGroupResourceModel {
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
@@ -455,11 +455,11 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 	}
-	if regionIDMissed {
+	if regionIDIsSet {
+		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
+	} else {
 		result.CloudProvider = types.StringValue(string(workspaceGroup.Provider))
 		result.RegionName = types.StringValue(workspaceGroup.RegionName)
-	} else {
-		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
 	}
 
 	return result
