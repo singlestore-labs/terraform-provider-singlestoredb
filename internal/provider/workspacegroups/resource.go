@@ -51,6 +51,7 @@ type workspaceGroupResourceModel struct {
 	DeploymentType           types.String   `tfsdk:"deployment_type"`
 	OptInPreviewFeature      types.Bool     `tfsdk:"opt_in_preview_feature"`
 	HighAvailabilityTwoZones types.Bool     `tfsdk:"high_availability_two_zones"`
+	OutboundAllowList        types.String   `tfsdk:"outbound_allow_list"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -139,6 +140,10 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "Enables deployment across two Availability Zones.",
+			},
+			"outbound_allow_list": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.",
 			},
 		},
 	}
@@ -454,6 +459,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
+		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 	}
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)

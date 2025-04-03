@@ -46,6 +46,7 @@ output "this_workspace_group" {
 - `high_availability_two_zones` (Boolean) Whether deployment across two Availability Zones is enabled.
 - `name` (String) The name of the workspace group.
 - `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
+- `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 - `region_id` (String) The unique identifier of the region where the workspace group is located.
 - `region_name` (String) The region code name used to resolve region.
 - `state` (String) The state of the workspace group.

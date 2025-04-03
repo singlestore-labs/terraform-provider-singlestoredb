@@ -53,5 +53,6 @@ resource "singlestoredb_workspace_group" "this" {
 
 - `created_at` (String) The timestamp when the workspace was created.
 - `id` (String) The unique identifier of the workspace group.
+- `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 
 

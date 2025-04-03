@@ -40,6 +40,7 @@ type workspaceGroupDataSourceModel struct {
 	DeploymentType           types.String                 `tfsdk:"deployment_type"`
 	OptInPreviewFeature      types.Bool                   `tfsdk:"opt_in_preview_feature"`
 	HighAvailabilityTwoZones types.Bool                   `tfsdk:"high_availability_two_zones"`
+	OutboundAllowList        types.String                 `tfsdk:"outbound_allow_list"`
 }
 
 type workspaceGroupDataSourceSchemaConfig struct {
@@ -205,6 +206,10 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		"high_availability_two_zones": schema.BoolAttribute{
 			Computed:            true,
 			MarkdownDescription: "Whether deployment across two Availability Zones is enabled.",
+		},
+		"outbound_allow_list": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.",
 		},
 	}
 }
