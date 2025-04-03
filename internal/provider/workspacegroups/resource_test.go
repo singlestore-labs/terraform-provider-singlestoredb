@@ -40,16 +40,17 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 
 	workspaceGroup := management.WorkspaceGroup{
-		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
-		Name:             config.TestInitialWorkspaceGroupName,
-		RegionID:         regions[0].RegionID,
-		State:            management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
-		TerminatedAt:     nil,
-		UpdateWindow:     nil,
-		WorkspaceGroupID: workspaceGroupID,
-		DeploymentType:   &defaultDeploymentType,
+		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+		ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		FirewallRanges:    util.Ptr([]string{config.TestInitialFirewallRange}),
+		Name:              config.TestInitialWorkspaceGroupName,
+		RegionID:          regions[0].RegionID,
+		State:             management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
+		TerminatedAt:      nil,
+		UpdateWindow:      nil,
+		WorkspaceGroupID:  workspaceGroupID,
+		DeploymentType:    &defaultDeploymentType,
+		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
@@ -217,6 +218,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
 				),
 			},
 			{

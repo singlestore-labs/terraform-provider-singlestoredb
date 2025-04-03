@@ -109,6 +109,7 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) w
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.HighAvailabilityTwoZones),
+		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 	}
 }
 

@@ -20,6 +20,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+var testOutboundAllowList = "arn:aws:iam::1234567890:root"
+
 func TestReadsWorkspaceGroup(t *testing.T) {
 	workspaceGroup := management.WorkspaceGroup{
 		AllowAllTraffic: nil,
@@ -36,8 +38,9 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 			Day:  3,
 			Hour: 15,
 		},
-		WorkspaceGroupID: uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
-		DeploymentType:   &defaultDeploymentType,
+		WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		DeploymentType:    &defaultDeploymentType,
+		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +80,7 @@ func TestReadsWorkspaceGroup(t *testing.T) {
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Hour)),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
 				),
 			},
 		},
