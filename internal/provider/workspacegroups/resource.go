@@ -198,7 +198,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	id := workspaceGroupCreateResponse.JSON200.WorkspaceGroupID
-	wg, werr := waitStatusActive(ctx, r.ClientWithResponsesInterface, id)
+	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, waitConditionFirewallRanges(plan.FirewallRanges))
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -271,9 +271,9 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
+	if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group %s state is %s while it should be %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE),
+			fmt.Sprintf("Workspace group %s state is %s while it should be %s or %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE, management.WorkspaceGroupStatePENDING),
 			"An unexpected workspace group state.\n\n"+
 				config.ContactSupportLaterErrorDetail,
 		)
@@ -318,7 +318,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	wg, werr := waitStatusActive(ctx, r.ClientWithResponsesInterface, id)
+	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id)
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -471,7 +471,10 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	return result
 }
 
-func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
+// waitCondition return nil if it is satisfied.
+type waitCondition func(management.WorkspaceGroup) error
+
+func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
 	result := management.WorkspaceGroup{}
 
 	workspaceGroupStateHistory := make([]management.WorkspaceGroupState, 0, config.WorkspaceGroupConsistencyThreshold)
@@ -492,24 +495,24 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 
 		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
 
-		if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
+		if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
 			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
 
-		if workspaceGroup.JSON200.State != management.WorkspaceGroupStateACTIVE {
-			err = fmt.Errorf("workspace group %s state is %s", id, workspaceGroup.JSON200.State)
-
-			return retry.RetryableError(err)
-		}
-
-		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.WorkspaceGroupStateACTIVE) {
+		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.WorkspaceGroupStateACTIVE, management.WorkspaceGroupStatePENDING) {
 			err = fmt.Errorf("workspace group %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
 				id, workspaceGroup.JSON200.State, config.WorkspaceGroupConsistencyThreshold,
 			)
 
 			return retry.RetryableError(err)
+		}
+
+		for _, c := range conditions {
+			if err := c(*workspaceGroup.JSON200); err != nil {
+				return retry.RetryableError(err)
+			}
 		}
 
 		result = *workspaceGroup.JSON200
@@ -523,4 +526,18 @@ func waitStatusActive(ctx context.Context, c management.ClientWithResponsesInter
 	}
 
 	return result, nil
+}
+
+func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
+	return state == management.WorkspaceGroupStateFAILED || state == management.WorkspaceGroupStateTERMINATED
+}
+
+func waitConditionFirewallRanges(firewallRanges []types.String) func(management.WorkspaceGroup) error {
+	return func(w management.WorkspaceGroup) error {
+		if len(*w.FirewallRanges) != len(firewallRanges) {
+			return fmt.Errorf("workspace group %s firewallRanges length is %d, but should be %d", w.WorkspaceGroupID, len(*w.FirewallRanges), len(firewallRanges))
+		}
+
+		return nil
+	}
 }
