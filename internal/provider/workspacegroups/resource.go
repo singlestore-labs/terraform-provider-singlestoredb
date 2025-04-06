@@ -534,10 +534,13 @@ func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
 
 func waitConditionFirewallRanges(firewallRanges []types.String) func(management.WorkspaceGroup) error {
 	return func(w management.WorkspaceGroup) error {
-		if len(*w.FirewallRanges) != len(firewallRanges) {
-			return fmt.Errorf("workspace group %s firewallRanges length is %d, but should be %d", w.WorkspaceGroupID, len(*w.FirewallRanges), len(firewallRanges))
+		switch {
+		case len(firewallRanges) == 0:
+			return nil
+		case w.FirewallRanges == nil || len(*w.FirewallRanges) != len(firewallRanges):
+			return fmt.Errorf("workspace group %s firewallRanges length should be %d", w.WorkspaceGroupID, len(firewallRanges))
+		default:
+			return nil
 		}
-
-		return nil
 	}
 }
