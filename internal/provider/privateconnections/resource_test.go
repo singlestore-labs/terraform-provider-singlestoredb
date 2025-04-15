@@ -292,7 +292,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.PrivateConnectionsResource).
-					WitPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
+					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", config.IDAttribute, privateConnectionID.String()),
@@ -348,7 +348,7 @@ func TestPrivateConnectionResourceIntegration(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.PrivateConnectionsResource).
-					WitPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
+					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", config.IDAttribute),

@@ -18,6 +18,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
 	regions_v2 "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
@@ -163,6 +164,8 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		workspaces.NewDataSourceGet,
 		privateconnections.NewDataSourceList,
 		privateconnections.NewDataSourceGet,
+		users.NewDataSourceGet,
+		users.NewDataSourceList,
 		invitations.NewDataSourceList,
 		invitations.NewDataSourceGet,
 	}
@@ -174,6 +177,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		workspacegroups.NewResource,
 		workspaces.NewResource,
 		privateconnections.NewResource,
+		users.NewResource,
 	}
 }
 
