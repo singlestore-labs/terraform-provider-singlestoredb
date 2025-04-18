@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB users with this resource.
+  This resource allows you to add or remove a user from the current organization. The user must already have a SingleStore account. If the user has not been invited, please use the singlestoredbuserinvitation resource.
 ---
 
 # singlestoredb_user (Resource)
 
-Manage SingleStoreDB users with this resource.
+This resource allows you to add or remove a user from the current organization. The user must already have a SingleStore account. If the user has not been invited, please use the singlestoredb_user_invitation resource.
 
 ## Example Usage
 

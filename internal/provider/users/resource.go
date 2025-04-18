@@ -53,7 +53,7 @@ func (r *userResource) Metadata(_ context.Context, req resource.MetadataRequest,
 // Schema defines the schema for the resource.
 func (r *userResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB users with this resource.",
+		MarkdownDescription: "This resource allows you to add or remove a user from the current organization. The user must already have a SingleStore account. If the user has not been invited, please use the singlestoredb_user_invitation resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -121,13 +121,7 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	result, terr := toUserModel((*users.JSON200)[0])
-
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
+	result := toUserModel((*users.JSON200)[0])
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -155,12 +149,7 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	state, terr := toUserModel(*user.JSON200)
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
+	state = toUserModel(*user.JSON200)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -235,11 +224,11 @@ func (r *userResource) ImportState(ctx context.Context, req resource.ImportState
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toUserModel(user management.User) (UserModel, *util.SummaryWithDetailError) {
+func toUserModel(user management.User) UserModel {
 	return UserModel{
 		ID:        util.UUIDStringValue(user.UserID),
 		Email:     types.StringValue(user.Email),
 		FirstName: types.StringValue(user.FirstName),
 		LastName:  types.StringValue(user.LastName),
-	}, nil
+	}
 }

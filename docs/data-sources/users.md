@@ -38,13 +38,13 @@ output "all_users" {
 <a id="nestedatt--users"></a>
 ### Nested Schema for `users`
 
-Required:
+Optional:
 
+- `email` (String) The email address of the user.
 - `id` (String) The unique identifier of the user.
 
 Read-Only:
 
-- `email` (String) The email address of the user.
 - `first_name` (String) First name of the user.
 - `last_name` (String) Last name of the user.
 

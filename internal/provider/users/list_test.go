@@ -3,6 +3,7 @@ package users_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -75,6 +77,22 @@ func TestReadUsersError(t *testing.T) {
 			{
 				Config:      examples.UserListDataSource,
 				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
+			},
+		},
+	})
+}
+
+func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.UserListDataSource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.singlestoredb_users.all", config.IDAttribute, config.TestIDValue),
+					// Checking that at least no error.
+				),
 			},
 		},
 	})

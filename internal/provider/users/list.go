@@ -74,12 +74,7 @@ func (d *usersDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 
 		return
 	}
-	resultUsers, merr := util.MapWithError(util.Deref(users.JSON200), toUserModel)
-	if merr != nil {
-		resp.Diagnostics.AddError(merr.Summary, merr.Detail)
-
-		return
-	}
+	resultUsers := util.Map(util.Deref(users.JSON200), toUserModel)
 
 	result := usersListDataSourceModel{
 		ID:    types.StringValue(config.TestIDValue),

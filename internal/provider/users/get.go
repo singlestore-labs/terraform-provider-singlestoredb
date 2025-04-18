@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -37,7 +38,7 @@ func (d *userDataSourceGet) Metadata(_ context.Context, req datasource.MetadataR
 // Schema defines the schema for the data source.
 func (d *userDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Retrieve a specific user using its ID with this data source.",
+		MarkdownDescription: "Retrieve a specific user using its ID or email with this data source.",
 		Attributes:          newUserDataSourceSchemaAttributes(),
 	}
 }
@@ -51,7 +52,31 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	id, err := uuid.Parse(data.ID.ValueString())
+	if data.ID.IsNull() && data.Email.IsNull() {
+		resp.Diagnostics.AddError(
+			"Missing required attribute",
+			"Either the ID or email attribute must be set to retrieve a user.",
+		)
+
+		return
+	}
+	var result UserModel
+	if !data.ID.IsNull() {
+		result = d.fundUserByID(ctx, data.ID.ValueString(), resp)
+	} else if !data.Email.IsNull() {
+		result = d.findUserByEmail(ctx, data.Email.ValueString(), resp)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (d *userDataSourceGet) fundUserByID(ctx context.Context, idStr string, resp *datasource.ReadResponse) UserModel {
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.IDAttribute),
@@ -59,7 +84,7 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 			"The user ID should be a valid UUID",
 		)
 
-		return
+		return UserModel{}
 	}
 
 	user, err := d.GetV1betaUsersUserIDWithResponse(ctx, id, &management.GetV1betaUsersUserIDParams{})
@@ -69,18 +94,33 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 			serr.Detail,
 		)
 
-		return
+		return UserModel{}
 	}
 
-	result, terr := toUserModel(*user.JSON200)
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
+	return toUserModel(*user.JSON200)
+}
 
-		return
+func (d *userDataSourceGet) findUserByEmail(ctx context.Context, email string, resp *datasource.ReadResponse) UserModel {
+	users, err := d.GetV1betaUsersWithResponse(ctx, &management.GetV1betaUsersParams{Email: &email})
+	if serr := util.StatusOK(users, err); serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Detail,
+		)
+
+		return UserModel{}
 	}
 
-	diags = resp.State.Set(ctx, &result)
-	resp.Diagnostics.Append(diags...)
+	if users.JSON200 == nil || len(*users.JSON200) < 1 {
+		resp.Diagnostics.AddError(
+			"User not found",
+			fmt.Sprintf("User with the specified email %s does not exist.", email),
+		)
+
+		return UserModel{}
+	}
+
+	return toUserModel((*users.JSON200)[0])
 }
 
 // Configure adds the provider configured client to the data source.
@@ -95,11 +135,13 @@ func (d *userDataSourceGet) Configure(_ context.Context, req datasource.Configur
 func newUserDataSourceSchemaAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		config.IDAttribute: schema.StringAttribute{
-			Required:            true,
+			Optional:            true,
+			Computed:            true,
 			MarkdownDescription: "The unique identifier of the user.",
 			Validators:          []validator.String{util.NewUUIDValidator()},
 		},
 		"email": schema.StringAttribute{
+			Optional:            true,
 			Computed:            true,
 			MarkdownDescription: "The email address of the user.",
 		},
