@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,6 +24,14 @@ func ToString(s types.String) string {
 
 func MaybeStringValue(s *string) types.String {
 	return maybeElse(s, types.StringValue, types.StringNull)
+}
+
+func MaybeTimeValue(s *time.Time) types.String {
+	if s == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(s.Format(time.RFC3339))
 }
 
 func MaybeBool(b types.Bool) *bool {
@@ -47,6 +56,19 @@ func MaybeUUIDStringValue(id *otypes.UUID) types.String {
 	}
 
 	return types.StringValue(id.String())
+}
+
+func MaybeUUIDStringListValue(ids *[]otypes.UUID) []types.String {
+	if ids == nil {
+		return nil
+	}
+
+	result := make([]types.String, len(*ids))
+	for i, id := range *ids {
+		result[i] = MaybeUUIDStringValue(&id)
+	}
+
+	return result
 }
 
 func StringFirewallRanges(frs []types.String) []string {
