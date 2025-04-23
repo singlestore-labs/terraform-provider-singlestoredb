@@ -82,7 +82,7 @@ func TestReadUsersError(t *testing.T) {
 	})
 }
 
-func TestReadsWorkspaceGroupsIntegration(t *testing.T) {
+func TestReadsUsersIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{

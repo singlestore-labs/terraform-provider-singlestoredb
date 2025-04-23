@@ -7,3 +7,7 @@ provider "singlestoredb" {
 resource "singlestoredb_user" "this" {
   email = "test@user.com"
 }
+
+output "singlestoredb_user_this" {
+  value = singlestoredb_user.this
+}

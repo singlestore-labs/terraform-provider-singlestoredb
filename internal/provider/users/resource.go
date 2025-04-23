@@ -3,12 +3,15 @@ package users
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -34,10 +37,12 @@ type userResource struct {
 
 // userModel maps the resource schema data.
 type UserModel struct {
-	ID        types.String `tfsdk:"id"`
-	Email     types.String `tfsdk:"email"`
-	FirstName types.String `tfsdk:"first_name"`
-	LastName  types.String `tfsdk:"last_name"`
+	InvitationID types.String   `tfsdk:"id"`
+	UserID       types.String   `tfsdk:"user_id"`
+	Email        types.String   `tfsdk:"email"`
+	Teams        []types.String `tfsdk:"teams"`
+	State        types.String   `tfsdk:"state"`
+	CreatedAt    types.String   `tfsdk:"created_at"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -52,27 +57,39 @@ func (r *userResource) Metadata(_ context.Context, req resource.MetadataRequest,
 
 // Schema defines the schema for the resource.
 func (r *userResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	emptyList, _ := types.ListValue(types.StringType, []attr.Value{})
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource allows you to add or remove a user from the current organization. The user must already have a SingleStore account. If the user has not been invited, please use the singlestoredb_user_invitation resource.",
+		MarkdownDescription: "This resource allows you to invite and remove a user from the current organization.The destroy action will remove the user from the current organization if the user has accepted the invitation; otherwise, it will revoke the pending invitation. The update operation is not supported for this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Computed:            true,
-				MarkdownDescription: "The unique identifier of the user.",
+				MarkdownDescription: "The unique identifier of the invitation.",
 			},
 			"email": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The email address of the user.",
 			},
-			"first_name": schema.StringAttribute{
+			"teams": schema.ListAttribute{
+				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "First name of the user.",
+				ElementType:         types.StringType,
+				Default:             listdefault.StaticValue(emptyList),
+				MarkdownDescription: "A list of user teams associated with the invitation.",
 			},
-			"last_name": schema.StringAttribute{
+			"user_id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Last name of the user.",
+				MarkdownDescription: "The unique identifier of the user. It's set when the user accepts the invitation.",
+			},
+			"state": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The state of the Invitation. Possible values are Pending, Accepted, Refused, or Revoked.",
+			},
+			"created_at": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The timestamp when the Invitation was created, in ISO 8601 format.",
 			},
 		},
 	}
@@ -89,11 +106,31 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	email := plan.Email.ValueString()
 
-	userCreateResponse, err := r.PostV1betaUsersWithResponse(ctx, management.PostV1betaUsersJSONRequestBody{
-		Email: openapi_types.Email(email),
+	var teamIDs *[]openapi_types.UUID
+	if len(plan.Teams) > 0 {
+		teams := make([]openapi_types.UUID, 0, len(plan.Teams))
+		teamIDs = &teams
+		for _, id := range plan.Teams {
+			teamID, err := uuid.Parse(id.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("teams"),
+					"Invalid team ID",
+					fmt.Sprintf("The team ID %s should be a valid UUID", id.ValueString()),
+				)
+
+				return
+			}
+			*teamIDs = append(*teamIDs, teamID)
+		}
+	}
+
+	invitationCreateResponse, err := r.PostV1betaInvitationsWithResponse(ctx, management.PostV1betaInvitationsJSONRequestBody{
+		Email:   openapi_types.Email(email),
+		TeamIDs: teamIDs,
 	})
 
-	if serr := util.StatusOK(userCreateResponse, err); serr != nil {
+	if serr := util.StatusOK(invitationCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -102,26 +139,17 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	users, err := r.GetV1betaUsersWithResponse(ctx, &management.GetV1betaUsersParams{Email: &email})
-	if serr := util.StatusOK(users, err); serr != nil {
+	userID, serr := tryToGetUserID(ctx, r, plan.Email.ValueString())
+	if serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
-			serr.Detail,
+			serr.Error(),
 		)
 
 		return
 	}
 
-	if users.JSON200 == nil || len(*users.JSON200) != 1 {
-		resp.Diagnostics.AddError(
-			"Unexpected number of users returned",
-			fmt.Sprintf("Expected exactly one user to be returned for email %s", email),
-		)
-
-		return
-	}
-
-	result := toUserModel((*users.JSON200)[0])
+	result := toUserModel(invitationCreateResponse.JSON200, userID)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -136,11 +164,12 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	user, err := r.GetV1betaUsersUserIDWithResponse(ctx,
-		uuid.MustParse(state.ID.ValueString()),
-		&management.GetV1betaUsersUserIDParams{},
+	invitation, err := r.GetV1betaInvitationsInvitationIDWithResponse(ctx,
+		uuid.MustParse(state.InvitationID.ValueString()),
+		&management.GetV1betaInvitationsInvitationIDParams{},
 	)
-	if serr := util.StatusOK(user, err); serr != nil {
+
+	if serr := util.StatusOK(invitation, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -149,13 +178,42 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	state = toUserModel(*user.JSON200)
+	if invitation.JSON200.State != nil && *invitation.JSON200.State == management.Revoked {
+		resp.State.RemoveResource(ctx)
+
+		return // The invitaton revoked externally, deleting it from the state file to recreate.
+	}
+
+	userID, serr := tryToGetUserID(ctx, r, state.Email.ValueString())
+	if serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Error(),
+		)
+
+		return
+	}
+
+	state = toUserModel(invitation.JSON200, userID)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func tryToGetUserID(ctx context.Context, r *userResource, email string) (*openapi_types.UUID, *util.SummaryWithDetailError) {
+	users, err := r.GetV1betaUsersWithResponse(ctx, &management.GetV1betaUsersParams{Email: &email})
+	if serr := util.StatusOK(users, err); serr != nil {
+		return nil, serr
+	}
+
+	if users.JSON200 != nil && len(*users.JSON200) > 0 {
+		return &(*users.JSON200)[0].UserID, nil
+	}
+
+	return nil, nil
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -172,16 +230,30 @@ func (r *userResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	userDeleteResponse, err := r.DeleteV1betaUsersUserIDWithResponse(ctx,
-		uuid.MustParse(state.ID.ValueString()),
-	)
-	if serr := util.StatusOK(userDeleteResponse, err); serr != nil {
-		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
+	if state.UserID.IsNull() || state.UserID.IsUnknown() {
+		invitationRevokeResponse, err := r.DeleteV1betaInvitationsInvitationIDWithResponse(ctx,
+			uuid.MustParse(state.InvitationID.ValueString()),
 		)
+		if serr := util.StatusOK(invitationRevokeResponse, err); serr != nil {
+			resp.Diagnostics.AddError(
+				serr.Summary,
+				serr.Detail,
+			)
 
-		return
+			return
+		}
+	} else {
+		userDeleteResponse, err := r.DeleteV1betaUsersUserIDWithResponse(ctx,
+			uuid.MustParse(state.UserID.ValueString()),
+		)
+		if serr := util.StatusOK(userDeleteResponse, err); serr != nil {
+			resp.Diagnostics.AddError(
+				serr.Summary,
+				serr.Detail,
+			)
+
+			return
+		}
 	}
 }
 
@@ -213,7 +285,15 @@ func (r *userResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRe
 	if !plan.Email.Equal(state.Email) {
 		resp.Diagnostics.AddError("Cannot update user email",
 			"Updating the user email is not permitted. "+
-				"Please explicitly delete the user before changing the user email.")
+				"Please explicitly delete(revoke) the user(invitation) before changing the user email.")
+
+		return
+	}
+
+	if len(plan.Teams) != len(state.Teams) || !reflect.DeepEqual(plan.Teams, state.Teams) {
+		resp.Diagnostics.AddError("Cannot update user teams",
+			"Updating the user teams is not permitted. "+
+				"Please explicitly delete(revoke) the user(invitation) before changing the user teams.")
 
 		return
 	}
@@ -224,11 +304,13 @@ func (r *userResource) ImportState(ctx context.Context, req resource.ImportState
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
-func toUserModel(user management.User) UserModel {
+func toUserModel(userInvitation *management.UserInvitation, userID *openapi_types.UUID) UserModel {
 	return UserModel{
-		ID:        util.UUIDStringValue(user.UserID),
-		Email:     types.StringValue(user.Email),
-		FirstName: types.StringValue(user.FirstName),
-		LastName:  types.StringValue(user.LastName),
+		InvitationID: util.MaybeUUIDStringValue(userInvitation.InvitationID),
+		UserID:       util.MaybeUUIDStringValue(userID),
+		Email:        util.MaybeStringValue(userInvitation.Email),
+		State:        util.StringValueOrNull(userInvitation.State),
+		Teams:        util.MaybeUUIDStringListValue(userInvitation.TeamIDs),
+		CreatedAt:    util.MaybeTimeValue(userInvitation.CreatedAt),
 	}
 }

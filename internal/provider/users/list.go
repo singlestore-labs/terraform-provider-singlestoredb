@@ -22,8 +22,8 @@ type usersDataSourceList struct {
 
 // usersListDataSourceModel maps the data source schema data.
 type usersListDataSourceModel struct {
-	ID    types.String `tfsdk:"id"`
-	Users []UserModel  `tfsdk:"users"`
+	ID    types.String          `tfsdk:"id"`
+	Users []UserDataSourceModel `tfsdk:"users"`
 }
 
 var _ datasource.DataSourceWithConfigure = &usersDataSourceList{}
@@ -74,7 +74,7 @@ func (d *usersDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 
 		return
 	}
-	resultUsers := util.Map(util.Deref(users.JSON200), toUserModel)
+	resultUsers := util.Map(util.Deref(users.JSON200), toUserDataSourceModel)
 
 	result := usersListDataSourceModel{
 		ID:    types.StringValue(config.TestIDValue),
