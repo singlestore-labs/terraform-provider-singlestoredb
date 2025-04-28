@@ -163,3 +163,19 @@ func ReadNotEmptyFileTrimmed(path string) (string, error) {
 
 	return result, nil
 }
+
+func SubtractListValues(a, b []types.String) []types.String {
+	bSet := make(map[string]struct{})
+	for _, v := range b {
+		bSet[v.ValueString()] = struct{}{}
+	}
+
+	var result []types.String
+	for _, v := range a {
+		if _, exists := bSet[v.ValueString()]; !exists {
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
