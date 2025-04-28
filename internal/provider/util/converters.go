@@ -6,6 +6,7 @@ import (
 	"time"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 )
@@ -221,4 +222,21 @@ func StringValueOrNull[T ~string](value *T) types.String {
 	}
 
 	return types.StringValue(string(*value))
+}
+
+func ParseUUIDList(list []types.String) (*[]otypes.UUID, error) {
+	var uuids *[]otypes.UUID
+	if len(list) > 0 {
+		values := make([]otypes.UUID, 0, len(list))
+		uuids = &values
+		for _, id := range list {
+			teamID, err := uuid.Parse(id.ValueString())
+			if err != nil {
+				return nil, fmt.Errorf("invalid UUID: %w", err)
+			}
+			*uuids = append(*uuids, teamID)
+		}
+	}
+
+	return uuids, nil
 }

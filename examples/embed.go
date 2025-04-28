@@ -25,6 +25,9 @@ var (
 	UserListDataSource               = mustRead("data-sources/singlestoredb_users/data-source.tf")
 	InvitationsGetDataSource         = mustRead("data-sources/singlestoredb_invitation/data-source.tf")
 	InvitationsListDataSource        = mustRead("data-sources/singlestoredb_invitations/data-source.tf")
+	TeamsGetDataSource               = mustRead("data-sources/singlestoredb_team/data-source.tf")
+	TeamsResource                    = mustRead("resources/singlestoredb_team/resource.tf")
+	TeamsListDataSource              = mustRead("data-sources/singlestoredb_teams/data-source.tf")
 )
 
 func mustRead(path string) string {
