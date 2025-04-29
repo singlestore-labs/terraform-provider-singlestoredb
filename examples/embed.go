@@ -20,6 +20,8 @@ var (
 	WorkspacesGetDataSource          = mustRead("data-sources/singlestoredb_workspace/data-source.tf")
 	WorkspaceGroupsResource          = mustRead("resources/singlestoredb_workspace_group/resource.tf")
 	WorkspacesResource               = mustRead("resources/singlestoredb_workspace/resource.tf")
+	InvitationsGetDataSource         = mustRead("data-sources/singlestoredb_invitation/data-source.tf")
+	InvitationsListDataSource        = mustRead("data-sources/singlestoredb_invitations/data-source.tf")
 )
 
 func mustRead(path string) string {
