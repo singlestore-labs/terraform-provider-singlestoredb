@@ -65,7 +65,8 @@ func MaybeUUIDStringListValue(ids *[]otypes.UUID) []types.String {
 
 	result := make([]types.String, len(*ids))
 	for i, id := range *ids {
-		result[i] = MaybeUUIDStringValue(&id)
+		idCopy := id
+		result[i] = MaybeUUIDStringValue(&idCopy)
 	}
 
 	return result

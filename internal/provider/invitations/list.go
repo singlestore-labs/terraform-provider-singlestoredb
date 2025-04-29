@@ -42,14 +42,14 @@ func (d *invitationsDataSourceList) Metadata(_ context.Context, req datasource.M
 // Schema defines the schema for the data source.
 func (d *invitationsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of user invitations to current organization.",
+		MarkdownDescription: "This data source provides a list of user invitations to the current organization.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
 			},
 			"email": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The email address to filter the list of user invitations for specific user.",
+				MarkdownDescription: "The email address with which to filter the list of user invitations for a specific user.",
 			},
 			DataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
@@ -74,7 +74,7 @@ func (d *invitationsDataSourceList) Schema(_ context.Context, _ datasource.Schem
 						},
 						"created_at": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The timestamp indicating when the invitation was created.",
+							MarkdownDescription: "The timestamp when the invitation was created, in ISO 8601 format.",
 						},
 					},
 				},

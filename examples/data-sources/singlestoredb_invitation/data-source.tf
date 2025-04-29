@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_invitation" "this" {
-  id = "a04f9645-729e-4f92-98b4-206644a12344"
+  id = "c87337b8-fe50-41e9-92e0-2387d5476f90"
 }
 
 output "this_invitation" {

@@ -20,7 +20,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_invitation" "this" {
-  id = "a04f9645-729e-4f92-98b4-206644a12344"
+  id = "c87337b8-fe50-41e9-92e0-2387d5476f90"
 }
 
 output "this_invitation" {
@@ -33,13 +33,13 @@ output "this_invitation" {
 
 ### Required
 
-- `id` (String) The unique identifier of the Invitation.
+- `id` (String) The unique identifier of the invitation.
 
 ### Read-Only
 
-- `created_at` (String) The timestamp when the Invitation was created.
-- `email` (String) The email of the user.
-- `state` (String) The state of the Invitation. Pending, Accepted, Refused, or Revoked.
+- `created_at` (String) The timestamp when the invitation was created, in ISO 8601 format.
+- `email` (String) The email address of the user.
+- `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
 - `teams` (List of String) A list of user teams.
 
 

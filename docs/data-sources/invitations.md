@@ -3,12 +3,12 @@
 page_title: "singlestoredb_invitations Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of user invitations to current organization.
+  This data source provides a list of user invitations to the current organization.
 ---
 
 # singlestoredb_invitations (Data Source)
 
-This data source provides a list of user invitations to current organization.
+This data source provides a list of user invitations to the current organization.
 
 ## Example Usage
 
@@ -32,7 +32,7 @@ output "all_invitations" {
 
 ### Optional
 
-- `email` (String) The email address to filter the list of user invitations for specific user.
+- `email` (String) The email address with which to filter the list of user invitations for a specific user.
 
 ### Read-Only
 
@@ -44,7 +44,7 @@ output "all_invitations" {
 
 Read-Only:
 
-- `created_at` (String) The timestamp indicating when the invitation was created.
+- `created_at` (String) The timestamp when the invitation was created, in ISO 8601 format.
 - `email` (String) The email address of the user associated with the invitation.
 - `id` (String) The unique identifier of the invitation.
 - `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.

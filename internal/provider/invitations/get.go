@@ -51,16 +51,16 @@ func (d *invitationDataSourceGet) Schema(_ context.Context, _ datasource.SchemaR
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The unique identifier of the Invitation.",
+				MarkdownDescription: "The unique identifier of the invitation.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"email": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The email of the user.",
+				MarkdownDescription: "The email address of the user.",
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The state of the Invitation. Pending, Accepted, Refused, or Revoked.",
+				MarkdownDescription: "The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.",
 			},
 			"teams": schema.ListAttribute{
 				Computed:            true,
@@ -69,7 +69,7 @@ func (d *invitationDataSourceGet) Schema(_ context.Context, _ datasource.SchemaR
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The timestamp when the Invitation was created.",
+				MarkdownDescription: "The timestamp when the invitation was created, in ISO 8601 format.",
 			},
 		},
 	}
@@ -89,7 +89,7 @@ func (d *invitationDataSourceGet) Read(ctx context.Context, req datasource.ReadR
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.IDAttribute),
 			"Invalid invitation ID",
-			"The invitation ID should be a valid UUID",
+			"The invitation ID must be a valid UUID",
 		)
 
 		return
