@@ -81,15 +81,15 @@ func (r *userResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			},
 			"user_id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The unique identifier of the user. It's set when the user accepts the invitation.",
+				MarkdownDescription: "The unique identifier of the user. It is set when the user accepts the invitation.",
 			},
 			"state": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The state of the Invitation. Possible values are Pending, Accepted, Refused, or Revoked.",
+				MarkdownDescription: "The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The timestamp when the Invitation was created, in ISO 8601 format.",
+				MarkdownDescription: "The timestamp when the invitation was created, in ISO 8601 format.",
 			},
 		},
 	}
@@ -116,7 +116,7 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 				resp.Diagnostics.AddAttributeError(
 					path.Root("teams"),
 					"Invalid team ID",
-					fmt.Sprintf("The team ID %s should be a valid UUID", id.ValueString()),
+					fmt.Sprintf("The team ID %s must be a valid UUID", id.ValueString()),
 				)
 
 				return
@@ -205,7 +205,7 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 func tryToGetUserID(ctx context.Context, r *userResource, email string) (*openapi_types.UUID, *util.SummaryWithDetailError) {
 	users, err := r.GetV1betaUsersWithResponse(ctx, &management.GetV1betaUsersParams{Email: &email})
-	if serr := util.StatusOK(users, err); serr != nil {
+	if serr := util.StatusOK(users, err, util.ReturnNilOnNotFound); serr != nil {
 		return nil, serr
 	}
 

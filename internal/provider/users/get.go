@@ -66,9 +66,8 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 
 	if !data.ID.IsNull() && !data.ID.IsUnknown() {
 		d.handleUserByID(ctx, data.ID.ValueString(), resp)
-	} else if !data.Email.IsNull() && !data.Email.IsUnknown() {
-		d.handleUserByEmail(ctx, data.Email.ValueString(), resp)
 	}
+	d.handleUserByEmail(ctx, data.Email.ValueString(), resp)
 }
 
 func (d *userDataSourceGet) isMissingRequiredAttributes(data UserDataSourceModel, resp *datasource.ReadResponse) bool {
@@ -118,7 +117,7 @@ func (d *userDataSourceGet) findUserByID(ctx context.Context, idStr string) (*Us
 	if err != nil {
 		return nil, &util.SummaryWithDetailError{
 			Summary: "Invalid user ID",
-			Detail:  "The user ID should be a valid UUID",
+			Detail:  "The user ID must be a valid UUID",
 		}
 	}
 
@@ -173,11 +172,11 @@ func newUserDataSourceSchemaAttributes() map[string]schema.Attribute {
 		},
 		"first_name": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "First name of the user.",
+			MarkdownDescription: "The first name of the user.",
 		},
 		"last_name": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Last name of the user.",
+			MarkdownDescription: "The last name of the user.",
 		},
 	}
 }
