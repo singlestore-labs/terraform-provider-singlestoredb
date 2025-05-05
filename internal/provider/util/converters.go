@@ -60,7 +60,7 @@ func MaybeUUIDStringValue(id *otypes.UUID) types.String {
 
 func MaybeUUIDStringListValue(ids *[]otypes.UUID) []types.String {
 	if ids == nil {
-		return nil
+		return []types.String{}
 	}
 
 	result := make([]types.String, len(*ids))

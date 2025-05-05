@@ -38,7 +38,7 @@ output "this_user" {
 
 ### Read-Only
 
-- `first_name` (String) First name of the user.
-- `last_name` (String) Last name of the user.
+- `first_name` (String) The first name of the user.
+- `last_name` (String) The last name of the user.
 
 

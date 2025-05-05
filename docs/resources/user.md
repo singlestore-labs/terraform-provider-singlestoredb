@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This resource allows you to invite and remove a user from the current organization.The destroy action will remove the user from the current organization if the user has accepted the invitation; otherwise, it will revoke the pending invitation. The update operation is not supported for this resource.
+  The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource.
 ---
 
 # singlestoredb_user (Resource)
 
-This resource allows you to invite and remove a user from the current organization.The destroy action will remove the user from the current organization if the user has accepted the invitation; otherwise, it will revoke the pending invitation. The update operation is not supported for this resource.
+The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource.
 
 ## Example Usage
 
@@ -41,9 +41,9 @@ output "singlestoredb_user_this" {
 
 ### Read-Only
 
-- `created_at` (String) The timestamp when the Invitation was created, in ISO 8601 format.
+- `created_at` (String) The timestamp when the invitation was created, in ISO 8601 format.
 - `id` (String) The unique identifier of the invitation.
-- `state` (String) The state of the Invitation. Possible values are Pending, Accepted, Refused, or Revoked.
-- `user_id` (String) The unique identifier of the user. It's set when the user accepts the invitation.
+- `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
+- `user_id` (String) The unique identifier of the user. It is set when the user accepts the invitation.
 
 

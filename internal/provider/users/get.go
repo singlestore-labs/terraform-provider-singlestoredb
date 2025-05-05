@@ -66,8 +66,9 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 
 	if !data.ID.IsNull() && !data.ID.IsUnknown() {
 		d.handleUserByID(ctx, data.ID.ValueString(), resp)
+	} else {
+		d.handleUserByEmail(ctx, data.Email.ValueString(), resp)
 	}
-	d.handleUserByEmail(ctx, data.Email.ValueString(), resp)
 }
 
 func (d *userDataSourceGet) isMissingRequiredAttributes(data UserDataSourceModel, resp *datasource.ReadResponse) bool {
