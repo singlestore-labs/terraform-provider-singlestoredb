@@ -9,6 +9,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
 	"github.com/zclconf/go-cty/cty"
@@ -27,6 +28,14 @@ func (uc UpdatableConfig) WithPrivateConnectionGetDataSource(privateConnectionNa
 
 func (uc UpdatableConfig) WithPrivateConnectionListDataSource(privateConnectionListName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(privateconnections.DataSourceListName), privateConnectionListName})
+}
+
+func (uc UpdatableConfig) WithUserGetDataSource(userName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(users.DataSourceGetName), userName})
+}
+
+func (uc UpdatableConfig) WithUserListDataSource(userListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(users.DataSourceListName), userListName})
 }
 
 func (uc UpdatableConfig) WithWorkspaceGroupGetDataSource(workspaceGroupName string) AttributeSetter {
@@ -49,8 +58,12 @@ func (uc UpdatableConfig) WithWorkspaceGroupResource(workspaceGroupName string) 
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(workspacegroups.ResourceName), workspaceGroupName})
 }
 
-func (uc UpdatableConfig) WitPrivateConnectionResource(privateConnectionName string) AttributeSetter {
+func (uc UpdatableConfig) WithPrivateConnectionResource(privateConnectionName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(privateconnections.ResourceName), privateConnectionName})
+}
+
+func (uc UpdatableConfig) WithUserResource(userName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(users.ResourceName), userName})
 }
 
 func (uc UpdatableConfig) WithInvitationGetDataSource(invitationName string) AttributeSetter {
