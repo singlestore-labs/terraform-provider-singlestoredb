@@ -23,7 +23,7 @@ import (
 
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
-	updatedAdminPassword      = "buzzBAR123$"
+	updatedAdminPassword      = "mockPasswordUpdated193!"
 	defaultDeploymentType     = management.WorkspaceGroupDeploymentTypePRODUCTION
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )

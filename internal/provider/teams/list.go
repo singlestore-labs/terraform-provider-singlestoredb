@@ -49,7 +49,7 @@ func (d *teamsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReque
 			DataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: teamDataSourceSchemaAttributes(),
+					Attributes: teamDataSourceSchemaAttributes(false),
 				},
 			},
 		},

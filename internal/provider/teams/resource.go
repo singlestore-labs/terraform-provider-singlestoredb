@@ -105,22 +105,6 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	teamCreateResponse, err := r.PostV1TeamsWithResponse(ctx, management.PostV1TeamsJSONRequestBody{
-		Name:        plan.Name.String(),
-		Description: util.MaybeString(plan.Description),
-	})
-
-	if serr := util.StatusOK(teamCreateResponse, err); serr != nil {
-		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
-		)
-
-		return
-	}
-
-	id := teamCreateResponse.JSON200.TeamID
-
 	userIDs, err := util.ParseUUIDList(plan.MemberUsers)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
@@ -142,6 +126,22 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 		return
 	}
+
+	teamCreateResponse, err := r.PostV1TeamsWithResponse(ctx, management.PostV1TeamsJSONRequestBody{
+		Name:        plan.Name.String(),
+		Description: util.MaybeString(plan.Description),
+	})
+
+	if serr := util.StatusOK(teamCreateResponse, err); serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Detail,
+		)
+
+		return
+	}
+
+	id := teamCreateResponse.JSON200.TeamID
 
 	if userIDs != nil || teamIDs != nil {
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx,
@@ -226,19 +226,19 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	addedUsers, removedUsers, addedTeams, removedTeams := r.parseUserAndTeamIds(resp, state, plan)
+	addUsers, removeUsers, addTeams, removeTeams := r.parseUserAndTeamIds(resp, state, plan)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if r.shouldUpdate(state, plan, addedUsers, removedUsers, addedTeams, removedTeams) {
+	if r.shouldUpdate(state, plan, addUsers, removeUsers, addTeams, removeTeams) {
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
 			Name:                util.MaybeString(plan.Name),
 			Description:         util.MaybeString(plan.Description),
-			AddMemberUserIDs:    addedUsers,
-			RemoveMemberUserIDs: removedUsers,
-			AddMemberTeamIDs:    addedTeams,
-			RemoveMemberTeamIDs: removedTeams,
+			AddMemberUserIDs:    addUsers,
+			RemoveMemberUserIDs: removeUsers,
+			AddMemberTeamIDs:    addTeams,
+			RemoveMemberTeamIDs: removeTeams,
 		})
 		if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
 			resp.Diagnostics.AddError(

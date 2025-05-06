@@ -61,7 +61,7 @@ func (d *teamsDataSourceGet) Metadata(_ context.Context, req datasource.Metadata
 func (d *teamsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Retrieve a specific team using its ID with this data source.",
-		Attributes:          teamDataSourceSchemaAttributes(),
+		Attributes:          teamDataSourceSchemaAttributes(true),
 	}
 }
 
@@ -138,10 +138,11 @@ func toMemberTeam(team management.TeamInfo) MemberTeam {
 	}
 }
 
-func teamDataSourceSchemaAttributes() map[string]schema.Attribute {
+func teamDataSourceSchemaAttributes(idRequired bool) map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		config.IDAttribute: schema.StringAttribute{
-			Required:            true,
+			Required:            idRequired,
+			Computed:            !idRequired,
 			MarkdownDescription: "The unique identifier of the team.",
 		},
 		"name": schema.StringAttribute{
