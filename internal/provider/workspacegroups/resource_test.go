@@ -23,7 +23,7 @@ import (
 
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
-	updatedAdminPassword      = "buzzBAR123$"
+	updatedAdminPassword      = "buzDzBd4qAR12c9$" //nolint:gosec
 	defaultDeploymentType     = management.WorkspaceGroupDeploymentTypePRODUCTION
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
