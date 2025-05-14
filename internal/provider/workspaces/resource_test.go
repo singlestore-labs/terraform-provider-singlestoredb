@@ -382,7 +382,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 }
 
 func TestWorkspaceResourceIntegration(t *testing.T) {
-	adminPassword := "sfkjDIJ423d44w1sfooBar1$"
+	adminPassword := "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
 	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
 
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
