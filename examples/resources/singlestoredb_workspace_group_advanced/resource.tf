@@ -10,7 +10,7 @@ resource "singlestoredb_workspace_group" "this" {
   expires_at                  = "2222-01-01T00:00:00Z"
   region_name                 = "us-west-2"
   cloud_provider              = "AWS"
-  admin_password              = "fooBAR12$"
+  admin_password              = "initialSfkjDIJ423d44w1sfooBar1$"
   deployment_type             = "NON-PRODUCTION"
   opt_in_preview_feature      = true
   high_availability_two_zones = true
