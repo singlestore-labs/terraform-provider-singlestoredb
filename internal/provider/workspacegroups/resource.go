@@ -158,7 +158,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	if err := validateRequiredRegionParameters(plan); err != nil {
+	if err := validateRequiredRegionParameters(&plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -217,7 +217,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(diags...)
 }
 
-func validateRequiredRegionParameters(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
+func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	providerAndRegionNameAreSet := !plan.CloudProvider.IsNull() && !plan.CloudProvider.IsUnknown() && !plan.RegionName.IsNull() && !plan.RegionName.IsUnknown()
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 
@@ -388,7 +388,7 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if err := validateModifyPlanRegionParameters(ctx, r, *plan, *state); err != nil {
+	if err := validateModifyPlanRegionParameters(ctx, r, plan, state); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -418,12 +418,12 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 }
 
-func validateModifyPlanRegionParameters(ctx context.Context, r *workspaceGroupResource, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if err := handleRegionMigrationState(ctx, r, plan, state); err != nil {
+func validateModifyPlanRegionParameters(ctx context.Context, r *workspaceGroupResource, plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if err := validateRequiredRegionParameters(plan); err != nil {
 		return err
 	}
 
-	if err := validateRequiredRegionParameters(plan); err != nil {
+	if err := handleRegionMigrationState(ctx, r, plan, state); err != nil {
 		return err
 	}
 
@@ -438,7 +438,7 @@ func validateModifyPlanRegionParameters(ctx context.Context, r *workspaceGroupRe
 	return nil
 }
 
-func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
+func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	shouldMigrateToRegionNameAndProvider := !state.RegionID.IsNull() && plan.RegionID.IsNull()
 	shouldMigrateToDepricatedRegionID := !state.RegionName.IsNull() && plan.RegionName.IsNull() && !state.CloudProvider.IsNull() && plan.CloudProvider.IsNull()
 
@@ -464,7 +464,7 @@ func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, 
 	return nil
 }
 
-func validateModifyRegionID(plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
+func validateModifyRegionID(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	if !plan.RegionID.IsNull() && !state.RegionID.IsNull() && !plan.RegionID.Equal(state.RegionID) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group region_id",
@@ -475,14 +475,14 @@ func validateModifyRegionID(plan, state workspaceGroupResourceModel) *util.Summa
 	return nil
 }
 
-func validateModifyRegionNameAndProvider(plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if !plan.RegionName.IsNull() && !state.RegionName.IsNull() && !plan.RegionName.Equal(state.RegionName) {
+func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.RegionName.Equal(state.RegionName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group region_name",
 			Detail:  fmt.Sprintf("Updating the region_name is not permitted. Expected value is '%s', but now is '%s'.", state.RegionName.ValueString(), plan.RegionName.ValueString()),
 		}
 	}
-	if !plan.CloudProvider.IsNull() && !state.CloudProvider.IsNull() && !plan.CloudProvider.Equal(state.CloudProvider) {
+	if !plan.CloudProvider.Equal(state.CloudProvider) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group cloud_provider",
 			Detail:  fmt.Sprintf("Updating the cloud_provider is not permitted. Expected value is '%s'.", state.CloudProvider.ValueString()),
