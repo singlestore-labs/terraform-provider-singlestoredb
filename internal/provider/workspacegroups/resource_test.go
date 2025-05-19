@@ -23,17 +23,17 @@ import (
 
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
-	updatedAdminPassword      = "buzDzBd4qAR12c9$" //nolint:gosec
+	updatedAdminPassword      = "mockPasswordUpdated193!"
 	defaultDeploymentType     = management.WorkspaceGroupDeploymentTypePRODUCTION
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) {
-	regions := []management.Region{
+	regionsv2 := []management.RegionV2{
 		{
-			RegionID: uuid.MustParse("2ca3d358-021d-45ed-86cb-38b8d14ac507"),
-			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider: management.RegionProviderAWS,
+			Region:     "GS - US West 2 (Oregon) - aws-oregon-gs1",
+			Provider:   management.RegionV2ProviderAWS,
+			RegionName: "aws-oregon-gs1",
 		},
 	}
 
@@ -44,7 +44,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:    util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:              config.TestInitialWorkspaceGroupName,
-		RegionID:          regions[0].RegionID,
+		RegionName:        regionsv2[0].RegionName,
+		Provider:          management.WorkspaceGroupProviderAWS,
 		State:             management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:      nil,
 		UpdateWindow:      nil,
@@ -55,13 +56,13 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
 
-	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != "/v1/regions" || r.Method != http.MethodGet {
+	regionsv2Handler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/v2/regions" || r.Method != http.MethodGet {
 			return false
 		}
 
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(regions))
+		_, err := w.Write(testutil.MustJSON(regionsv2))
 		require.NoError(t, err)
 
 		return true
@@ -103,7 +104,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
-		require.Equal(t, regions[0].RegionID, *input.RegionID)
+		require.Equal(t, regionsv2[0].RegionName, *input.RegionName)
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -173,7 +174,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 	}
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		regionsHandler,
+		regionsv2Handler,
 		workspaceGroupsGetHandler,
 	}
 
@@ -213,7 +214,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.RegionProviderAWS)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_name", workspaceGroup.RegionName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
@@ -228,13 +230,16 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
+					WithWorkspaceGroupResource("this")("cloud_provider", cty.StringVal(string(management.RegionProviderAWS))).
+					WithWorkspaceGroupResource("this")("region_name", cty.StringVal(workspaceGroup.RegionName)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regions[0].RegionID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.RegionProviderAWS)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_name", workspaceGroup.RegionName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),

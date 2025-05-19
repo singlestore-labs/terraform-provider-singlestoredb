@@ -158,7 +158,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	if err := validateCreateRegionParameters(plan); err != nil {
+	if err := validateRequiredRegionParameters(&plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -217,7 +217,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(diags...)
 }
 
-func validateCreateRegionParameters(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
+func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	providerAndRegionNameAreSet := !plan.CloudProvider.IsNull() && !plan.CloudProvider.IsUnknown() && !plan.RegionName.IsNull() && !plan.RegionName.IsUnknown()
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 
@@ -388,7 +388,7 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if err := validateModifyPlanRegionParameters(plan, state); err != nil {
+	if err := validateModifyPlanRegionParameters(ctx, r, plan, state); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -418,25 +418,74 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 }
 
-func validateModifyPlanRegionParameters(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if !plan.RegionID.Equal(state.RegionID) {
+func validateModifyPlanRegionParameters(ctx context.Context, r *workspaceGroupResource, plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if err := validateRequiredRegionParameters(plan); err != nil {
+		return err
+	}
+
+	if err := handleRegionMigrationState(ctx, r, plan, state); err != nil {
+		return err
+	}
+
+	if err := validateModifyRegionID(plan, state); err != nil {
+		return err
+	}
+
+	if err := validateModifyRegionNameAndProvider(plan, state); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	shouldMigrateToRegionNameAndProvider := !state.RegionID.IsNull() && plan.RegionID.IsNull()
+	shouldMigrateToDepricatedRegionID := !state.RegionName.IsNull() && plan.RegionName.IsNull() && !state.CloudProvider.IsNull() && plan.CloudProvider.IsNull()
+
+	if shouldMigrateToDepricatedRegionID {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update workspace group region_id",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_id is not permitted. Please explicitly delete the workspace group before changing its region_id.",
+			Summary: "Cannot change cloud_provider and region_name to the deprecated region_id.",
+			Detail:  "Changing cloud_provider and region_name to the deprecated region_id is not permitted. Use the cloud_provider and region_name parameters instead.",
 		}
 	}
 
+	if shouldMigrateToRegionNameAndProvider {
+		workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
+			uuid.MustParse(state.ID.ValueString()),
+			&management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{},
+		)
+		if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+			return serr
+		}
+		state.CloudProvider = types.StringValue(string(workspaceGroup.JSON200.Provider))
+		state.RegionName = types.StringValue(workspaceGroup.JSON200.RegionName)
+	}
+
+	return nil
+}
+
+func validateModifyRegionID(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.RegionID.IsNull() && !state.RegionID.IsNull() && !plan.RegionID.Equal(state.RegionID) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group region_id",
+			Detail:  "Updating the region_id is not permitted. Warning: this field is deprecated. Use cloud_provider and region_name instead.",
+		}
+	}
+
+	return nil
+}
+
+func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	if !plan.RegionName.Equal(state.RegionName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group region_name",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the region_name is not permitted. Please explicitly delete the workspace group before changing its region_name.",
+			Detail:  fmt.Sprintf("Updating the region_name is not permitted. Expected value is '%s', but now is '%s'.", state.RegionName.ValueString(), plan.RegionName.ValueString()),
 		}
 	}
-
 	if !plan.CloudProvider.Equal(state.CloudProvider) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group cloud_provider",
-			Detail:  "To prevent accidental deletion of the workspace group and loss of data, updating the cloud_provider is not permitted. Please explicitly delete the workspace group before changing its cloud_provider.",
+			Detail:  fmt.Sprintf("Updating the cloud_provider is not permitted. Expected value is '%s'.", state.CloudProvider.ValueString()),
 		}
 	}
 

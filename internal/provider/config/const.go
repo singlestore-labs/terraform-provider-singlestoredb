@@ -57,7 +57,7 @@ const (
 	// TestInitialWorkspaceGroupExpiresAt is the initial workspace group expiration in examples.
 	TestInitialWorkspaceGroupExpiresAt = "2222-01-01T00:00:00Z"
 	// TestInitialAdminPassword is the initial workspace admin password in examples.
-	TestInitialAdminPassword = "initialSfkjDIJ423d44w1sfooBar1$" //nolint:gosec
+	TestInitialAdminPassword = "mockPassword193!"
 	// TestInitialFirewallRange is the firewall range in the example.
 	TestInitialFirewallRange = "0.0.0.0/0"
 	// TestFirewallRangeAllTraffic is the firewall range in the example for allowing all traffic.
