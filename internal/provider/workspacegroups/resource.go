@@ -388,7 +388,7 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if err := validateModifyPlanRegionParameters(r, ctx, *plan, *state); err != nil {
+	if err := validateModifyPlanRegionParameters(ctx, r, *plan, *state); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -418,8 +418,8 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 }
 
-func validateModifyPlanRegionParameters(r *workspaceGroupResource, ctx context.Context, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if err := handleRegionMigrationState(r, ctx, plan, state); err != nil {
+func validateModifyPlanRegionParameters(ctx context.Context, r *workspaceGroupResource, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if err := handleRegionMigrationState(ctx, r, plan, state); err != nil {
 		return err
 	}
 
@@ -438,11 +438,18 @@ func validateModifyPlanRegionParameters(r *workspaceGroupResource, ctx context.C
 	return nil
 }
 
-func handleRegionMigrationState(r *workspaceGroupResource, ctx context.Context, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	migratedToRegionNameAndProvider := !state.RegionID.IsNull() && plan.RegionID.IsNull()
-	migratedToRegionID := !state.RegionName.IsNull() && plan.RegionName.IsNull() && !state.CloudProvider.IsNull() && plan.CloudProvider.IsNull()
+func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, plan, state workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	shouldMigrateToRegionNameAndProvider := !state.RegionID.IsNull() && plan.RegionID.IsNull()
+	shouldMigrateToDepricatedRegionID := !state.RegionName.IsNull() && plan.RegionName.IsNull() && !state.CloudProvider.IsNull() && plan.CloudProvider.IsNull()
 
-	if migratedToRegionNameAndProvider || migratedToRegionID {
+	if shouldMigrateToDepricatedRegionID {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot change cloud_provider and region_name to the deprecated region_id.",
+			Detail:  "Changing cloud_provider and region_name to the deprecated region_id is not permitted. Use the cloud_provider and region_name parameters instead.",
+		}
+	}
+
+	if shouldMigrateToRegionNameAndProvider {
 		workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
 			uuid.MustParse(state.ID.ValueString()),
 			&management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{},
@@ -450,12 +457,8 @@ func handleRegionMigrationState(r *workspaceGroupResource, ctx context.Context, 
 		if serr := util.StatusOK(workspaceGroup, err); serr != nil {
 			return serr
 		}
-		if migratedToRegionNameAndProvider {
-			state.CloudProvider = types.StringValue(string(workspaceGroup.JSON200.Provider))
-			state.RegionName = types.StringValue(workspaceGroup.JSON200.RegionName)
-		} else {
-			state.RegionID = util.UUIDStringValue(workspaceGroup.JSON200.RegionID)
-		}
+		state.CloudProvider = types.StringValue(string(workspaceGroup.JSON200.Provider))
+		state.RegionName = types.StringValue(workspaceGroup.JSON200.RegionName)
 	}
 
 	return nil
@@ -465,7 +468,7 @@ func validateModifyRegionID(plan, state workspaceGroupResourceModel) *util.Summa
 	if !plan.RegionID.IsNull() && !state.RegionID.IsNull() && !plan.RegionID.Equal(state.RegionID) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group region_id",
-			Detail:  fmt.Sprintf("Updating the region_id is not permitted. Expected value is '%s'. To migrate to cloud_provider and region_name parameters, you must remove region_id from the configuration.", state.RegionID.ValueString()),
+			Detail:  "Updating the region_id is not permitted. Warning: this field is deprecated. Use cloud_provider and region_name instead.",
 		}
 	}
 
