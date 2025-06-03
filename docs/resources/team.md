@@ -42,7 +42,7 @@ output "singlestoredb_team_id" {
 
 - `description` (String) The description of the team.
 - `member_teams` (List of String) List of team UUIDs that are members of this team.
-- `member_users` (List of String) List of user UUIDs that are members of this team.
+- `member_users` (List of String) List of user emails that are members of this team.
 
 ### Read-Only
 

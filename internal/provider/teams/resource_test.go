@@ -164,7 +164,7 @@ func TestCRUDTeam(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.TeamsResource).
 					WithTeamResource("this")("name", cty.StringVal(nameUpdate)).
 					WithTeamResource("this")("description", cty.StringVal(descriptionUpdate)).
-					WithTeamResource("this")("member_users", cty.ListVal([]cty.Value{cty.StringVal(testUserMember.UserID.String())})).
+					WithTeamResource("this")("member_users", cty.ListVal([]cty.Value{cty.StringVal(testUserMember.Email)})).
 					WithTeamResource("this")("member_teams", cty.ListVal([]cty.Value{cty.StringVal(testTeamMember.TeamID.String())})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -173,7 +173,7 @@ func TestCRUDTeam(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "description", descriptionUpdate),
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "member_teams.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "member_users.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_team.this", "member_users.0", testUserMember.UserID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_team.this", "member_users.0", testUserMember.Email),
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "member_teams.0", testTeamMember.TeamID.String()),
 				),
 			},
