@@ -2,7 +2,7 @@ package teams
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
@@ -79,7 +79,7 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Computed:            true,
 				ElementType:         types.StringType,
 				Default:             listdefault.StaticValue(emptyList),
-				MarkdownDescription: "List of user UUIDs that are members of this team.",
+				MarkdownDescription: "List of user emails that are members of this team.",
 			},
 			"member_teams": schema.ListAttribute{
 				Optional:            true,
@@ -106,7 +106,7 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	teamCreateResponse, err := r.PostV1TeamsWithResponse(ctx, management.PostV1TeamsJSONRequestBody{
-		Name:        plan.Name.String(),
+		Name:        util.ToString(plan.Name),
 		Description: util.MaybeString(plan.Description),
 	})
 
@@ -121,11 +121,11 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	id := teamCreateResponse.JSON200.TeamID
 
-	userIDs, err := util.ParseUUIDList(plan.MemberUsers)
+	memberEmails, err := validateAndMapUserEmails(plan.MemberUsers)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("member_users"),
-			"Invalid user ID",
+			"Invalid user email",
 			err.Error(),
 		)
 
@@ -143,12 +143,12 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	if userIDs != nil || teamIDs != nil {
+	if (memberEmails != nil && len(*memberEmails) > 0) || teamIDs != nil {
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx,
 			id,
 			management.PatchV1TeamsTeamIDJSONRequestBody{
-				AddMemberUserIDs: userIDs,
-				AddMemberTeamIDs: teamIDs,
+				AddMemberUserEmails: memberEmails,
+				AddMemberTeamIDs:    teamIDs,
 			},
 		)
 
@@ -233,12 +233,12 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	if r.shouldUpdate(state, plan, addedUsers, removedUsers, addedTeams, removedTeams) {
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
-			Name:                util.MaybeString(plan.Name),
-			Description:         util.MaybeString(plan.Description),
-			AddMemberUserIDs:    addedUsers,
-			RemoveMemberUserIDs: removedUsers,
-			AddMemberTeamIDs:    addedTeams,
-			RemoveMemberTeamIDs: removedTeams,
+			Name:                   util.MaybeString(plan.Name),
+			Description:            util.MaybeString(plan.Description),
+			AddMemberUserEmails:    addedUsers,
+			RemoveMemberUserEmails: removedUsers,
+			AddMemberTeamIDs:       addedTeams,
+			RemoveMemberTeamIDs:    removedTeams,
 		})
 		if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
 			resp.Diagnostics.AddError(
@@ -262,15 +262,15 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *teamResource) parseUserAndTeamIds(resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]otypes.UUID, *[]otypes.UUID, *[]otypes.UUID, *[]otypes.UUID) {
-	addedUsers, err := util.ParseUUIDList(util.SubtractListValues(plan.MemberUsers, state.MemberUsers))
+func (r *teamResource) parseUserAndTeamIds(resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]string, *[]string, *[]otypes.UUID, *[]otypes.UUID) {
+	addedUsers, err := validateAndMapUserEmails(util.SubtractListValues(plan.MemberUsers, state.MemberUsers))
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user ID", err.Error())
+		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	removedUsers, err := util.ParseUUIDList(util.SubtractListValues(state.MemberUsers, plan.MemberUsers))
+	removedUsers, err := validateAndMapUserEmails(util.SubtractListValues(state.MemberUsers, plan.MemberUsers))
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user ID", err.Error())
+		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
 	addedTeams, err := util.ParseUUIDList(util.SubtractListValues(plan.MemberTeams, state.MemberTeams))
@@ -286,7 +286,19 @@ func (r *teamResource) parseUserAndTeamIds(resp *resource.UpdateResponse, state,
 	return addedUsers, removedUsers, addedTeams, removedTeams
 }
 
-func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers, addedTeams, removedTeams *[]otypes.UUID) bool {
+func validateAndMapUserEmails(emails []types.String) (*[]string, error) {
+	validEmails := make([]string, 0, len(emails))
+	for _, email := range emails {
+		if !util.IsValidEmail(email.ValueString()) {
+			return nil, fmt.Errorf("invalid email address: %s", email.ValueString())
+		}
+		validEmails = append(validEmails, email.ValueString())
+	}
+
+	return &validEmails, nil
+}
+
+func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers *[]string, addedTeams, removedTeams *[]otypes.UUID) bool {
 	return addedUsers != nil || removedUsers != nil || addedTeams != nil || removedTeams != nil || plan.Name != state.Name || plan.Description != state.Description
 }
 
@@ -346,22 +358,22 @@ func (r *teamResource) ImportState(ctx context.Context, req resource.ImportState
 func toTeamResourceModel(team management.Team) TeamResourceModel {
 	return TeamResourceModel{
 		ID:          util.UUIDStringValue(team.TeamID),
-		Name:        types.StringValue(strings.ReplaceAll(team.Name, "\"", "")),
+		Name:        types.StringValue(team.Name),
 		Description: types.StringValue(team.Description),
 		CreatedAt:   util.MaybeStringValue(team.CreatedAt),
-		MemberUsers: toUsersUUIDList(team.MemberUsers),
+		MemberUsers: toUsersEmailList(team.MemberUsers),
 		MemberTeams: toTeamsUUIDList(team.MemberTeams),
 	}
 }
 
-func toUsersUUIDList(userList *[]management.UserInfo) []types.String {
+func toUsersEmailList(userList *[]management.UserInfo) []types.String {
 	if userList == nil {
 		return []types.String{}
 	}
 
 	users := make([]types.String, len(*userList))
 	for i, user := range *userList {
-		users[i] = util.UUIDStringValue(user.UserID)
+		users[i] = types.StringValue(user.Email)
 	}
 
 	return users

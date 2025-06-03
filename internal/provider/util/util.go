@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,4 +179,20 @@ func SubtractListValues(a, b []types.String) []types.String {
 	}
 
 	return result
+}
+
+func IsValidEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+
+	return err == nil
+}
+
+func ValidateEmails(emails []string) error {
+	for _, email := range emails {
+		if !IsValidEmail(email) {
+			return fmt.Errorf("invalid email address: %s", email)
+		}
+	}
+
+	return nil
 }
