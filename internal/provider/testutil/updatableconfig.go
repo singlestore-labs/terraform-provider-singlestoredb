@@ -9,6 +9,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspaces"
@@ -72,6 +73,18 @@ func (uc UpdatableConfig) WithInvitationGetDataSource(invitationName string) Att
 
 func (uc UpdatableConfig) WithInvitationListDataSource(invitationListName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(invitations.DataSourceListName), invitationListName})
+}
+
+func (uc UpdatableConfig) WithTeamGetDataSource(teamName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(teams.DataSourceGetName), teamName})
+}
+
+func (uc UpdatableConfig) WithTeamListDataSource(teamListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(teams.DataSourceListName), teamListName})
+}
+
+func (uc UpdatableConfig) WithTeamResource(teamName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(teams.ResourceName), teamName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.
