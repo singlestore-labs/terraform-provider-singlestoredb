@@ -28,6 +28,9 @@ var (
 	TeamsGetDataSource               = mustRead("data-sources/singlestoredb_team/data-source.tf")
 	TeamsResource                    = mustRead("resources/singlestoredb_team/resource.tf")
 	TeamsListDataSource              = mustRead("data-sources/singlestoredb_teams/data-source.tf")
+	UserRoleResource                 = mustRead("resources/singlestoredb_user_role_grant/resource.tf")
+	UserRolesResource                = mustRead("resources/singlestoredb_user_roles_grant/resource.tf")
+	UserRolesListDataSource          = mustRead("data-sources/singlestoredb_user_roles/data-source.tf")
 )
 
 func mustRead(path string) string {
