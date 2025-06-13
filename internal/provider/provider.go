@@ -18,6 +18,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
 	regions_v2 "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
