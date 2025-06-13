@@ -61,11 +61,11 @@ func TestGrantRevokeUserRoles(t *testing.T) {
 	}
 
 	writeHandlers := []func(w http.ResponseWriter, r *http.Request){
-		teamsAccessControlsPatchHandler,        // grant team
 		organizationAccessControlsPatchHandler, // grant org
+		teamsAccessControlsPatchHandler,        // grant team
 
-		teamsAccessControlsPatchHandler,              // revoke team on update
 		organizationAccessControlsPatchHandler,       // revoke org on update
+		teamsAccessControlsPatchHandler,              // revoke team on update
 		organizationUpdateAccessControlsPatchHandler, // grant org on update
 
 		organizationUpdateAccessControlsPatchHandler, // revoke updated org

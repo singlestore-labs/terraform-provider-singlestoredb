@@ -62,8 +62,8 @@ func TestGroupRolesByResourceType(t *testing.T) {
 	groupedRoles := roles.GroupRolesByResourceType(testRoles)
 
 	assert.Len(t, groupedRoles, 2)
-	assert.Len(t, groupedRoles[types.StringValue("Organization")], 2)
-	assert.Len(t, groupedRoles[types.StringValue("WorkspaceGroup")], 1)
+	assert.Len(t, groupedRoles[roles.ResourceTypeString(types.StringValue("Organization"))], 2)
+	assert.Len(t, groupedRoles[roles.ResourceTypeString(types.StringValue("WorkspaceGroup"))], 1)
 }
 
 func TestSubtractRoles(t *testing.T) {

@@ -31,6 +31,13 @@ const (
 	ResourceTypeSecret         ResourceType = "Secret"
 )
 
+var ResourceTypeList = []ResourceType{
+	ResourceTypeOrganization,
+	ResourceTypeWorkspaceGroup,
+	ResourceTypeTeam,
+	ResourceTypeSecret,
+}
+
 func ResourceTypeString(provider types.String) ResourceType {
 	for _, s := range []ResourceType{
 		ResourceTypeOrganization,
@@ -158,19 +165,22 @@ func revokeUserRoles(ctx context.Context, r management.ClientWithResponsesInterf
 }
 
 func handleRoles(ctx context.Context, r management.ClientWithResponsesInterface, entityIDstr types.String, entityType EntityType, roles []RoleAttributesModel, isGrant bool) (bool, error) {
-	groupedRoles := GroupRolesByResourceID(roles)
-
-	for resourceID, rolesByResourceID := range groupedRoles {
-		rolesByResourceType := GroupRolesByResourceType(rolesByResourceID)
-		for resourceType, roles := range rolesByResourceType {
+	rolesByResourceType := GroupRolesByResourceType(roles)
+	for _, resourceType := range ResourceTypeList {
+		roles, exists := rolesByResourceType[resourceType]
+		if !exists {
+			continue
+		}
+		groupedRoles := GroupRolesByResourceID(roles)
+		for resourceID, rolesByResourceID := range groupedRoles {
 			var grantRoles, revokeRoles *[]RoleAttributesModel
 			if isGrant {
-				grantRoles = &roles
+				grantRoles = &rolesByResourceID
 			} else {
-				revokeRoles = &roles
+				revokeRoles = &rolesByResourceID
 			}
 
-			ok, err := modifyAccessControlsForResource(ctx, r, entityIDstr, entityType, resourceID, ResourceTypeString(resourceType), grantRoles, revokeRoles)
+			ok, err := modifyAccessControlsForResource(ctx, r, entityIDstr, entityType, resourceID, resourceType, grantRoles, revokeRoles)
 			if !ok || err != nil {
 				return false, err
 			}
@@ -350,10 +360,11 @@ func GroupRolesByResourceID(roles []RoleAttributesModel) map[types.String][]Role
 	return groupedRoles
 }
 
-func GroupRolesByResourceType(roles []RoleAttributesModel) map[types.String][]RoleAttributesModel {
-	groupedRoles := make(map[types.String][]RoleAttributesModel)
+func GroupRolesByResourceType(roles []RoleAttributesModel) map[ResourceType][]RoleAttributesModel {
+	groupedRoles := make(map[ResourceType][]RoleAttributesModel)
 	for _, role := range roles {
-		groupedRoles[role.ResourceType] = append(groupedRoles[role.ResourceType], role)
+		resourceType := ResourceTypeString(role.ResourceType)
+		groupedRoles[resourceType] = append(groupedRoles[resourceType], role)
 	}
 
 	return groupedRoles
