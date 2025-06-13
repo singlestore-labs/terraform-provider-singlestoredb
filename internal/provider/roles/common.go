@@ -29,6 +29,7 @@ const (
 	ResourceTypeWorkspaceGroup ResourceType = "WorkspaceGroup"
 	ResourceTypeTeam           ResourceType = "Team"
 	ResourceTypeSecret         ResourceType = "Secret"
+	ResourceTypeUnknown        ResourceType = "Unknown"
 )
 
 var ResourceTypeList = []ResourceType{
@@ -50,7 +51,7 @@ func ResourceTypeString(provider types.String) ResourceType {
 		}
 	}
 
-	panic(fmt.Sprintf("unknown resource type: %s", provider.ValueString()))
+	return ResourceTypeUnknown
 }
 
 func RoleAttributesSchema() map[string]schema.Attribute {
@@ -221,6 +222,8 @@ func modifyAccessControlsForResource(ctx context.Context, r management.ClientWit
 		return applyTeamAccessControls(ctx, r, resourceID, grants, revokes)
 	case ResourceTypeSecret:
 		return applySecretAccessControls(ctx, r, resourceID, grants, revokes)
+	case ResourceTypeUnknown:
+		return false, fmt.Errorf("wrong resource type marked as: %s", resourceType)
 	default:
 		return false, fmt.Errorf("unsupported resource type: %s", resourceType)
 	}
@@ -320,15 +323,15 @@ func IsRoleChanged(plan, state RoleAttributesModel) bool {
 func SubtractRoles(a, b []RoleAttributesModel) []RoleAttributesModel {
 	var result []RoleAttributesModel
 	for _, role := range a {
-		found := true
+		notFound := true
 		for _, stateRole := range b {
 			if !IsRoleChanged(role, stateRole) {
-				found = false
+				notFound = false
 
 				break
 			}
 		}
-		if found {
+		if notFound {
 			result = append(result, role)
 		}
 	}
