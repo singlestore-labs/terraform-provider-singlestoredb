@@ -26,7 +26,7 @@ type ResourceType string
 
 const (
 	ResourceTypeOrganization   ResourceType = "Organization"
-	ResourceTypeWorkspaceGroup ResourceType = "WorkspaceGroup"
+	ResourceTypeWorkspaceGroup ResourceType = "Cluster"
 	ResourceTypeTeam           ResourceType = "Team"
 	ResourceTypeSecret         ResourceType = "Secret"
 	ResourceTypeUnknown        ResourceType = "Unknown"
@@ -163,6 +163,16 @@ func grantUserRoles(ctx context.Context, r management.ClientWithResponsesInterfa
 
 func revokeUserRoles(ctx context.Context, r management.ClientWithResponsesInterface, userIDstr types.String, roles []RoleAttributesModel) (bool, error) {
 	return handleRoles(ctx, r, userIDstr, EntityTypeUser, roles, false)
+}
+
+//nolint:unused
+func grantTeamRoles(ctx context.Context, r management.ClientWithResponsesInterface, teamIDstr types.String, roles []RoleAttributesModel) (bool, error) {
+	return handleRoles(ctx, r, teamIDstr, EntityTypeTeam, roles, true)
+}
+
+//nolint:unused
+func revokeTeamRoles(ctx context.Context, r management.ClientWithResponsesInterface, teamIDstr types.String, roles []RoleAttributesModel) (bool, error) {
+	return handleRoles(ctx, r, teamIDstr, EntityTypeTeam, roles, false)
 }
 
 func handleRoles(ctx context.Context, r management.ClientWithResponsesInterface, entityIDstr types.String, entityType EntityType, roles []RoleAttributesModel, isGrant bool) (bool, error) {

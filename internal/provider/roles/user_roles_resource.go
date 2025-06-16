@@ -99,11 +99,7 @@ func (r *userRolesGrantResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	state := UserRolesGrantModel{
-		ID:     plan.UserID,
-		UserID: plan.UserID,
-		Roles:  roles,
-	}
+	state := toUserRolesGrantModel(plan.UserID, roles)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -127,11 +123,7 @@ func (r *userRolesGrantResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	state = UserRolesGrantModel{
-		ID:     state.UserID,
-		UserID: state.UserID,
-		Roles:  roles,
-	}
+	state = toUserRolesGrantModel(state.UserID, roles)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -184,15 +176,8 @@ func (r *userRolesGrantResource) Update(ctx context.Context, req resource.Update
 
 		return
 	}
-	if roles == nil {
-		roles = []RoleAttributesModel{}
-	}
 
-	result := UserRolesGrantModel{
-		ID:     plan.UserID,
-		UserID: plan.UserID,
-		Roles:  roles,
-	}
+	result := toUserRolesGrantModel(plan.UserID, roles)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -257,5 +242,17 @@ func (r *userRolesGrantResource) ModifyPlan(ctx context.Context, req resource.Mo
 		)
 
 		return
+	}
+}
+
+func toUserRolesGrantModel(userID types.String, roles []RoleAttributesModel) UserRolesGrantModel {
+	if roles == nil {
+		roles = []RoleAttributesModel{}
+	}
+
+	return UserRolesGrantModel{
+		ID:     userID,
+		UserID: userID,
+		Roles:  roles,
 	}
 }
