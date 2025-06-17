@@ -39,7 +39,7 @@ func (d *userRolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaR
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The unique identifier of the invitation.",
+				MarkdownDescription: "The unique identifier of the user.",
 			},
 			"user_id": schema.StringAttribute{
 				Required:            true,

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
@@ -126,10 +127,10 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 		return roles, nil
 	}
 
-	return validateRoles(entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)
+	return validateRoles(ctx, entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)
 }
 
-func validateRoles(entityIDstr string, entityType EntityType, resourceType *string, roles []RoleAttributesModel, expectedRoles, unexpectedRoles *[]RoleAttributesModel) ([]RoleAttributesModel, error) {
+func validateRoles(ctx context.Context, entityIDstr string, entityType EntityType, resourceType *string, roles []RoleAttributesModel, expectedRoles, unexpectedRoles *[]RoleAttributesModel) ([]RoleAttributesModel, error) {
 	var resultRoles []RoleAttributesModel
 	if expectedRoles != nil {
 		missedRoles := SubtractRoles(*expectedRoles, roles)
@@ -147,10 +148,10 @@ func validateRoles(entityIDstr string, entityType EntityType, resourceType *stri
 		foundRoles := MatchedRoles(roles, *unexpectedRoles)
 		if len(foundRoles) > 0 {
 			if resourceType == nil {
-				return nil, fmt.Errorf("the roles %v are already granted to the %s %s", foundRoles, entityType, entityIDstr)
+				tflog.Warn(ctx, fmt.Sprintf("the roles %v are already granted to the %s %s", foundRoles, entityType, entityIDstr))
+			} else {
+				tflog.Warn(ctx, fmt.Sprintf("the roles %v are already granted to the %s %s for the resource type '%s'", foundRoles, entityType, entityIDstr, *resourceType))
 			}
-
-			return nil, fmt.Errorf("the roles %v are already granted to the %s %s for the resource type '%s'", foundRoles, entityType, entityIDstr, *resourceType)
 		}
 	}
 

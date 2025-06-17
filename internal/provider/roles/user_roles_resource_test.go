@@ -3,6 +3,7 @@ package roles_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -122,4 +124,22 @@ func TestGrantRevokeUserRoles(t *testing.T) {
 	})
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
+}
+
+func TestGrantRevokeUserRolesIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.UserRolesResourceIntegration,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.0.resource_type", "Team"),
+					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.0.role_name", "Owner"),
+					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.1.resource_type", "Cluster"),
+					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.1.role_name", "Owner"),
+				),
+			},
+		},
+	})
 }

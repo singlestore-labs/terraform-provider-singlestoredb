@@ -2,6 +2,7 @@ package roles
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -77,8 +78,8 @@ func (r *userRoleGrantResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	ok, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, plan.Role.ResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, nil)
-	if !ok || err != nil {
+	_, err = modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, plan.Role.ResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, nil)
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to grant user role",
 			"An error occurred while attempting to grant the specified role to the user. Details: "+err.Error(),
@@ -189,20 +190,20 @@ func (r *userRoleGrantResource) handleRoleUpdate(ctx context.Context, planResour
 
 	if planResourceID == stateResourceID && plan.Role.ResourceType == state.Role.ResourceType {
 		// Grant new role and revoke old role for the same resource ID
-		ok, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, planResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, &[]RoleAttributesModel{state.Role})
-		if !ok || err != nil {
+		_, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, planResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, &[]RoleAttributesModel{state.Role})
+		if err != nil {
 			return err
 		}
 	} else {
 		// Revoke the old role for the old resource ID
-		ok, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, state.UserID, stateResourceID, state.Role.ResourceType, nil, &[]RoleAttributesModel{state.Role})
-		if !ok || err != nil {
+		_, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, state.UserID, stateResourceID, state.Role.ResourceType, nil, &[]RoleAttributesModel{state.Role})
+		if err != nil {
 			return err
 		}
 
 		// Grant the new role for the new resource ID
-		ok, err = modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, planResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, nil)
-		if !ok || err != nil {
+		_, err = modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, plan.UserID, planResourceID, plan.Role.ResourceType, &[]RoleAttributesModel{plan.Role}, nil)
+		if err != nil {
 			return err
 		}
 	}
@@ -218,9 +219,8 @@ func (r *userRoleGrantResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	ok, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, state.UserID, state.Role.ResourceID, state.Role.ResourceType, nil, &[]RoleAttributesModel{state.Role})
-
-	if !ok || err != nil {
+	_, err := modifyUserAccessControlsForResource(ctx, r.ClientWithResponsesInterface, state.UserID, state.Role.ResourceID, state.Role.ResourceType, nil, &[]RoleAttributesModel{state.Role})
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to revoke user role",
 			"An error occurred while revoking user role: "+err.Error(),
@@ -257,7 +257,7 @@ func (r *userRoleGrantResource) ModifyPlan(ctx context.Context, req resource.Mod
 	if plan.UserID != state.UserID {
 		resp.Diagnostics.AddError(
 			"Cannot update user ID",
-			"Updating the user_id is not permitted. Please explicitly delete(revoke) the granted role before changing the user_id.",
+			fmt.Sprintf("Updating the user_id is not permitted. Please explicitly delete(revoke) the granted role before changing the user_id: %s != %s", plan.UserID, state.UserID),
 		)
 
 		return

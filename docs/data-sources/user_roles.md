@@ -37,7 +37,7 @@ output "all_user_roles" {
 
 ### Read-Only
 
-- `id` (String) The unique identifier of the invitation.
+- `id` (String) The unique identifier of the user.
 - `roles` (Attributes List) A list of roles assigned to the user. (see [below for nested schema](#nestedatt--roles))
 
 <a id="nestedatt--roles"></a>

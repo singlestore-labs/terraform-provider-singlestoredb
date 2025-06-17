@@ -78,9 +78,8 @@ func (r *userRolesGrantResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	ok, err := grantUserRoles(ctx, r.ClientWithResponsesInterface, plan.UserID, plan.Roles)
-
-	if !ok || err != nil {
+	_, err = grantUserRoles(ctx, r.ClientWithResponsesInterface, plan.UserID, plan.Roles)
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to grant user roles",
 			"An error occurred while granting user roles: "+err.Error(),
@@ -157,8 +156,8 @@ func (r *userRolesGrantResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	ok, err := r.doUpdate(ctx, plan.UserID, grantRoles, revokeRoles)
-	if !ok || err != nil {
+	_, err = r.doUpdate(ctx, plan.UserID, grantRoles, revokeRoles)
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to update user roles",
 			"An error occurred while updating user roles: "+err.Error(),
@@ -200,8 +199,8 @@ func (r *userRolesGrantResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	ok, err := revokeUserRoles(ctx, r.ClientWithResponsesInterface, state.UserID, state.Roles)
-	if !ok || err != nil {
+	_, err := revokeUserRoles(ctx, r.ClientWithResponsesInterface, state.UserID, state.Roles)
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to revoke user roles",
 			"An error occurred while revoking user roles: "+err.Error(),

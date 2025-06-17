@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -149,6 +150,7 @@ func TestGrantAlreadyGrantedUserRole(t *testing.T) {
 
 	writeHandlers := []func(w http.ResponseWriter, r *http.Request){
 		teamsAccessControlsPatchHandler, // grant team
+		teamsAccessControlsPatchHandler, // revoke team
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -172,8 +174,13 @@ func TestGrantAlreadyGrantedUserRole(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config:      examples.UserRoleResource,
-				ExpectError: regexp.MustCompile(`Failed to fetch and validate user roles`),
+				Config: examples.UserRoleResource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "user_id", userID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.resource_type", testRole.ResourceType),
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.resource_id", testRole.ResourceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.role_name", testRole.Role),
+				),
 			},
 		},
 	})
@@ -238,4 +245,20 @@ func handleRevokes(grantedRoles *[]management.IdentityRole, revokes []management
 			}
 		}
 	}
+}
+
+func TestGrantRevokeUserRoleIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.UserRoleResourceIntegration,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.resource_type", "Team"),
+					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.role_name", "Owner"),
+				),
+			},
+		},
+	})
 }
