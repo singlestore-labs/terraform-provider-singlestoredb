@@ -23,16 +23,26 @@ resource "singlestoredb_workspace_group" "g" {
   admin_password  = "mockPassword193!"
 }
 
+data "singlestoredb_roles" "t1roles" {
+  resource_type = "Team"
+  resource_id   = singlestoredb_team.t1.id
+}
+
+data "singlestoredb_roles" "clusterroles" {
+  resource_type = "Cluster"
+  resource_id   = singlestoredb_workspace_group.g.id
+}
+
 resource "singlestoredb_user_roles" "this" {
   user_id = data.singlestoredb_users.u.users[0].id
   roles = [
     {
-      role_name     = "Owner"
+      role_name     = data.singlestoredb_roles.t1roles.roles.0
       resource_type = "Team"
       resource_id   = singlestoredb_team.t1.id
     },
     {
-      role_name     = "Owner"
+      role_name     = data.singlestoredb_roles.clusterroles.roles.0
       resource_type = "Cluster"
       resource_id   = singlestoredb_workspace_group.g.id
     }

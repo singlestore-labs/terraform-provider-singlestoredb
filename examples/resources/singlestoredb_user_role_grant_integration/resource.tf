@@ -12,10 +12,15 @@ resource "singlestoredb_team" "t1" {
   description = "Terrafrom test role team 1"
 }
 
+data "singlestoredb_roles" "rlist" {
+  resource_type = "Team"
+  resource_id   = singlestoredb_team.t1.id
+}
+
 resource "singlestoredb_user_role" "this" {
   user_id = data.singlestoredb_users.u.users[0].id
   role = {
-    role_name     = "Owner"
+    role_name     = data.singlestoredb_roles.rlist.roles.0
     resource_type = "Team"
     resource_id   = singlestoredb_team.t1.id
   }

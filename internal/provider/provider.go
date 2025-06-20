@@ -173,6 +173,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		teams.NewDataSourceList,
 		teams.NewDataSourceGet,
 		roles.NewUserRolesDataSourceList,
+		roles.NewRolesDataSourceList,
 	}
 }
 
