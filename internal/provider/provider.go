@@ -174,6 +174,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		teams.NewDataSourceGet,
 		roles.NewUserRolesDataSourceList,
 		roles.NewRolesDataSourceList,
+		roles.NewTeamRolesDataSourceList,
 	}
 }
 
@@ -187,6 +188,8 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		teams.NewResource,
 		roles.NewUserRoleGrantResource,
 		roles.NewUserRolesGrantResource,
+		roles.NewTeamRoleGrantResource,
+		roles.NewTeamRolesGrantResource,
 	}
 }
 

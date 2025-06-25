@@ -34,6 +34,11 @@ var (
 	UserRolesListDataSource          = mustRead("data-sources/singlestoredb_user_roles/data-source.tf")
 	UserRolesResourceIntegration     = mustRead("resources/singlestoredb_user_roles_grant_integration/resource.tf")
 	RolesListDataSource              = mustRead("data-sources/singlestoredb_roles/data-source.tf")
+	TeamRolesListDataSource          = mustRead("data-sources/singlestoredb_team_roles/data-source.tf")
+	TeamRoleResource                 = mustRead("resources/singlestoredb_team_role_grant/resource.tf")
+	TeamRoleResourceIntegration      = mustRead("resources/singlestoredb_team_role_grant_integration/resource.tf")
+	TeamRolesResource                = mustRead("resources/singlestoredb_team_roles_grant/resource.tf")
+	TeamRolesResourceIntegration     = mustRead("resources/singlestoredb_team_roles_grant_integration/resource.tf")
 )
 
 func mustRead(path string) string {

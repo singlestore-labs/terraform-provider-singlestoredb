@@ -93,7 +93,6 @@ func getUserRolesAndValidate(ctx context.Context, r management.ClientWithRespons
 	return getRolesAndValidate(ctx, r, userIDstr, EntityTypeUser, resourceType, expectedRoles, unexpectedRoles)
 }
 
-//nolint:unused
 func getTeamRolesAndValidate(ctx context.Context, r management.ClientWithResponsesInterface, teamIDstr string, resourceType *string, expectedRoles, unexpectedRoles *[]RoleAttributesModel) ([]RoleAttributesModel, error) {
 	return getRolesAndValidate(ctx, r, teamIDstr, EntityTypeTeam, resourceType, expectedRoles, unexpectedRoles)
 }
@@ -166,12 +165,10 @@ func revokeUserRoles(ctx context.Context, r management.ClientWithResponsesInterf
 	return handleRoles(ctx, r, userIDstr, EntityTypeUser, roles, false)
 }
 
-//nolint:unused
 func grantTeamRoles(ctx context.Context, r management.ClientWithResponsesInterface, teamIDstr types.String, roles []RoleAttributesModel) (bool, error) {
 	return handleRoles(ctx, r, teamIDstr, EntityTypeTeam, roles, true)
 }
 
-//nolint:unused
 func revokeTeamRoles(ctx context.Context, r management.ClientWithResponsesInterface, teamIDstr types.String, roles []RoleAttributesModel) (bool, error) {
 	return handleRoles(ctx, r, teamIDstr, EntityTypeTeam, roles, false)
 }
@@ -206,7 +203,6 @@ func modifyUserAccessControlsForResource(ctx context.Context, r management.Clien
 	return modifyAccessControlsForResource(ctx, r, entityIDstr, EntityTypeUser, resourceIDstr, ResourceTypeString(resourceType), grantRoles, revokeRoles)
 }
 
-//nolint:unused
 func modifyTeamAccessControlsForResource(ctx context.Context, r management.ClientWithResponsesInterface, entityIDstr, resourceIDstr, resourceType types.String, grantRoles, revokeRoles *[]RoleAttributesModel) (bool, error) {
 	return modifyAccessControlsForResource(ctx, r, entityIDstr, EntityTypeTeam, resourceIDstr, ResourceTypeString(resourceType), grantRoles, revokeRoles)
 }

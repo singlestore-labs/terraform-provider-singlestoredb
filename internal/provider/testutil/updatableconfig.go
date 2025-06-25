@@ -96,6 +96,14 @@ func (uc UpdatableConfig) WithUserRolesResource(userRolesName string) AttributeS
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.UserRolesGrantResourceName), userRolesName})
 }
 
+func (uc UpdatableConfig) WithTeamRoleResource(teamRoleName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.TeamRoleGrantResourceName), teamRoleName})
+}
+
+func (uc UpdatableConfig) WithTeamRolesResource(teamRolesName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.TeamRolesGrantResourceName), teamRolesName})
+}
+
 // WithAPIKey extends the config with the API key if the key is not empty.
 func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
 	if apiKey == "" {
