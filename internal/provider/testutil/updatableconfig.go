@@ -9,6 +9,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
@@ -85,6 +86,22 @@ func (uc UpdatableConfig) WithTeamListDataSource(teamListName string) AttributeS
 
 func (uc UpdatableConfig) WithTeamResource(teamName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(teams.ResourceName), teamName})
+}
+
+func (uc UpdatableConfig) WithUserRoleResource(userRoleName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.UserRoleGrantResourceName), userRoleName})
+}
+
+func (uc UpdatableConfig) WithUserRolesResource(userRolesName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.UserRolesGrantResourceName), userRolesName})
+}
+
+func (uc UpdatableConfig) WithTeamRoleResource(teamRoleName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.TeamRoleGrantResourceName), teamRoleName})
+}
+
+func (uc UpdatableConfig) WithTeamRolesResource(teamRolesName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.TeamRolesGrantResourceName), teamRolesName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.
