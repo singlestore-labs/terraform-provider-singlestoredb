@@ -3,12 +3,12 @@
 page_title: "singlestoredb_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of available roles for specific resource by resource type and resource ID.
+  This data source lists roles that can be granted for a specific resource (the 'object' in RBAC terminology). In Role-Based Access Control (RBAC), there are three components: subjects (who gets access), roles (what kind of access), and objects (what is being accessed). This data source shows what roles can be assigned to subjects (users/teams) for accessing the specified resource object. Use this when configuring permission assignments to understand what access levels are available.
 ---
 
 # singlestoredb_roles (Data Source)
 
-This data source provides a list of available roles for specific resource by resource type and resource ID.
+This data source lists roles that can be granted for a specific resource (the 'object' in RBAC terminology). In Role-Based Access Control (RBAC), there are three components: subjects (who gets access), roles (what kind of access), and objects (what is being accessed). This data source shows what roles can be assigned to subjects (users/teams) for accessing the specified resource object. Use this when configuring permission assignments to understand what access levels are available.
 
 ## Example Usage
 
@@ -20,8 +20,8 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_roles" "all" {
-  resource_type = "Team"
-  resource_id   = "24f31e2d-847f-4a62-9a93-a10e9bcd0dae"
+  resource_type = "Organization"
+  resource_id   = "8769efa3-7578-49e1-9c07-bcd763488301"
 }
 
 output "all_roles" {

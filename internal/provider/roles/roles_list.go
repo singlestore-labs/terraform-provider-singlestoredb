@@ -46,7 +46,7 @@ func (d *rolesDataSourceList) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the data source.
 func (d *rolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of available roles for specific resource by resource type and resource ID.",
+		MarkdownDescription: "This data source lists roles that can be granted for a specific resource (the 'object' in RBAC terminology). In Role-Based Access Control (RBAC), there are three components: subjects (who gets access), roles (what kind of access), and objects (what is being accessed). This data source shows what roles can be assigned to subjects (users/teams) for accessing the specified resource object. Use this when configuring permission assignments to understand what access levels are available.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,

@@ -37,7 +37,7 @@ func (r *teamRolesGrantResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *teamRolesGrantResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages role grants for a team. Allows assigning roles to a team for specific resources.",
+		MarkdownDescription: "Manages role grants for a team (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a team, defining what access permissions the team has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (team), the permission level (role), and the target resources that can be accessed.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

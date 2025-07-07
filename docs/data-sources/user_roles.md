@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of user roles that the user has.
+  This data source lists all roles assigned to a specific user (the 'subject' in RBAC terminology). In Role-Based Access Control, a user (subject) is granted various roles that define what access they have to different resources (objects). This data source shows all permissions the specified user has across the system, including the role names and the resources they apply to.
 ---
 
 # singlestoredb_user_roles (Data Source)
 
-This data source provides a list of user roles that the user has.
+This data source lists all roles assigned to a specific user (the 'subject' in RBAC terminology). In Role-Based Access Control, a user (subject) is granted various roles that define what access they have to different resources (objects). This data source shows all permissions the specified user has across the system, including the role names and the resources they apply to.
 
 ## Example Usage
 

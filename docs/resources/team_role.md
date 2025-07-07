@@ -3,12 +3,12 @@
 page_title: "singlestoredb_team_role Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manages role grants for a team. Allows assigning a single role to a team for a specific resource.
+  Manages a single role grant for a team (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a team, defining what access permission the team has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (team), the permission level (role), and the target resource that can be accessed.
 ---
 
 # singlestoredb_team_role (Resource)
 
-Manages role grants for a team. Allows assigning a single role to a team for a specific resource.
+Manages a single role grant for a team (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a team, defining what access permission the team has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (team), the permission level (role), and the target resource that can be accessed.
 
 ## Example Usage
 
