@@ -3,12 +3,12 @@
 page_title: "singlestoredb_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source lists roles that can be granted for a specific resource (the 'object' in RBAC terminology). In Role-Based Access Control (RBAC), there are three components: subjects (who gets access), roles (what kind of access), and objects (what is being accessed). This data source shows what roles can be assigned to subjects (users/teams) for accessing the specified resource object. Use this when configuring permission assignments to understand what access levels are available.
+  This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate teamrole or userrole resources.
 ---
 
 # singlestoredb_roles (Data Source)
 
-This data source lists roles that can be granted for a specific resource (the 'object' in RBAC terminology). In Role-Based Access Control (RBAC), there are three components: subjects (who gets access), roles (what kind of access), and objects (what is being accessed). This data source shows what roles can be assigned to subjects (users/teams) for accessing the specified resource object. Use this when configuring permission assignments to understand what access levels are available.
+This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.
 
 ## Example Usage
 
@@ -34,12 +34,12 @@ output "all_roles" {
 
 ### Required
 
-- `resource_id` (String) The identifier of the resource.
-- `resource_type` (String) The type of the resource.
+- `resource_id` (String) The unique identifier of the resource object for which to list available roles.
+- `resource_type` (String) The type of the resource object for which to list available roles.
 
 ### Read-Only
 
 - `id` (String) The unique identifier of the list roles.
-- `roles` (List of String) A list of roles available for the specified resource type and ID.
+- `roles` (List of String) A list of role names available for the specified resource object. These roles can be assigned to users or teams to grant them specific permissions on this resource.
 
 
