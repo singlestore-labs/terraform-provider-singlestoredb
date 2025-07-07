@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user_role Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manages a single role grant for a user (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a user, defining what access permission the user has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resource that can be accessed.
+  Manages a single role grant for a user (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a user, defining what access permission the user has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resource that can be accessed. Use the singlestoredb_roles data source to discover available roles for a specific resource object.
 ---
 
 # singlestoredb_user_role (Resource)
 
-Manages a single role grant for a user (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a user, defining what access permission the user has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resource that can be accessed.
+Manages a single role grant for a user (the 'subject' in RBAC terminology). This resource allows you to assign a specific role to a user, defining what access permission the user has to a particular resource (object) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resource that can be accessed. Use the `singlestoredb_roles` data source to discover available roles for a specific resource object.
 
 ## Example Usage
 
