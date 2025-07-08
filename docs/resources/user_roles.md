@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user_roles Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manages role grants for a user (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a user, defining what access permissions the user has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resources that can be accessed. Use the singlestoredb_roles data source with a specific resource's type and ID to discover what roles are available for each resource object.
+  Manages role grants for a user (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a user, defining what access permissions the user has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resources that can be accessed. Use the singlestoredb_roles data source with a specific resource's type and ID to discover what roles are available for each resource object. This resource is currently in beta and may undergo changes in future releases.
 ---
 
 # singlestoredb_user_roles (Resource)
 
-Manages role grants for a user (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a user, defining what access permissions the user has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resources that can be accessed. Use the `singlestoredb_roles` data source with a specific resource's type and ID to discover what roles are available for each resource object.
+Manages role grants for a user (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a user, defining what access permissions the user has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resources that can be accessed. Use the `singlestoredb_roles` data source with a specific resource's type and ID to discover what roles are available for each resource object. This resource is currently in beta and may undergo changes in future releases.
 
 ## Example Usage
 

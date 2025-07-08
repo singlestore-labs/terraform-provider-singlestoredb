@@ -3,12 +3,12 @@
 page_title: "singlestoredb_user Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource.
+  The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource. This resource is currently in beta and may undergo changes in future releases.
 ---
 
 # singlestoredb_user (Resource)
 
-The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource.
+The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource. This resource is currently in beta and may undergo changes in future releases.
 
 ## Example Usage
 

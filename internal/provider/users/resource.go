@@ -59,7 +59,7 @@ func (r *userResource) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *userResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	emptyList, _ := types.ListValue(types.StringType, []attr.Value{})
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource.",
+		MarkdownDescription: "The 'apply' action sends a user an invitation to join the organization. The 'destroy' action removes a user from the organization and revokes their pending invitation(s). The 'update' action is not supported for this resource. This resource is currently in beta and may undergo changes in future releases.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
