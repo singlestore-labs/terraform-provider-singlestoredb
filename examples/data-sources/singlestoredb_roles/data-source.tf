@@ -5,8 +5,8 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_roles" "all" {
-  resource_type = "Organization"
-  resource_id   = "8769efa3-7578-49e1-9c07-bcd763488301"
+  resource_type = "Team"
+  resource_id   = "24f31e2d-847f-4a62-9a93-a10e9bcd0dae"
 }
 
 output "all_roles" {
