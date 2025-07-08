@@ -3,18 +3,18 @@
 page_title: "singlestoredb_team_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of team roles that the team has.
+  This data source lists all roles assigned to a specific team (the 'subject' in RBAC terminology). In Role-Based Access Control, a team (subject) is granted various roles that define what access it has to different resources (objects). This data source shows all permissions the specified team has across the system, including the role names and the resources they apply to.
 ---
 
 # singlestoredb_team_roles (Data Source)
 
-This data source provides a list of team roles that the team has.
+This data source lists all roles assigned to a specific team (the 'subject' in RBAC terminology). In Role-Based Access Control, a team (subject) is granted various roles that define what access it has to different resources (objects). This data source shows all permissions the specified team has across the system, including the role names and the resources they apply to.
 
 ## Example Usage
 
 ```terraform
 provider "singlestoredb" {
-  // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication. 
+  // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
   // Please set this environment variable with your SingleStore Management API key.
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }

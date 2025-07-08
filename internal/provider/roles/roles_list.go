@@ -46,7 +46,7 @@ func (d *rolesDataSourceList) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the data source.
 func (d *rolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of available roles for specific resource by resource type and resource ID.",
+		MarkdownDescription: "This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,
@@ -54,18 +54,18 @@ func (d *rolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaReque
 			},
 			"resource_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The type of the resource.",
+				MarkdownDescription: "The type of the resource object for which to list available roles.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(ResourceTypeOrganization), string(ResourceTypeWorkspaceGroup), string(ResourceTypeTeam), string(ResourceTypeSecret)),
 				},
 			},
 			"resource_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The identifier of the resource.",
+				MarkdownDescription: "The unique identifier of the resource object for which to list available roles.",
 			},
 			"roles": schema.ListAttribute{
 				Computed:            true,
-				MarkdownDescription: "A list of roles available for the specified resource type and ID.",
+				MarkdownDescription: "A list of role names available for the specified resource object. These roles can be assigned to users or teams to grant them specific permissions on this resource.",
 				ElementType:         types.StringType,
 			},
 		},

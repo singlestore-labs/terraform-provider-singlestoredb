@@ -57,7 +57,7 @@ func (r *teamResource) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	emptyList, _ := types.ListValue(types.StringType, []attr.Value{})
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB teams with this resource.",
+		MarkdownDescription: "Manage SingleStoreDB teams with this resource. The 'apply' action creates a new team or updates an existing one. You can add/remove users to/from the team by specifying their email addresses in the 'member_users' list. You can also add/remove other teams to/from this team by specifying their IDs in the 'member_teams' list. The 'destroy' action deletes the team. Updating the 'member_users' or 'member_teams' lists will add or remove the corresponding users or teams from the team.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

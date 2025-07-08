@@ -35,7 +35,7 @@ func (d *teamRolesDataSourceList) Metadata(_ context.Context, req datasource.Met
 // Schema defines the schema for the data source.
 func (d *teamRolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of team roles that the team has.",
+		MarkdownDescription: "This data source lists all roles assigned to a specific team (the 'subject' in RBAC terminology). In Role-Based Access Control, a team (subject) is granted various roles that define what access it has to different resources (objects). This data source shows all permissions the specified team has across the system, including the role names and the resources they apply to.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,

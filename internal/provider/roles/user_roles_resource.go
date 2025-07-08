@@ -37,7 +37,7 @@ func (r *userRolesGrantResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *userRolesGrantResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages role grants for a user. Allows assigning roles to a user for specific resources.",
+		MarkdownDescription: "Manages role grants for a user (the 'subject' in RBAC terminology). This resource allows you to assign specific roles to a user, defining what access permissions the user has to various resources (objects) in the system. In Role-Based Access Control, this resource establishes the relationship between the subject (user), the permission level (role), and the target resources that can be accessed. Use the `singlestoredb_roles` data source with a specific resource's type and ID to discover what roles are available for each resource object. This resource is currently in beta and may undergo changes in future releases.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

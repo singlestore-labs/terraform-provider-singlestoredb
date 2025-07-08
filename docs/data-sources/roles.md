@@ -3,18 +3,18 @@
 page_title: "singlestoredb_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of available roles for specific resource by resource type and resource ID.
+  This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate teamrole or userrole resources.
 ---
 
 # singlestoredb_roles (Data Source)
 
-This data source provides a list of available roles for specific resource by resource type and resource ID.
+This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.
 
 ## Example Usage
 
 ```terraform
 provider "singlestoredb" {
-  // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication. 
+  // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
   // Please set this environment variable with your SingleStore Management API key.
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
@@ -34,12 +34,12 @@ output "all_roles" {
 
 ### Required
 
-- `resource_id` (String) The identifier of the resource.
-- `resource_type` (String) The type of the resource.
+- `resource_id` (String) The unique identifier of the resource object for which to list available roles.
+- `resource_type` (String) The type of the resource object for which to list available roles.
 
 ### Read-Only
 
 - `id` (String) The unique identifier of the list roles.
-- `roles` (List of String) A list of roles available for the specified resource type and ID.
+- `roles` (List of String) A list of role names available for the specified resource object. These roles can be assigned to users or teams to grant them specific permissions on this resource.
 
 
