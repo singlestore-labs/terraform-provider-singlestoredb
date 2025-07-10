@@ -1,6 +1,6 @@
 # GPG Key Rotation
 
-A typical lifetime of a GPG key is 2 years. Once it expires, the Github Action responsible for releasing the provider will thow the error like `gpg: signing failed: Unusable secret key`.
+A typical lifetime of a GPG key is 2 years. Once it expires, the GitHub Action responsible for releasing the provider will show the error like `gpg: signing failed: Unusable secret key`.
 
 ---
 
@@ -42,7 +42,7 @@ Store both in 1Password (and optionally an encrypted USB or dotfiles repo you tr
 
 Add the public key to [github](https://github.com/settings/keys). It will associate the key with your account.
 
-Visit [actions](https://github.com/singlestore-labs/terraform-provider-singlestoredb/settings/secrets/actions) and update the variables `GPG_PRIVATE_KEY` and `PASSPHRASE`. This will update the Github Action responsible for the release to use the new key.
+Visit [actions](https://github.com/singlestore-labs/terraform-provider-singlestoredb/settings/secrets/actions) and update the variables `GPG_PRIVATE_KEY` and `PASSPHRASE`. This will update the GitHub Action responsible for the release to use the new key.
 
 ### 3. Update the Terraform Registry
 
