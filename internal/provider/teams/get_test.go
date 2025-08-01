@@ -80,7 +80,8 @@ func TestReadTeam(t *testing.T) {
 
 func TestTeamNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
+		require.Equal(t, "/v1/teams", r.URL.Path)
+		_, _ = w.Write([]byte("[]"))
 	}))
 	t.Cleanup(server.Close)
 
@@ -93,7 +94,7 @@ func TestTeamNotFound(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.TeamsGetDataSource).
 					WithTeamGetDataSource("this")("name", cty.StringVal("foobar")).
 					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
+				ExpectError: regexp.MustCompile("No team found"),
 			},
 		},
 	})
@@ -108,7 +109,7 @@ func TestGetTeamNotFoundIntegration(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.TeamsGetDataSource).
 					WithTeamGetDataSource("this")("name", cty.StringVal("foobarnosuchteam")).
 					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
+				ExpectError: regexp.MustCompile("No team found"),
 			},
 		},
 	})
