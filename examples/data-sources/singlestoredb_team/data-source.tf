@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_team" "this" {
-  id = "24f31e2d-847f-4a62-9a93-a10e9bcd0dae" # Replace with the actual ID of the team.
+  name = "Organization Readers"
 }
 
 output "this_team" {

@@ -60,7 +60,7 @@ func (d *teamsDataSourceGet) Metadata(_ context.Context, req datasource.Metadata
 // Schema defines the schema for the data source.
 func (d *teamsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Retrieve a specific team using its ID with this data source.",
+		MarkdownDescription: "Retrieve a specific team using its ID or name with this data source.",
 		Attributes:          teamDataSourceSchemaAttributes(),
 	}
 }
@@ -74,6 +74,49 @@ func (d *teamsDataSourceGet) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
+	// Validate that exactly one of id or name is provided
+	idProvided := !data.ID.IsNull() && !data.ID.IsUnknown()
+	nameProvided := !data.Name.IsNull() && !data.Name.IsUnknown()
+
+	if !idProvided && !nameProvided {
+		resp.Diagnostics.AddError(
+			"Missing team identifier",
+			"Either 'id' or 'name' must be specified to identify the team.",
+		)
+
+		return
+	}
+
+	if idProvided && nameProvided {
+		resp.Diagnostics.AddError(
+			"Conflicting team identifiers",
+			"Only one of 'id' or 'name' can be specified, not both.",
+		)
+
+		return
+	}
+
+	var team *management.Team
+
+	if idProvided {
+		team = d.teamByID(ctx, data, resp)
+	} else {
+		team = d.teamByName(ctx, data, resp)
+	}
+
+	if team == nil {
+		return // An error was reported by helper functions.
+	}
+
+	result := toTeamDataSourceModel(*team)
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+// teamByID is a helper function for getting a team by ID.
+// It reports the error and returns nil in case of an error.
+func (d *teamsDataSourceGet) teamByID(ctx context.Context, data TeamDataSourceModel, resp *datasource.ReadResponse) *management.Team {
 	id, err := uuid.Parse(data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
@@ -82,23 +125,63 @@ func (d *teamsDataSourceGet) Read(ctx context.Context, req datasource.ReadReques
 			"The team ID should be a valid UUID",
 		)
 
-		return
+		return nil
 	}
 
-	team, err := d.GetV1TeamsTeamIDWithResponse(ctx, id)
-	if serr := util.StatusOK(team, err); serr != nil {
+	result, err := d.GetV1TeamsTeamIDWithResponse(ctx, id)
+	if serr := util.StatusOK(result, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
 		)
 
-		return
+		return nil
 	}
 
-	result := toTeamDataSourceModel(*team.JSON200)
+	if result.JSON200 == nil {
+		resp.Diagnostics.AddError(
+			"Team not found",
+			"No team found with the specified ID: "+data.ID.ValueString(),
+		)
 
-	diags = resp.State.Set(ctx, &result)
-	resp.Diagnostics.Append(diags...)
+		return nil
+	}
+
+	return result.JSON200
+}
+
+func (d *teamsDataSourceGet) teamByName(ctx context.Context, data TeamDataSourceModel, resp *datasource.ReadResponse) *management.Team {
+	teams, err := d.GetV1TeamsWithResponse(ctx, &management.GetV1TeamsParams{Name: util.Ptr(data.Name.ValueString())})
+	if serr := util.StatusOK(teams, err); serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Detail,
+		)
+
+		return nil
+	}
+
+	if teams.JSON200 == nil || len(*teams.JSON200) == 0 {
+		resp.Diagnostics.AddError(
+			"Team not found",
+			"No team found with the specified name: "+data.Name.ValueString(),
+		)
+
+		return nil
+	}
+
+	if len(*teams.JSON200) > 1 {
+		resp.Diagnostics.AddError(
+			"Multiple teams found",
+			"Multiple teams found with the specified name: "+data.Name.ValueString()+". Use ID instead for exact identification.",
+		)
+
+		return nil
+	}
+
+	result := *teams.JSON200
+
+	return util.Ptr(result[0])
 }
 
 // Configure adds the provider configured client to the data source.
@@ -141,12 +224,14 @@ func toMemberTeam(team management.TeamInfo) MemberTeam {
 func teamDataSourceSchemaAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		config.IDAttribute: schema.StringAttribute{
-			Required:            true,
-			MarkdownDescription: "The unique identifier of the team.",
+			Optional:            true,
+			Computed:            true,
+			MarkdownDescription: "The unique identifier of the team. Either `id` or `name` must be specified.",
 		},
 		"name": schema.StringAttribute{
+			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "The name of the team.",
+			MarkdownDescription: "The name of the team. Either `id` or `name` must be specified.",
 		},
 		"description": schema.StringAttribute{
 			Computed:            true,

@@ -37,9 +37,10 @@ output "all_teams" {
 <a id="nestedatt--teams"></a>
 ### Nested Schema for `teams`
 
-Required:
+Optional:
 
-- `id` (String) The unique identifier of the team.
+- `id` (String) The unique identifier of the team. Either `id` or `name` must be specified.
+- `name` (String) The name of the team. Either `id` or `name` must be specified.
 
 Read-Only:
 
@@ -47,7 +48,6 @@ Read-Only:
 - `description` (String) The description of the team.
 - `member_teams` (Attributes List) List of teams that are members of this team. (see [below for nested schema](#nestedatt--teams--member_teams))
 - `member_users` (Attributes List) List of users that are members of this team. (see [below for nested schema](#nestedatt--teams--member_users))
-- `name` (String) The name of the team.
 
 <a id="nestedatt--teams--member_teams"></a>
 ### Nested Schema for `teams.member_teams`

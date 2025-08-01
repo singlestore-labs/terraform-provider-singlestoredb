@@ -1,7 +1,6 @@
 package teams_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -43,9 +42,9 @@ func TestReadTeam(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1/teams/%s", team.TeamID), r.URL.Path)
+		require.Equal(t, "/v1/teams", r.URL.Path)
 		w.Header().Add("Content-Type", "application/json")
-		_, err := w.Write(testutil.MustJSON(team))
+		_, err := w.Write(testutil.MustJSON([]management.Team{team}))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -57,7 +56,7 @@ func TestReadTeam(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.TeamsGetDataSource).
-					WithTeamGetDataSource("this")(config.IDAttribute, cty.StringVal(team.TeamID.String())).
+					WithTeamGetDataSource("this")("name", cty.StringVal(team.Name)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_team.this", config.IDAttribute, team.TeamID.String()),
@@ -81,7 +80,8 @@ func TestReadTeam(t *testing.T) {
 
 func TestTeamNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
+		require.Equal(t, "/v1/teams", r.URL.Path)
+		_, _ = w.Write([]byte("[]"))
 	}))
 	t.Cleanup(server.Close)
 
@@ -92,9 +92,9 @@ func TestTeamNotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.TeamsGetDataSource).
-					WithTeamGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithTeamGetDataSource("this")("name", cty.StringVal("foobar")).
 					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
+				ExpectError: regexp.MustCompile("No team found"),
 			},
 		},
 	})
@@ -107,9 +107,9 @@ func TestGetTeamNotFoundIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.TeamsGetDataSource).
-					WithTeamGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					WithTeamGetDataSource("this")("name", cty.StringVal("foobarnosuchteam")).
 					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
+				ExpectError: regexp.MustCompile("No team found"),
 			},
 		},
 	})
