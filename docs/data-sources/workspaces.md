@@ -77,5 +77,3 @@ Read-Only:
 
 - `suspend_after_seconds` (Number) The duration (in seconds) after which the workspace will be suspended if the suspend type is SCHEDULED, or the period of inactivity before automatic suspension if the suspend type is IDLE.
 - `suspend_type` (String) The type of auto suspend currently enabled.
-
-

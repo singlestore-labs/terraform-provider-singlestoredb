@@ -28,7 +28,7 @@ generate: tools
 
 tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4
-	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.14.1
+	go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.22.0
 
 lint-fast: tools
 	golangci-lint run --fast ./...

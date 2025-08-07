@@ -84,5 +84,3 @@ output "private_connection_id" {
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections.
 - `status` (String) The status of the private connection.
 - `updated_at` (String) The timestamp of when the private connection was updated.
-
-

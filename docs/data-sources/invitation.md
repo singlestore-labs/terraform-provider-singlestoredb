@@ -41,5 +41,3 @@ output "this_invitation" {
 - `email` (String) The email address of the user.
 - `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
 - `teams` (List of String) A list of user teams.
-
-

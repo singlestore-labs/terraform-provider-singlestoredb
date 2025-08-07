@@ -86,5 +86,3 @@ Optional:
 
 - `suspend_after_seconds` (Number) When to suspend the workspace, according to the suspend type chosen.
 - `suspend_type` (String) The auto suspend mode for the workspace can have the values `IDLE`, `SCHEDULED`, or `DISABLED` (to create the workspace with no auto suspend settings). Default is `DISABLED`.
-
-

@@ -43,5 +43,3 @@ Read-Only:
 - `provider` (String) The name of the cloud provider hosting the region.
 - `region` (String) The name of the region.
 - `region_name` (String) The region code name.
-
-

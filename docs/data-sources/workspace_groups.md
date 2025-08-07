@@ -63,5 +63,3 @@ Read-Only:
 
 - `day` (Number) The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.
 - `hour` (Number) The hour of the day, in 24-hour UTC format (0-23), when the update window starts.
-
-
