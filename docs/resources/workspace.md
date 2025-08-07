@@ -19,21 +19,20 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_regions" "all" {}
-
 resource "singlestoredb_workspace_group" "example" {
   name            = "group"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
-  region_id       = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "this" {
-  name               = "workspace"
+  name               = "workspace-1"
   workspace_group_id = singlestoredb_workspace_group.example.id
   size               = "S-00"
   suspended          = false
-  kai_enabled        = true
 }
 
 output "endpoint" {
@@ -86,3 +85,28 @@ Optional:
 
 - `suspend_after_seconds` (Number) When to suspend the workspace, according to the suspend type chosen.
 - `suspend_type` (String) The auto suspend mode for the workspace can have the values `IDLE`, `SCHEDULED`, or `DISABLED` (to create the workspace with no auto suspend settings). Default is `DISABLED`.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_workspace_group.example
+  id = "3c0c0d99-3c09-45ac-a01f-5ab62afd35cf"
+}
+
+import {
+  to = singlestoredb_workspace.this
+  id = "01ede7ad-6e5e-43f2-80e6-f1139aebc47a"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import singlestoredb_workspace_group.example 3c0c0d99-3c09-45ac-a01f-5ab62afd35cf
+terraform import singlestoredb_workspace.this 01ede7ad-6e5e-43f2-80e6-f1139aebc47a
+```
