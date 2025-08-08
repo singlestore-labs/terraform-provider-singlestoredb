@@ -45,5 +45,3 @@ output "singlestoredb_user_this" {
 - `id` (String) The unique identifier of the invitation.
 - `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
 - `user_id` (String) The unique identifier of the user. It is set when the user accepts the invitation.
-
-

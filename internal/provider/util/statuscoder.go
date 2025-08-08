@@ -36,12 +36,15 @@ func StatusOK(resp StatusCoder, ierr error,
 	}
 
 	if code != http.StatusOK {
+		detail := "An unsuccessful status code occurred when calling SingleStore API. "
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			detail += config.InvalidAPIKeyErrorDetail
+		}
+		detail += config.CreateProviderIssueIfNotClearErrorDetail + "\n\nSingleStore client response body: " + MaybeBody(resp)
+
 		return &SummaryWithDetailError{
 			Summary: fmt.Sprintf("SingleStore API client returned status code %s", http.StatusText(code)),
-			Detail: "An unsuccessful status code occurred when calling SingleStore API. " +
-				config.InvalidAPIKeyErrorDetail +
-				config.CreateProviderIssueIfNotClearErrorDetail +
-				"\n\nSingleStore client response body: " + MaybeBody(resp),
+			Detail:  detail,
 		}
 	}
 

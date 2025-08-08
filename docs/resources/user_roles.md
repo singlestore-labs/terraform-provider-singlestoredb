@@ -56,5 +56,3 @@ Required:
 - `resource_id` (String) The identifier of the resource.
 - `resource_type` (String) The type of the resource.
 - `role_name` (String) The name of the role.
-
-

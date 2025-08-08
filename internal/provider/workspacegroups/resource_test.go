@@ -31,9 +31,8 @@ var (
 func TestCRUDWorkspaceGroup(t *testing.T) {
 	regionsv2 := []management.RegionV2{
 		{
-			Region:     "GS - US West 2 (Oregon) - aws-oregon-gs1",
 			Provider:   management.RegionV2ProviderAWS,
-			RegionName: "aws-oregon-gs1",
+			RegionName: "us-east-1",
 		},
 	}
 

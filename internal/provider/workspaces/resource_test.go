@@ -34,16 +34,8 @@ var (
 	updatedSuspendType            = "IDLE"
 )
 
-func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
+func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
 	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
-
-	regions := []management.Region{
-		{
-			RegionID: uuid.MustParse("2ca3d358-021d-45ed-86cb-38b8d14ac507"),
-			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider: management.RegionProviderAWS,
-		},
-	}
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 
@@ -53,7 +45,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
-		RegionID:         regions[0].RegionID,
+		RegionName:       "us-east-1",
+		Provider:         management.WorkspaceGroupProviderAWS,
 		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
@@ -71,22 +64,9 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 		WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
 		CacheConfig:      util.MaybeFloat32(types.Float32Value(1)),
 		ScaleFactor:      util.MaybeFloat32(types.Float32Value(1)),
-	}
-
-	regionsHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != "/v1/regions" || r.Method != http.MethodGet {
-			return false
-		}
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(regions))
-		require.NoError(t, err)
-
-		return true
 	}
 
 	workspaceGroupsPostHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +257,6 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 	}
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		regionsHandler,
 		workspaceGroupsGetHandler,
 		workspacesGetHandler,
 	}
@@ -323,7 +302,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:cyclop,maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "created_at", workspace.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", *workspace.Endpoint),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "true"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "false"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
 				),

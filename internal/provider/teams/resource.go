@@ -314,7 +314,7 @@ func (r *teamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	teamDeleteResponse, err := r.DeleteV1TeamsTeamIDWithResponse(ctx,
 		uuid.MustParse(state.ID.ValueString()),
 	)
-	if serr := util.StatusOK(teamDeleteResponse, err); serr != nil {
+	if serr := util.StatusOK(teamDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,

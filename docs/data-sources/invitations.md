@@ -49,5 +49,3 @@ Read-Only:
 - `id` (String) The unique identifier of the invitation.
 - `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
 - `teams` (List of String) A list of teams associated with the user.
-
-

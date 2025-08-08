@@ -3,7 +3,7 @@
 page_title: "singlestoredb_team Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB teams with this resource. The 'apply' action creates a new team or updates an existing one. You can add/remove users to/from the team by specifying their email addresses in the 'memberusers' list. You can also add/remove other teams to/from this team by specifying their IDs in the 'memberteams' list. The 'destroy' action deletes the team. Updating the 'memberusers' or 'memberteams' lists will add or remove the corresponding users or teams from the team.
+  Manage SingleStoreDB teams with this resource. The 'apply' action creates a new team or updates an existing one. You can add/remove users to/from the team by specifying their email addresses in the 'member_users' list. You can also add/remove other teams to/from this team by specifying their IDs in the 'member_teams' list. The 'destroy' action deletes the team. Updating the 'member_users' or 'member_teams' lists will add or remove the corresponding users or teams from the team.
 ---
 
 # singlestoredb_team (Resource)
@@ -48,5 +48,3 @@ output "singlestoredb_team_id" {
 
 - `created_at` (String) The timestamp of when the team was created.
 - `id` (String) The unique identifier of the team.
-
-

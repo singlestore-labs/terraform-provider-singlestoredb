@@ -19,14 +19,12 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_regions_v2" "all" {}
-
 resource "singlestoredb_workspace_group" "this" {
   name            = "group"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
-  cloud_provider  = data.singlestoredb_regions_v2.all.regions.0.provider
-  region_name     = data.singlestoredb_regions_v2.all.regions.0.region_name
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
   admin_password  = "mockPassword193!"
 }
 ```
@@ -56,4 +54,21 @@ resource "singlestoredb_workspace_group" "this" {
 - `id` (String) The unique identifier of the workspace group.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 
+## Import
 
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_workspace_group.this
+  id = "3c0c0d99-3c09-45ac-a01f-5ab62afd35cf"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import singlestoredb_workspace_group.this 3c0c0d99-3c09-45ac-a01f-5ab62afd35cf
+```

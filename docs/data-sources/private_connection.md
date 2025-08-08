@@ -52,5 +52,3 @@ output "this_private_connection" {
 - `web_socket_port` (Number) The websockets port.
 - `workspace_group_id` (String) The ID of the workspace group containing the private connection.
 - `workspace_id` (String) The ID of the workspace to connect with.
-
-
