@@ -29,7 +29,7 @@ resource "singlestoredb_workspace_group" "group" {
 }
 
 resource "singlestoredb_workspace" "workspace" {
-  name               = "workspace"
+  name               = "workspace-1"
   workspace_group_id = singlestoredb_workspace_group.group.id
   size               = "S-00"
   suspended          = false
@@ -37,7 +37,7 @@ resource "singlestoredb_workspace" "workspace" {
 }
 
 resource "singlestoredb_private_connection" "this" {
-  allow_list         = "12345" //AWS account id
+  allow_list         = "12345" // AWS account id.
   type               = "INBOUND"
   workspace_group_id = singlestoredb_workspace_group.group.id
   workspace_id       = singlestoredb_workspace.workspace.id
