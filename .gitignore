@@ -3,3 +3,4 @@ terraform-provider-singlestoredb
 *.tfstate.backup
 .terraformrc
 *.out
+.env
