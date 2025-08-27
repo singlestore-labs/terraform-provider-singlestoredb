@@ -40,7 +40,7 @@ resource "singlestoredb_workspace_group" "this" {
 ### Optional
 
 - `admin_password` (String, Sensitive) The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.
-- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.
+- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.
 - `deployment_type` (String) The deployment type that will be applied to all the workspaces within the workspace group. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
 - `expires_at` (String) The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
 - `high_availability_two_zones` (Boolean) Enables deployment across two Availability Zones.

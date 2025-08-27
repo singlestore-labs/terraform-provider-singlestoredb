@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -105,7 +106,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"cloud_provider": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'AZURE'.",
+				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(management.RegionV2ProviderAWS), string(management.RegionV2ProviderGCP), string(management.RegionV2ProviderAzure)),
 				},
@@ -182,7 +183,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
 		Name:                     plan.Name.ValueString(),
 		RegionID:                 regionID,
-		Provider:                 util.WorkspaceGroupCloudProviderString(plan.CloudProvider),
+		Provider:                 util.WorkspaceGroupCloudProviderString(plan.CloudProvider.ValueString()),
 		RegionName:               util.MaybeString(plan.RegionName),
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
@@ -513,11 +514,20 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
 	} else {
-		result.CloudProvider = types.StringValue(string(workspaceGroup.Provider))
+		result.CloudProvider = normalizeCloudProvider(workspaceGroup.Provider)
 		result.RegionName = types.StringValue(workspaceGroup.RegionName)
 	}
 
 	return result
+}
+
+func normalizeCloudProvider(provider management.WorkspaceGroupProvider) basetypes.StringValue {
+	result := util.WorkspaceGroupCloudProviderString(string(provider))
+	if result == nil {
+		return types.StringValue(string(provider)) // We should never get here but keeping the old behavior as the default.
+	}
+
+	return types.StringValue(string(*result))
 }
 
 // waitCondition return nil if it is satisfied.
