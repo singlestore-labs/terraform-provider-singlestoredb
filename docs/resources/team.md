@@ -48,3 +48,22 @@ output "singlestoredb_team_id" {
 
 - `created_at` (String) The timestamp of when the team was created.
 - `id` (String) The unique identifier of the team.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_team.this
+  id = "4c008578-6d94-4b15-bb8d-0706cd0bd8dc"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import singlestoredb_team.this 4c008578-6d94-4b15-bb8d-0706cd0bd8dc
+```
