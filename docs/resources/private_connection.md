@@ -19,25 +19,22 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_regions" "all" {}
-
 resource "singlestoredb_workspace_group" "group" {
   name            = "group"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
-  region_id       = data.singlestoredb_regions.all.regions.0.id // Prefer specifying the explicit region ID in production environments as the list of regions may vary.
+  cloud_provider  = "AWS"
+  region_name     = "us-west-2"
 }
 
 resource "singlestoredb_workspace" "workspace" {
   name               = "workspace-1"
   workspace_group_id = singlestoredb_workspace_group.group.id
   size               = "S-00"
-  suspended          = false
-  kai_enabled        = true
 }
 
 resource "singlestoredb_private_connection" "this" {
-  allow_list         = "12345" // AWS account id.
+  allow_list         = "651246146166"
   type               = "INBOUND"
   workspace_group_id = singlestoredb_workspace_group.group.id
   workspace_id       = singlestoredb_workspace.workspace.id
@@ -84,3 +81,34 @@ output "private_connection_id" {
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections.
 - `status` (String) The status of the private connection.
 - `updated_at` (String) The timestamp of when the private connection was updated.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_workspace_group.group
+  id = "21d90bbf-4248-4c5d-9f7b-43f9e320e891"
+}
+
+import {
+  to = singlestoredb_workspace.workspace
+  id = "f33be344-9b20-4540-8e6b-09a6d9c534e8"
+}
+
+import {
+  to = singlestoredb_private_connection.this
+  id = "26d4b214-ce96-445a-95d2-0980697d8fce"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import singlestoredb_workspace_group.group 21d90bbf-4248-4c5d-9f7b-43f9e320e891
+terraform import singlestoredb_workspace.workspace f33be344-9b20-4540-8e6b-09a6d9c534e8
+terraform import singlestoredb_private_connection.this 26d4b214-ce96-445a-95d2-0980697d8fce
+```
