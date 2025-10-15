@@ -45,3 +45,23 @@ output "singlestoredb_user_this" {
 - `id` (String) The unique identifier of the invitation.
 - `state` (String) The state of the invitation. Possible values are Pending, Accepted, Refused, or Revoked.
 - `user_id` (String) The unique identifier of the user. It is set when the user accepts the invitation.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_user.this
+  id = "39e19419-364c-4070-87c6-2785ba898f63"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# Use singlestoredb_invitations endpoint to get IDs of invitations
+terraform import singlestoredb_user.this 39e19419-364c-4070-87c6-2785ba898f63
+```
