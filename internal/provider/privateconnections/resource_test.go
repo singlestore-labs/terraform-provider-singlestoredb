@@ -23,19 +23,12 @@ import (
 )
 
 var (
-	updateAllowedList     = strings.Join([]string{"updated", "12345"}, "-")
+	allowedList           = "651246146166"
+	updateAllowedList     = strings.Join([]string{"updated", allowedList}, "-")
 	privateConnectionID   = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	workspaceID           = uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
 	workspaceGroupID      = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
 	defaultDeploymentType = management.WorkspaceGroupDeploymentTypePRODUCTION
-
-	regions = []management.Region{
-		{
-			RegionID: uuid.MustParse("2ca3d358-021d-45ed-86cb-38b8d14ac507"),
-			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider: management.RegionProviderAWS,
-		},
-	}
 
 	workspaceGroup = management.WorkspaceGroup{
 		AllowAllTraffic:  util.Ptr(false),
@@ -43,7 +36,8 @@ var (
 		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
-		RegionID:         regions[0].RegionID,
+		Provider:         management.WorkspaceGroupProviderAWS,
+		RegionName:       "us-west-2",
 		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
@@ -59,20 +53,19 @@ var (
 		WorkspaceGroupID: workspaceGroupID,
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		KaiEnabled:       util.Ptr(true),
 		Size:             config.TestInitialWorkspaceSize,
 		ScaleFactor:      util.MaybeFloat32(types.Float32Value(1)),
 	}
 
 	privateConnection = management.PrivateConnection{
 		ActiveAt:            util.Ptr("2025-01-21T11:11:38.145343Z"),
-		AllowList:           util.Ptr("12345"),
+		AllowList:           util.Ptr(allowedList),
 		CreatedAt:           util.Ptr("2025-01-21T11:11:38.145343Z"),
 		UpdatedAt:           util.Ptr("2025-01-21T11:11:38.145343Z"),
 		Endpoint:            util.Ptr("com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406"),
 		OutboundAllowList:   util.Ptr("127.0.0.0"),
 		PrivateConnectionID: privateConnectionID,
-		ServiceName:         util.Ptr(string("test name")),
+		ServiceName:         util.Ptr("test name"),
 		Status:              util.Ptr(management.PrivateConnectionStatusACTIVE),
 		Type:                util.Ptr(management.PrivateConnectionTypeINBOUND),
 		WorkspaceID:         util.Ptr(workspaceID),
@@ -81,8 +74,6 @@ var (
 )
 
 func TestCRUDPrivateConnection(t *testing.T) {
-	regionsHandler := createGetHandler(t, "/v1/regions", http.MethodGet, regions)
-
 	workspaceGroupsGetHandler := createGetHandler(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), http.MethodGet, workspaceGroup)
 
 	workspacesGetHandler := createGetHandler(t, strings.Join([]string{"/v1/workspaces", workspaceID.String()}, "/"), http.MethodGet, workspace)
@@ -236,7 +227,6 @@ func TestCRUDPrivateConnection(t *testing.T) {
 	}
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		regionsHandler,
 		workspaceGroupsGetHandler,
 		workspacesGetHandler,
 		privateConnectionsGetHandler,
@@ -277,17 +267,17 @@ func TestCRUDPrivateConnection(t *testing.T) {
 				Config: examples.PrivateConnectionsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", config.IDAttribute, privateConnectionID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "active_at", string("2025-01-21T11:11:38.145343Z")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", string("12345")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "created_at", string("2025-01-21T11:11:38.145343Z")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "endpoint", string("com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "outbound_allow_list", string("127.0.0.0")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "service_name", string("test name")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", string("ACTIVE")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", string("INBOUND")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", string("283d4b0d-b0d6-485a-bc2d-a763c523c68a")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", string("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", string("2025-01-21T11:11:38.145343Z")),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "active_at", "2025-01-21T11:11:38.145343Z"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", allowedList),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "created_at", "2025-01-21T11:11:38.145343Z"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "endpoint", "com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "outbound_allow_list", "127.0.0.0"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "service_name", "test name"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", "ACTIVE"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", "INBOUND"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", "a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", "2025-01-21T11:11:38.145343Z"),
 				),
 			},
 			{
@@ -296,17 +286,17 @@ func TestCRUDPrivateConnection(t *testing.T) {
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", config.IDAttribute, privateConnectionID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "active_at", string("2025-01-21T11:11:38.145343Z")),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "active_at", "2025-01-21T11:11:38.145343Z"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", updateAllowedList),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "created_at", string("2025-01-21T11:11:38.145343Z")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "endpoint", string("com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "outbound_allow_list", string("127.0.0.0")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "service_name", string("test name")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", string("ACTIVE")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", string("INBOUND")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", string("283d4b0d-b0d6-485a-bc2d-a763c523c68a")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", string("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", string("2025-01-21T11:11:38.145343Z")),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "created_at", "2025-01-21T11:11:38.145343Z"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "endpoint", "com.amazonaws.vpce.eu-central-1.vpce-svc-074a8eb58bb50c406"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "outbound_allow_list", "127.0.0.0"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "service_name", "test name"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", "ACTIVE"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", "INBOUND"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", "a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", "2025-01-21T11:11:38.145343Z"),
 				),
 			},
 		},
@@ -340,8 +330,8 @@ func TestPrivateConnectionResourceIntegration(t *testing.T) {
 				Config: examples.PrivateConnectionsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", string("12345")),
-					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", string("INBOUND")),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", allowedList),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", "INBOUND"),
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", "workspace_id"),
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", "workspace_group_id"),
 				),
