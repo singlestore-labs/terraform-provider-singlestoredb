@@ -3,6 +3,7 @@ package workspacegroups
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -45,7 +46,9 @@ type workspaceGroupDataSourceModel struct {
 
 type workspaceGroupDataSourceSchemaConfig struct {
 	computeWorkspaceGroupID    bool
-	requireWorkspaceGroupID    bool
+	optionalWorkspaceGroupID   bool
+	computeName                bool
+	optionalName               bool
 	workspaceGroupIDValidators []validator.String
 }
 
@@ -64,9 +67,10 @@ func (d *workspaceGroupsDataSourceGet) Metadata(_ context.Context, req datasourc
 // Schema defines the schema for the data source.
 func (d *workspaceGroupsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Retrieve a specific workspace group using its ID with this data source.",
+		MarkdownDescription: "Retrieve a specific workspace group using its name or ID with this data source.",
 		Attributes: newWorkspaceGroupDataSourceSchemaAttributes(workspaceGroupDataSourceSchemaConfig{
-			requireWorkspaceGroupID:    true,
+			optionalWorkspaceGroupID:   true,
+			optionalName:               true,
 			workspaceGroupIDValidators: []validator.String{util.NewUUIDValidator()},
 		}),
 	}
@@ -81,50 +85,35 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 		return
 	}
 
-	id, err := uuid.Parse(data.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.IDAttribute),
-			"Invalid workspace group ID",
-			"The workspace group ID should be a valid UUID",
-		)
+	// Validate that exactly one of id or name is provided
+	idProvided := !data.ID.IsNull() && !data.ID.IsUnknown()
+	nameProvided := !data.Name.IsNull() && !data.Name.IsUnknown()
 
-		return
-	}
-
-	workspaceGroup, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
-	if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+	if !idProvided && !nameProvided {
 		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
+			"Missing identifier",
+			"Either 'id' or 'name' must be specified.",
 		)
 
 		return
 	}
 
-	if workspaceGroup.JSON200.TerminatedAt != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.IDAttribute),
-			fmt.Sprintf("Workspace group with the specified ID existed, but got terminated at %s", *workspaceGroup.JSON200.TerminatedAt),
-			"Make sure to set the workspace group ID of the workspace group that exists.",
-		)
-
-		return
-	}
-
-	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
+	if idProvided && nameProvided {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", workspaceGroup.JSON200.State),
-			config.ContactSupportErrorDetail,
+			"Conflicting identifiers",
+			"Only one of 'id' or 'name' can be specified, not both.",
 		)
 
 		return
 	}
 
-	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200)
+	if idProvided {
+		readByID(data, ctx, d, resp)
 
-	diags = resp.State.Set(ctx, &result)
-	resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	readByName(data, ctx, d, resp)
 }
 
 // Configure adds the provider configured client to the data source.
@@ -140,12 +129,13 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 	return map[string]schema.Attribute{
 		config.IDAttribute: schema.StringAttribute{
 			Computed:            conf.computeWorkspaceGroupID,
-			Required:            conf.requireWorkspaceGroupID,
+			Optional:            conf.optionalWorkspaceGroupID,
 			MarkdownDescription: "The unique identifier of the workspace group.",
 			Validators:          conf.workspaceGroupIDValidators,
 		},
 		"name": schema.StringAttribute{
-			Computed:            true,
+			Computed:            conf.computeName,
+			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the workspace group.",
 		},
 		"state": schema.StringAttribute{
@@ -212,4 +202,88 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 			MarkdownDescription: "The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.",
 		},
 	}
+}
+
+func readByID(data workspaceGroupDataSourceModel, ctx context.Context, d *workspaceGroupsDataSourceGet, resp *datasource.ReadResponse) {
+	id, err := uuid.Parse(data.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.IDAttribute),
+			"Invalid workspace group ID",
+			"The workspace group ID should be a valid UUID",
+		)
+
+		return
+	}
+
+	workspaceGroup, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
+	if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Detail,
+		)
+
+		return
+	}
+
+	if workspaceGroup.JSON200.TerminatedAt != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.IDAttribute),
+			fmt.Sprintf("Workspace group with the specified ID existed, but got terminated at %s", *workspaceGroup.JSON200.TerminatedAt),
+			"Make sure to set the workspace group ID of the workspace group that exists.",
+		)
+
+		return
+	}
+
+	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
+		resp.Diagnostics.AddError(
+			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", workspaceGroup.JSON200.State),
+			config.ContactSupportErrorDetail,
+		)
+
+		return
+	}
+
+	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200)
+
+	diags := resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *workspaceGroupsDataSourceGet, resp *datasource.ReadResponse) {
+	workspaceGroups, err := d.GetV1WorkspaceGroupsWithResponse(ctx, &management.GetV1WorkspaceGroupsParams{})
+	if serr := util.StatusOK(workspaceGroups, err); serr != nil {
+		resp.Diagnostics.AddError(
+			serr.Summary,
+			serr.Detail,
+		)
+
+		return
+	}
+
+	result := util.Filter(util.Deref(workspaceGroups.JSON200), func(wg management.WorkspaceGroup) bool {
+		return strings.EqualFold(strings.TrimSpace(wg.Name), strings.TrimSpace(data.Name.ValueString()))
+	})
+
+	if len(result) == 0 {
+		resp.Diagnostics.AddError(
+			"Workspace group not found",
+			fmt.Sprintf("No workspace group with the name '%s' was found. Please verify that the name is correct and that the workspace group exists.", data.Name.ValueString()),
+		)
+
+		return
+	}
+
+	if len(result) > 1 {
+		resp.Diagnostics.AddError(
+			"Multiple workspace groups found",
+			fmt.Sprintf("Multiple workspace groups with the name '%s' were found. Please specify the workspace group ID to uniquely identify the workspace group.", data.Name.ValueString()),
+		)
+
+		return
+	}
+
+	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0])))
+	resp.Diagnostics.Append(diags...)
 }

@@ -137,3 +137,12 @@ func TestJoin(t *testing.T) {
 	result := util.Join([]management.WorkspaceState{management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED}, ", ")
 	require.Equal(t, result, "ACTIVE, SUSPENDED")
 }
+
+func TestFilter(t *testing.T) {
+	nums := []int{1, 2, 3, 4, 5, 6}
+	evenNums := util.Filter(nums, func(n int) bool {
+		return n%2 == 0
+	})
+
+	require.Equal(t, []int{2, 4, 6}, evenNums)
+}
