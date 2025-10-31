@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 data "singlestoredb_workspace" "this" {
-  id = "26171125-ecb8-5944-9896-209fbffc1f15" # Replace with the actual ID of the workspace.
+  name = "foo"
 }
 
 output "this_workspace" {

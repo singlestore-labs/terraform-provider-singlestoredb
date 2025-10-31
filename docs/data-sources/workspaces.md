@@ -51,10 +51,10 @@ Read-Only:
 - `created_at` (String) The timestamp indicating when the workspace was initially created.
 - `deployment_type` (String) Deployment type of the workspace.
 - `endpoint` (String) The endpoint to connect to the workspace.
-- `id` (String) The unique identifier of the workspace.
+- `id` (String) The unique identifier of the workspace. Either `id` or `name` must be specified.
 - `kai_enabled` (Boolean) Whether the Kai API is enabled for the workspace.
 - `last_resumed_at` (String) The timestamp indicating the most recent time that the workspace was resumed from suspension. If the workspace has never been suspended, this attribute will not be included in the output.
-- `name` (String) The name of the workspace.
+- `name` (String) The name of the workspace. Either `id` or `name` must be specified.
 - `scale_factor` (Number) The scale factor specified for the workspace. The scale factor can be 1, 2 or 4.
 - `size` (String) The size of the workspace, represented in workspace size notation, such as 'S-00' or 'S-1'.
 - `state` (String) The current state of the workspace.

@@ -58,6 +58,7 @@ func (d *workspacesDataSourceList) Schema(_ context.Context, _ datasource.Schema
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: newWorkspaceDataSourceSchemaAttributes(workspaceDataSourceSchemaConfig{
 						computeWorkspaceID: true,
+						computedName:       true,
 					}),
 				},
 			},
