@@ -146,6 +146,18 @@ func Any[T comparable](ts []T, value T) bool {
 	return false
 }
 
+// Filter returns a new slice containing only the elements that satisfy the predicate function.
+func Filter[T any](ts []T, predicate func(T) bool) []T {
+	var result []T
+	for _, t := range ts {
+		if predicate(t) {
+			result = append(result, t)
+		}
+	}
+
+	return result
+}
+
 // ReadNotEmptyFileTrimmed reads the file at path and returns the white space trimmed non-empty content.
 func ReadNotEmptyFileTrimmed(path string) (string, error) {
 	if !filepath.IsAbs(path) {
