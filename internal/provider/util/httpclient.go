@@ -5,18 +5,29 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-const respReadLimit = int64(4096)
+const (
+	respReadLimit  = int64(4096)
+	defaultTimeout = 15 * time.Minute // Generous timeout to ensure no hanging forever.
+)
 
 // NewHTTPClient creates an HTTP client for the Terraform provider.
 func NewHTTPClient() *http.Client {
-	result := retryablehttp.NewClient()
-	result.ErrorHandler = HandleError
+	return NewClientWithTimeout(defaultTimeout)
+}
 
-	return result.StandardClient()
+func NewClientWithTimeout(timeout time.Duration) *http.Client {
+	client := retryablehttp.NewClient()
+	client.ErrorHandler = HandleError
+
+	result := client.StandardClient()
+	result.Timeout = timeout
+
+	return result
 }
 
 var _ retryablehttp.ErrorHandler = HandleError

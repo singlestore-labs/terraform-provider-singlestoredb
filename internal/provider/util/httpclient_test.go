@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
@@ -82,4 +84,25 @@ func TestHandleError(t *testing.T) {
 	require.ErrorContains(t, err, readErr.Error())
 	require.ErrorContains(t, err, extra.Error())
 	require.ErrorContains(t, err, strconv.Itoa(numTries))
+}
+
+func TestTimeout(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wg.Wait() // Hanging here to trigger timeout.
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { wg.Done() }) // Letting the server terminate.
+
+	client := util.NewClientWithTimeout(time.Second)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.ErrorContains(t, err, "Client.Timeout exceeded")
+
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 }
