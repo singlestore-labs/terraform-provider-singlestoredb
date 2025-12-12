@@ -3,6 +3,7 @@ package teams
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
@@ -190,13 +191,19 @@ func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	team, err := r.GetV1TeamsTeamIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 
-	if serr := util.StatusOK(team, err); serr != nil {
+	if serr := util.StatusOK(team, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
 		)
 
 		return
+	}
+
+	if team.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+
+		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
 	state = toTeamResourceModel(*team.JSON200)

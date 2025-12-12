@@ -2,6 +2,7 @@ package roles
 
 import (
 	"context"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -117,6 +118,15 @@ func (r *teamRoleGrantResource) Read(ctx context.Context, req resource.ReadReque
 
 	roles, err := getTeamRolesAndValidate(ctx, r, state.TeamID.String(), state.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{state.Role}, nil)
 	if err != nil {
+		var roleNotFoundErr *RoleNotFoundError
+		if errors.As(err, &roleNotFoundErr) {
+			// Role was deleted outside Terraform - remove from state
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
+
+		// Other errors (network, permissions, etc.) should fail
 		resp.Diagnostics.AddError(
 			"Failed to fetch and validate team roles",
 			"An error occurred during the process of fetching team roles or validating them afterward: "+err.Error(),
