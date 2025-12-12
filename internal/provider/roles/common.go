@@ -16,6 +16,24 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
+// RoleNotFoundError indicates that expected roles were not found.
+type RoleNotFoundError struct {
+	MissedRoles  []RoleAttributesModel
+	EntityType   EntityType
+	EntityID     string
+	ResourceType *string
+}
+
+func (e *RoleNotFoundError) Error() string {
+	if e.ResourceType == nil {
+		return fmt.Sprintf("the expected roles %v are not granted to the %s %s",
+			e.MissedRoles, e.EntityType, e.EntityID)
+	}
+
+	return fmt.Sprintf("the expected roles %v are not granted to the %s %s for the resource type '%s'",
+		e.MissedRoles, e.EntityType, e.EntityID, *e.ResourceType)
+}
+
 type EntityType string
 
 const (
@@ -134,11 +152,12 @@ func validateRoles(ctx context.Context, entityIDstr string, entityType EntityTyp
 	if expectedRoles != nil {
 		missedRoles := SubtractRoles(*expectedRoles, roles)
 		if len(missedRoles) > 0 {
-			if resourceType == nil {
-				return nil, fmt.Errorf("the expected roles %v are not granted to the %s %s", missedRoles, entityType, entityIDstr)
+			return nil, &RoleNotFoundError{
+				MissedRoles:  missedRoles,
+				EntityType:   entityType,
+				EntityID:     entityIDstr,
+				ResourceType: resourceType,
 			}
-
-			return nil, fmt.Errorf("the expected roles %v are not granted to the %s %s for the resource type '%s'", missedRoles, entityType, entityIDstr, *resourceType)
 		}
 		resultRoles = MatchedRoles(*expectedRoles, roles)
 	}

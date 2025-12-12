@@ -2,6 +2,7 @@ package roles
 
 import (
 	"context"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -114,6 +115,15 @@ func (r *userRolesGrantResource) Read(ctx context.Context, req resource.ReadRequ
 
 	roles, err := getUserRolesAndValidate(ctx, r, state.UserID.String(), nil, &state.Roles, nil)
 	if err != nil {
+		var roleNotFoundErr *RoleNotFoundError
+		if errors.As(err, &roleNotFoundErr) {
+			// Role was deleted outside Terraform - remove from state
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
+
+		// Other errors (network, permissions, etc.) should fail
 		resp.Diagnostics.AddError(
 			"Failed to fetch and validate user roles",
 			"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
