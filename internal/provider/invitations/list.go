@@ -97,7 +97,7 @@ func (d *invitationsDataSourceList) Read(ctx context.Context, req datasource.Rea
 		email = util.MaybeString(data.Email)
 	}
 
-	invitations, err := d.GetV1betaInvitationsWithResponse(ctx, &management.GetV1betaInvitationsParams{Email: email})
+	invitations, err := d.GetV1InvitationsWithResponse(ctx, &management.GetV1InvitationsParams{Email: email})
 	if serr := util.StatusOK(invitations, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
