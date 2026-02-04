@@ -45,7 +45,7 @@ func TestReadsFlowInstanceByID(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, cty.StringVal(flowInstance.FlowID.String())).
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),
@@ -73,7 +73,7 @@ func TestFlowInstanceNotFoundByID(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),
@@ -96,7 +96,7 @@ func TestFlowInstanceInvalidInputUUID(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, cty.StringVal("invalid-uuid")).
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),
@@ -141,7 +141,7 @@ func TestReadsFlowInstanceByName(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, unset).
 					WithFlowInstanceGetDataSource("this")("name", cty.StringVal(flowInstance.Name)).
 					String(),
@@ -174,7 +174,7 @@ func TestFlowInstanceNotFoundByName(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, unset).
 					WithFlowInstanceGetDataSource("this")("name", cty.StringVal("nonexistent-flow")).
 					String(),
@@ -219,7 +219,7 @@ func TestMultipleFlowInstancesFoundByName(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, unset).
 					WithFlowInstanceGetDataSource("this")("name", cty.StringVal("duplicate-name")).
 					String(),
@@ -253,7 +253,7 @@ func TestFlowInstanceTerminatedByID(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceGetDataSource).
+				Config: testutil.UpdatableConfig(examples.FlowGetDataSource).
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, cty.StringVal(flowInstance.FlowID.String())).
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),

@@ -51,7 +51,7 @@ func TestListsFlowInstances(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceListDataSource).String(),
+				Config: testutil.UpdatableConfig(examples.FlowListDataSource).String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", "flow_instances.#", "2"),
@@ -88,7 +88,7 @@ func TestListsEmptyFlowInstances(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceListDataSource).String(),
+				Config: testutil.UpdatableConfig(examples.FlowListDataSource).String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", "flow_instances.#", "0"),
