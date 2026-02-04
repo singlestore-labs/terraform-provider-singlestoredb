@@ -228,7 +228,7 @@ func TestCRUDFlowInstance(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceResource).
+				Config: testutil.UpdatableConfig(examples.FlowResource).
 					WithFlowInstanceResource("this")("name", cty.StringVal(flowInstanceName)).
 					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
 					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
@@ -328,7 +328,7 @@ func TestFlowInstanceImport(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.FlowInstanceResource).
+				Config: testutil.UpdatableConfig(examples.FlowResource).
 					WithFlowInstanceResource("this")("name", cty.StringVal(flowInstanceName)).
 					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
 					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
