@@ -22,12 +22,12 @@ func TestReadsRegions(t *testing.T) {
 		{
 			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
 			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider: management.RegionProviderAWS,
+			Provider: management.CloudProviderAWS,
 		},
 		{
 			RegionID: uuid.MustParse("e8f6f596-6fba-4b87-adb1-7f9e960c7c78"),
 			Region:   "East US 1 (Virginia)",
-			Provider: management.RegionProviderAzure,
+			Provider: management.CloudProviderAzure,
 		},
 	}
 

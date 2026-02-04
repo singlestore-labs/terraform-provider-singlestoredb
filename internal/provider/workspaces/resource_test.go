@@ -46,7 +46,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionName:       "us-east-1",
-		Provider:         management.WorkspaceGroupProviderAWS,
+		Provider:         management.CloudProviderAWS,
 		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,

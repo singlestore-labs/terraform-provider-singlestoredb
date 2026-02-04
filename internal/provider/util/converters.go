@@ -202,11 +202,11 @@ func WorkspaceGroupUpdateDeploymentTypeString(wgs types.String) *management.Work
 	return nil
 }
 
-func WorkspaceGroupCloudProviderString(provider string) *management.WorkspaceGroupCreateProvider {
-	for _, s := range []management.WorkspaceGroupCreateProvider{
-		management.WorkspaceGroupCreateProviderAWS,
-		management.WorkspaceGroupCreateProviderAzure,
-		management.WorkspaceGroupCreateProviderGCP,
+func WorkspaceGroupCloudProviderString(provider string) *management.CloudProvider {
+	for _, s := range []management.CloudProvider{
+		management.CloudProviderAWS,
+		management.CloudProviderAzure,
+		management.CloudProviderGCP,
 	} {
 		if strings.EqualFold(provider, string(s)) {
 			return &s
