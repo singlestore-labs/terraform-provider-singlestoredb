@@ -45,7 +45,7 @@ func TestReadsInvitation(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1beta/invitations/%s", invitation.InvitationID), r.URL.Path)
+		require.Equal(t, fmt.Sprintf("/v1/invitations/%s", invitation.InvitationID), r.URL.Path)
 		w.Header().Add("Content-Type", "application/json")
 		_, err := w.Write(testutil.MustJSON(invitation))
 		require.NoError(t, err)

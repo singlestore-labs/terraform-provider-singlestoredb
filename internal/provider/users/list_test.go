@@ -33,7 +33,7 @@ func TestReadUsers(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1beta/users", r.URL.Path)
+		require.Equal(t, "/v1/users", r.URL.Path)
 		w.Header().Add("Content-Type", "application/json")
 		_, err := w.Write(testutil.MustJSON(users))
 		require.NoError(t, err)
