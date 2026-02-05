@@ -100,12 +100,12 @@ func (d *flowInstanceDataSourceGet) Read(ctx context.Context, req datasource.Rea
 	}
 
 	if idProvided {
-		readFlowInstanceByID(data, ctx, d, resp)
+		readByID(data, ctx, d, resp)
 
 		return
 	}
 
-	readFlowInstanceByName(data, ctx, d, resp)
+	readByName(data, ctx, d, resp)
 }
 
 // Configure adds the provider configured client to the data source.
@@ -140,7 +140,7 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 		},
 		"deleted_at": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The timestamp indicating when the Flow instance was terminated. If the Flow instance is active, this attribute will be null.",
+			MarkdownDescription: "The timestamp indicating when the Flow instance was terminated. If the Flow instance is active, this attribute will not be set.",
 		},
 		"endpoint": schema.StringAttribute{
 			Computed:            true,
@@ -155,34 +155,24 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 
 func toFlowInstanceDataSourceModel(flow management.Flow) (flowInstanceDataSourceModel, *util.SummaryWithDetailError) {
 	model := flowInstanceDataSourceModel{
-		ID:        util.UUIDStringValue(flow.FlowID),
-		Name:      types.StringValue(flow.Name),
-		CreatedAt: types.StringValue(flow.CreatedAt.Format("2006-01-02T15:04:05.9999Z")),
-		Endpoint:  util.MaybeStringValue(flow.Endpoint),
-	}
-
-	if flow.WorkspaceID != nil {
-		model.WorkspaceID = util.UUIDStringValue(*flow.WorkspaceID)
-	} else {
-		model.WorkspaceID = types.StringNull()
+		ID:          util.UUIDStringValue(flow.FlowID),
+		Name:        types.StringValue(flow.Name),
+		WorkspaceID: util.MaybeUUIDStringValue(flow.WorkspaceID),
+		CreatedAt:   types.StringValue(flow.CreatedAt.String()),
+		Endpoint:    util.MaybeStringValue(flow.Endpoint),
+		Size:        util.MaybeStringValue(flow.Size),
 	}
 
 	if flow.DeletedAt != nil {
-		model.DeletedAt = types.StringValue(flow.DeletedAt.Format("2006-01-02T15:04:05.9999Z"))
+		model.DeletedAt = types.StringValue(flow.DeletedAt.String())
 	} else {
 		model.DeletedAt = types.StringNull()
-	}
-
-	if flow.Size != nil {
-		model.Size = types.StringValue(*flow.Size)
-	} else {
-		model.Size = types.StringNull()
 	}
 
 	return model, nil
 }
 
-func readFlowInstanceByID(data flowInstanceDataSourceModel, ctx context.Context, d *flowInstanceDataSourceGet, resp *datasource.ReadResponse) {
+func readByID(data flowInstanceDataSourceModel, ctx context.Context, d *flowInstanceDataSourceGet, resp *datasource.ReadResponse) {
 	id, err := uuid.Parse(data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
@@ -225,7 +215,7 @@ func readFlowInstanceByID(data flowInstanceDataSourceModel, ctx context.Context,
 	resp.Diagnostics.Append(diags...)
 }
 
-func readFlowInstanceByName(data flowInstanceDataSourceModel, ctx context.Context, d *flowInstanceDataSourceGet, resp *datasource.ReadResponse) {
+func readByName(data flowInstanceDataSourceModel, ctx context.Context, d *flowInstanceDataSourceGet, resp *datasource.ReadResponse) {
 	// Get all Flow instances
 	flowInstances, err := d.GetV1FlowWithResponse(ctx, &management.GetV1FlowParams{})
 	if serr := util.StatusOK(flowInstances, err); serr != nil {

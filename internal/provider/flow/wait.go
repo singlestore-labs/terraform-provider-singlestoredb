@@ -32,13 +32,6 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 			return retry.RetryableError(err)
 		}
 
-		// Check if the Flow instance has been terminated
-		if flow.JSON200.DeletedAt != nil {
-			err := fmt.Errorf("Flow instance %s has been terminated; %s", flow.JSON200.FlowID, config.ContactSupportErrorDetail)
-
-			return retry.NonRetryableError(err)
-		}
-
 		for _, c := range conditions {
 			if err := c(*flow.JSON200); err != nil {
 				return retry.RetryableError(err)

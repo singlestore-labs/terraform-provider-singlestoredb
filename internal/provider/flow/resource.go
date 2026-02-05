@@ -56,7 +56,7 @@ func (r *flowInstanceResource) Metadata(_ context.Context, req resource.Metadata
 // Schema defines the schema for the resource.
 func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource enables the creation and management of SingleStore Flow instances.",
+		MarkdownDescription: "This resource enables the management of SingleStore Flow instances.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -95,8 +95,7 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 			},
 			"size": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "The size of the Flow instance (in Flow size notation), such as \"F1\".",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -134,10 +133,7 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		WorkspaceID:  workspaceID,
 		UserName:     plan.UserName.ValueString(),
 		DatabaseName: plan.DatabaseName.ValueString(),
-	}
-
-	if !plan.Size.IsNull() && !plan.Size.IsUnknown() {
-		createBody.Size = util.Ptr(plan.Size.ValueString())
+		Size:         util.Ptr(plan.Size.ValueString()),
 	}
 
 	flowCreateResponse, err := r.PostV1FlowWithResponse(ctx, createBody)
@@ -152,7 +148,6 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 
 	flowID := flowCreateResponse.JSON200.FlowID
 
-	// Wait for the Flow instance to be ready (endpoint populated)
 	flow, werr := wait(ctx, r.ClientWithResponsesInterface, flowID, config.FlowInstanceCreationTimeout,
 		waitConditionEndpointReady(),
 	)
@@ -191,7 +186,6 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	// If the Flow instance has been terminated, remove it from state
 	if flow.JSON200.DeletedAt != nil {
 		resp.State.RemoveResource(ctx)
 
@@ -277,27 +271,14 @@ func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.Imp
 
 func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourceModel) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
-		ID:        util.UUIDStringValue(flow.FlowID),
-		Name:      types.StringValue(flow.Name),
-		CreatedAt: types.StringValue(flow.CreatedAt.Format("2006-01-02T15:04:05.9999Z")),
-		Endpoint:  util.MaybeStringValue(flow.Endpoint),
-		// Preserve write-only fields from state (not returned by API)
+		ID:           util.UUIDStringValue(flow.FlowID),
+		Name:         types.StringValue(flow.Name),
+		WorkspaceID:  util.MaybeUUIDStringValue(flow.WorkspaceID),
+		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
+		Endpoint:     util.MaybeStringValue(flow.Endpoint),
+		Size:         util.MaybeStringValue(flow.Size),
 		UserName:     state.UserName,
 		DatabaseName: state.DatabaseName,
-	}
-
-	// WorkspaceID may or may not be returned by the API
-	if flow.WorkspaceID != nil {
-		model.WorkspaceID = util.UUIDStringValue(*flow.WorkspaceID)
-	} else {
-		model.WorkspaceID = state.WorkspaceID
-	}
-
-	// Size may or may not be returned by the API
-	if flow.Size != nil {
-		model.Size = types.StringValue(*flow.Size)
-	} else {
-		model.Size = state.Size
 	}
 
 	return model
