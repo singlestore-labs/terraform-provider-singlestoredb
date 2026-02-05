@@ -33,7 +33,7 @@ func TestReadsFlowInstanceByID(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, fmt.Sprintf("/v1/flow/%s", flowInstance.FlowID), r.URL.Path)
-		w.Header().Add("Content-Type", "json")
+		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
 		_, err := w.Write(testutil.MustJSON(flowInstance))
 		require.NoError(t, err)
 	}))
