@@ -33,7 +33,7 @@ var (
 func TestGrantRevokeUserRoles(t *testing.T) {
 	grantedRoles := []management.IdentityRole{outsideRole}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v1beta/users", userID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v1/users", userID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}
