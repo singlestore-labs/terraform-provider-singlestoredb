@@ -44,7 +44,7 @@ var (
 func TestGrantRevokeUserRole(t *testing.T) {
 	grantedRoles := []management.IdentityRole{outsideRole}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v1beta/users", userID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v1/users", userID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}
@@ -128,7 +128,7 @@ func TestGrantRevokeUserRole(t *testing.T) {
 func TestGrantAlreadyGrantedUserRole(t *testing.T) {
 	grantedRoles := []management.IdentityRole{testRole}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v1beta/users", userID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v1/users", userID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}
@@ -191,13 +191,13 @@ func accessControlsPatchHandler(t *testing.T, w http.ResponseWriter, r *http.Req
 	var url string
 	switch resourceType {
 	case "Organization":
-		url = strings.Join([]string{"/v1beta/organizations", resourceID.String(), "accessControls"}, "/")
+		url = strings.Join([]string{"/v1/organizations", resourceID.String(), "accessControls"}, "/")
 	case "Team":
-		url = strings.Join([]string{"/v1beta/teams", resourceID.String(), "accessControls"}, "/")
+		url = strings.Join([]string{"/v1/teams", resourceID.String(), "accessControls"}, "/")
 	case "Secret":
-		url = strings.Join([]string{"/v1beta/secrets", resourceID.String(), "accessControls"}, "/")
+		url = strings.Join([]string{"/v1/secrets", resourceID.String(), "accessControls"}, "/")
 	case "Cluster":
-		url = strings.Join([]string{"/v1beta/workspaceGroups", resourceID.String(), "accessControls"}, "/")
+		url = strings.Join([]string{"/v1/workspaceGroups", resourceID.String(), "accessControls"}, "/")
 	default:
 		t.Fatalf("%s resource type is not supported", resourceType)
 	}

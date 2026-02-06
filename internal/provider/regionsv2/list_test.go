@@ -19,12 +19,12 @@ func TestReadsRegions(t *testing.T) {
 	regions := []management.RegionV2{
 		{
 			Region:     "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider:   management.RegionV2ProviderAWS,
+			Provider:   management.CloudProviderAWS,
 			RegionName: "aws-oregon-gs1",
 		},
 		{
 			Region:     "East US 1 (Virginia)",
-			Provider:   management.RegionV2ProviderAzure,
+			Provider:   management.CloudProviderAzure,
 			RegionName: "eastus",
 		},
 	}
