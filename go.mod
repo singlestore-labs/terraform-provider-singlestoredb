@@ -1,7 +1,6 @@
 module github.com/singlestore-labs/terraform-provider-singlestoredb
 
-go 1.23
-toolchain go1.24.1
+go 1.23.0
 
 require (
 	github.com/deepmap/oapi-codegen v1.13.0
