@@ -20,10 +20,12 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		flow, err := c.GetV1FlowFlowIDWithResponse(ctx, id)
-		if err != nil { // Not status code OK does not get here, not retrying for that reason.
+		if err != nil {
+			// The HTTP client may return errors due to 5xx responses after exhausting its retries.
+			// We should continue retrying here since the Flow instance may still be initializing.
 			ferr := fmt.Errorf("failed to get Flow instance %s: %w", id, err)
 
-			return retry.NonRetryableError(ferr)
+			return retry.RetryableError(ferr)
 		}
 
 		if code := flow.StatusCode(); code != http.StatusOK {
@@ -62,8 +64,7 @@ func waitConditionEndpointReady() func(management.Flow) error {
 			return fmt.Errorf("Flow instance %s endpoint is not yet available", f.FlowID)
 		}
 
-		// Check that endpoint has been consistently available
-		if !checkLastNTrue(endpointHistory, config.FlowInstanceConsistencyThreshold) {
+		if !util.CheckLastN(endpointHistory, config.FlowInstanceConsistencyThreshold, true) {
 			return fmt.Errorf("Flow instance %s endpoint is available but the Management API did not return it consistently for %d iterations yet",
 				f.FlowID, config.FlowInstanceConsistencyThreshold,
 			)
@@ -71,19 +72,4 @@ func waitConditionEndpointReady() func(management.Flow) error {
 
 		return nil
 	}
-}
-
-// checkLastNTrue checks if the last n elements in the slice are all true.
-func checkLastNTrue(history []bool, n int) bool {
-	if len(history) < n {
-		return false
-	}
-
-	for i := len(history) - n; i < len(history); i++ {
-		if !history[i] {
-			return false
-		}
-	}
-
-	return true
 }
