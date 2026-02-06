@@ -31,7 +31,7 @@ var (
 func TestCRUDWorkspaceGroup(t *testing.T) {
 	regionsv2 := []management.RegionV2{
 		{
-			Provider:   management.RegionV2ProviderAWS,
+			Provider:   management.CloudProviderAWS,
 			RegionName: "us-east-1",
 		},
 	}
@@ -44,7 +44,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		FirewallRanges:    util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:              config.TestInitialWorkspaceGroupName,
 		RegionName:        regionsv2[0].RegionName,
-		Provider:          management.WorkspaceGroupProviderAWS,
+		Provider:          management.CloudProviderAWS,
 		State:             management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
 		TerminatedAt:      nil,
 		UpdateWindow:      nil,
@@ -213,7 +213,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.RegionProviderAWS)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_name", workspaceGroup.RegionName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
@@ -229,7 +229,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
-					WithWorkspaceGroupResource("this")("cloud_provider", cty.StringVal(string(management.RegionProviderAWS))).
+					WithWorkspaceGroupResource("this")("cloud_provider", cty.StringVal(string(management.CloudProviderAWS))).
 					WithWorkspaceGroupResource("this")("region_name", cty.StringVal(workspaceGroup.RegionName)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -237,7 +237,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.RegionProviderAWS)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_name", workspaceGroup.RegionName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),

@@ -27,7 +27,7 @@ func TestReadsUser(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1beta/users/%s", user.UserID), r.URL.Path)
+		require.Equal(t, fmt.Sprintf("/v1/users/%s", user.UserID), r.URL.Path)
 		w.Header().Add("Content-Type", "application/json") // Necessary to make the library parse the resulting JSON.
 		_, err := w.Write(testutil.MustJSON(user))
 		require.NoError(t, err)

@@ -36,7 +36,7 @@ var (
 		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
-		Provider:         management.WorkspaceGroupProviderAWS,
+		Provider:         management.CloudProviderAWS,
 		RegionName:       "us-west-2",
 		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
