@@ -61,11 +61,6 @@ type workspaceGroupResourceModel struct {
 	UpdateWindow             *updateWindowResourceModel `tfsdk:"update_window"`
 }
 
-type updateWindowResourceModel struct {
-	Hour types.Int64 `tfsdk:"hour"`
-	Day  types.Int64 `tfsdk:"day"`
-}
-
 // NewResource is a helper function to simplify the provider implementation.
 func NewResource() resource.Resource {
 	return &workspaceGroupResource{}
@@ -538,6 +533,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
+	}
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
 	} else {

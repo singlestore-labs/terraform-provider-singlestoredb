@@ -220,6 +220,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_name", workspaceGroup.RegionName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
@@ -271,6 +272,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
+				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
