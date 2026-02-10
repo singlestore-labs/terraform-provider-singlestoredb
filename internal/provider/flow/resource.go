@@ -252,16 +252,8 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	// The RequiresReplace plan modifiers handle the replacement logic,
-	// but we can add additional validation messages here if needed.
-	if !plan.Name.Equal(state.Name) ||
-		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
-		!plan.UserName.Equal(state.UserName) ||
-		!plan.DatabaseName.Equal(state.DatabaseName) ||
-		(!plan.Size.IsNull() && !state.Size.IsNull() && !plan.Size.Equal(state.Size)) {
-		// RequiresReplace will handle this, no additional action needed
-		return
-	}
+	// We don't need any additional validation here since all mutable fields
+	// have RequiresReplace plan modifiers.
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.

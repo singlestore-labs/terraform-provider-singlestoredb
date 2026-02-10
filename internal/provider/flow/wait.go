@@ -61,11 +61,11 @@ func waitConditionEndpointReady() func(management.Flow) error {
 		endpointHistory = append(endpointHistory, hasEndpoint)
 
 		if !hasEndpoint {
-			return fmt.Errorf("Flow instance %s endpoint is not yet available", f.FlowID)
+			return fmt.Errorf("flow instance %s endpoint is not yet available", f.FlowID)
 		}
 
 		if !util.CheckLastN(endpointHistory, config.FlowInstanceConsistencyThreshold, true) {
-			return fmt.Errorf("Flow instance %s endpoint is available but the Management API did not return it consistently for %d iterations yet",
+			return fmt.Errorf("flow instance %s endpoint is available but the Management API did not return it consistently for %d iterations yet",
 				f.FlowID, config.FlowInstanceConsistencyThreshold,
 			)
 		}
