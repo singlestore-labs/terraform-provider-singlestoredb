@@ -28,6 +28,8 @@ var (
 )
 
 func newTestWorkspaceGroup() management.WorkspaceGroup {
+	deploymentType := management.WorkspaceGroupDeploymentTypePRODUCTION
+
 	return management.WorkspaceGroup{
 		AllowAllTraffic:  util.Ptr(false),
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
@@ -35,10 +37,12 @@ func newTestWorkspaceGroup() management.WorkspaceGroup {
 		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:             config.TestInitialWorkspaceGroupName,
 		RegionName:       "us-east-1",
+		Provider:         management.CloudProviderAWS,
 		State:            management.WorkspaceGroupStateACTIVE,
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: testWorkspaceGroupID,
+		DeploymentType:   &deploymentType,
 	}
 }
 
@@ -52,6 +56,7 @@ func newTestWorkspace() management.Workspace {
 		LastResumedAt:    nil,
 		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		Size:             config.TestInitialWorkspaceSize,
+		ScaleFactor:      util.Ptr[float32](1),
 	}
 }
 
