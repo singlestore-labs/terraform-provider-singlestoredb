@@ -45,6 +45,9 @@ jobs:
     - name: Generate
       run: make generate
 
+    - name: Run fmt
+      run: make format
+
     - name: Run gencheck
       run: make gencheck
 
