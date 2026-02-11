@@ -119,7 +119,7 @@ func (uc UpdatableConfig) WithFlowInstanceResource(flowInstanceName string) Attr
 
 // WithAPIKey extends the config with the API key if the key is not empty.
 func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
-	if apiKey == "" {
+	if apiKey == "" || uc == "" {
 		return uc
 	}
 
@@ -135,9 +135,9 @@ func (uc UpdatableConfig) WithAPIKeyPath(apiKeyPath string) UpdatableConfig {
 	)
 }
 
-// WithAPIKey extends the config with the API service url if the url is not empty.
+// WithAPIServiceURL extends the config with the API service url if the url is not empty.
 func (uc UpdatableConfig) WithAPIServiceURL(url string) UpdatableConfig {
-	if url == "" {
+	if url == "" || uc == "" {
 		return uc
 	}
 
