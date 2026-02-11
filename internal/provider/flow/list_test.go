@@ -3,6 +3,8 @@ package flow_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -92,6 +94,40 @@ func TestListsEmptyFlowInstances(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", "flow_instances.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestListFlowInstancesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        "bar",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.FlowListDataSource,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
+			},
+		},
+	})
+}
+
+func TestListFlowInstancesIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowListDataSource).String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.singlestoredb_flow_instances.all", config.IDAttribute, config.TestIDValue),
 				),
 			},
 		},

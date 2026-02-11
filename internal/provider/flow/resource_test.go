@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -263,6 +264,26 @@ func TestFlowInstanceImport(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"user_name", "database_name"}, // Write-only fields not returned by API.
+			},
+		},
+	})
+}
+
+func TestFlowInstanceResourceIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "example",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow_instance.this", "name", "my-flow-instance"),
+					resource.TestCheckResourceAttr("singlestoredb_flow_instance.this", "size", "F1"),
+					resource.TestCheckResourceAttrSet("singlestoredb_flow_instance.this", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_flow_instance.this", "endpoint"),
+					resource.TestCheckResourceAttrSet("singlestoredb_flow_instance.this", "workspace_id"),
+				),
 			},
 		},
 	})
