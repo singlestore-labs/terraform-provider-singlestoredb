@@ -108,7 +108,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.",
 				Validators: []validator.String{
-					stringvalidator.OneOf(string(management.RegionV2ProviderAWS), string(management.RegionV2ProviderGCP), string(management.RegionV2ProviderAzure)),
+					stringvalidator.OneOf(string(management.CloudProviderAWS), string(management.CloudProviderGCP), string(management.CloudProviderAzure)),
 				},
 			},
 			"region_name": schema.StringAttribute{
@@ -521,7 +521,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	return result
 }
 
-func normalizeCloudProvider(provider management.WorkspaceGroupProvider) basetypes.StringValue {
+func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {
 	result := util.WorkspaceGroupCloudProviderString(string(provider))
 	if result == nil {
 		return types.StringValue(string(provider)) // We should never get here but keeping the old behavior as the default.

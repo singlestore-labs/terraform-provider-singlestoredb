@@ -122,7 +122,7 @@ func (d *userDataSourceGet) findUserByID(ctx context.Context, idStr string) (*Us
 		}
 	}
 
-	user, err := d.GetV1betaUsersUserIDWithResponse(ctx, id, &management.GetV1betaUsersUserIDParams{})
+	user, err := d.GetV1UsersUserIDWithResponse(ctx, id, &management.GetV1UsersUserIDParams{})
 	if serr := util.StatusOK(user, err); serr != nil {
 		return nil, serr
 	}
@@ -133,7 +133,7 @@ func (d *userDataSourceGet) findUserByID(ctx context.Context, idStr string) (*Us
 }
 
 func (d *userDataSourceGet) findUserByEmail(ctx context.Context, email string) (*UserDataSourceModel, *util.SummaryWithDetailError) {
-	users, err := d.GetV1betaUsersWithResponse(ctx, &management.GetV1betaUsersParams{Email: &email})
+	users, err := d.GetV1UsersWithResponse(ctx, &management.GetV1UsersParams{Email: &email})
 	if serr := util.StatusOK(users, err); serr != nil {
 		return nil, serr
 	}

@@ -35,7 +35,7 @@ var (
 
 func TestReadRoles(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		url := strings.Join([]string{"/v1beta/teams", listRolesTeamID.String(), "accessControls"}, "/")
+		url := strings.Join([]string{"/v1/teams", listRolesTeamID.String(), "accessControls"}, "/")
 		require.Equal(t, url, r.URL.Path)
 		w.Header().Add("Content-Type", "application/json")
 		_, err := w.Write(testutil.MustJSON(rolesList))

@@ -34,7 +34,7 @@ func TestReadInvitations(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1beta/invitations", r.URL.Path)
+		require.Equal(t, "/v1/invitations", r.URL.Path)
 		w.Header().Add("Content-Type", "application/json")
 		_, err := w.Write(testutil.MustJSON(invitations))
 		require.NoError(t, err)
