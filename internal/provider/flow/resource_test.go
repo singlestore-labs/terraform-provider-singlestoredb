@@ -28,8 +28,6 @@ var (
 )
 
 func newTestWorkspaceGroup() management.WorkspaceGroup {
-	deploymentType := management.WorkspaceGroupDeploymentTypePRODUCTION
-
 	return management.WorkspaceGroup{
 		AllowAllTraffic:  util.Ptr(false),
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
@@ -42,7 +40,7 @@ func newTestWorkspaceGroup() management.WorkspaceGroup {
 		TerminatedAt:     nil,
 		UpdateWindow:     nil,
 		WorkspaceGroupID: testWorkspaceGroupID,
-		DeploymentType:   &deploymentType,
+		DeploymentType:   util.Ptr(management.WorkspaceGroupDeploymentTypePRODUCTION),
 	}
 }
 
@@ -71,7 +69,7 @@ func newTestFlowInstance() management.Flow {
 	}
 }
 
-func createGetHandler(t *testing.T, expectedPath string, responseData interface{}) func(w http.ResponseWriter, r *http.Request) bool {
+func createGetHandler(t *testing.T, expectedPath string, responseData any) func(w http.ResponseWriter, r *http.Request) bool {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) bool {
@@ -92,7 +90,7 @@ type routeKey struct {
 	method string
 }
 
-func writeJSONResponse(t *testing.T, w http.ResponseWriter, data interface{}) {
+func writeJSONResponse(t *testing.T, w http.ResponseWriter, data any) {
 	t.Helper()
 
 	w.Header().Add("Content-Type", "json")
