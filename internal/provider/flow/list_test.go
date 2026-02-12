@@ -73,6 +73,25 @@ func TestListsFlowInstances(t *testing.T) {
 	})
 }
 
+func TestListFlowInstancesError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        "bar",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.FlowListDataSource,
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
+			},
+		},
+	})
+}
+
 func TestListsEmptyFlowInstances(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/flow", r.URL.Path)
@@ -100,26 +119,7 @@ func TestListsEmptyFlowInstances(t *testing.T) {
 	})
 }
 
-func TestListFlowInstancesError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        "bar",
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config:      examples.FlowListDataSource,
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
-			},
-		},
-	})
-}
-
-func TestListFlowInstancesIntegration(t *testing.T) {
+func TestListEmptyFlowInstancesIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{

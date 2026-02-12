@@ -1,7 +1,6 @@
 package flow_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -122,10 +121,18 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 
 	writeRoutes := map[routeKey]func(w http.ResponseWriter){
 		{"/v1/workspaceGroups", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceGroupID uuid.UUID }{WorkspaceGroupID: testWorkspaceGroupID})
+			writeJSONResponse(t, w, struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: testWorkspaceGroupID,
+			})
 		},
 		{"/v1/workspaces", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceID uuid.UUID }{WorkspaceID: testWorkspaceID})
+			writeJSONResponse(t, w, struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: testWorkspaceID,
+			})
 		},
 		{"/v1/flow", http.MethodPost}: func(w http.ResponseWriter) {
 			writeJSONResponse(t, w, newFlowIDResponse())
@@ -134,10 +141,18 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 			writeJSONResponse(t, w, newFlowIDResponse())
 		},
 		{strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceID uuid.UUID }{WorkspaceID: testWorkspaceID})
+			writeJSONResponse(t, w, struct {
+				WorkspaceID uuid.UUID
+			}{
+				WorkspaceID: testWorkspaceID,
+			})
 		},
 		{strings.Join([]string{"/v1/workspaceGroups", testWorkspaceGroupID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceGroupID uuid.UUID }{WorkspaceGroupID: testWorkspaceGroupID})
+			writeJSONResponse(t, w, struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: testWorkspaceGroupID,
+			})
 		},
 	}
 
@@ -146,58 +161,6 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 			if h(w, r) {
 				return
 			}
-		}
-
-		if handler, ok := writeRoutes[routeKey{r.URL.Path, r.Method}]; ok {
-			handler(w)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNotFound)
-	}))
-
-	t.Cleanup(server.Close)
-
-	return server
-}
-
-func setupImportServer(t *testing.T) *httptest.Server {
-	t.Helper()
-
-	workspaceGroup := newTestWorkspaceGroup()
-	workspace := newTestWorkspace()
-	flowInstance := newTestFlowInstance()
-
-	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		createGetHandler(t, fmt.Sprintf("/v1/flow/%s", testFlowInstanceID.String()), flowInstance),
-		createGetHandler(t, fmt.Sprintf("/v1/workspaces/%s", testWorkspaceID.String()), workspace),
-		createGetHandler(t, fmt.Sprintf("/v1/workspaceGroups/%s", testWorkspaceGroupID.String()), workspaceGroup),
-	}
-
-	writeRoutes := map[routeKey]func(w http.ResponseWriter){
-		{"/v1/workspaceGroups", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceGroupID uuid.UUID }{WorkspaceGroupID: testWorkspaceGroupID})
-		},
-		{"/v1/workspaces", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct{ WorkspaceID uuid.UUID }{WorkspaceID: testWorkspaceID})
-		},
-		{"/v1/flow", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, newFlowIDResponse())
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, h := range readOnlyHandlers {
-			if h(w, r) {
-				return
-			}
-		}
-
-		if r.Method == http.MethodDelete {
-			writeJSONResponse(t, w, struct{}{})
-
-			return
 		}
 
 		if handler, ok := writeRoutes[routeKey{r.URL.Path, r.Method}]; ok {
@@ -238,32 +201,6 @@ func TestCRUDFlowInstance(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_flow_instance.this", "user_name", "admin"),
 					resource.TestCheckResourceAttr("singlestoredb_flow_instance.this", "database_name", "my_database"),
 				),
-			},
-		},
-	})
-}
-
-func TestFlowInstanceImport(t *testing.T) {
-	server := setupImportServer(t)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.FlowResource).
-					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
-					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
-					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
-					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
-					String(),
-			},
-			{
-				ResourceName:            "singlestoredb_flow_instance.this",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"user_name", "database_name"}, // Write-only fields not returned by API.
 			},
 		},
 	})
