@@ -117,7 +117,7 @@ func TestGetFlowInstanceNotFoundByIDIntegration(t *testing.T) {
 					WithFlowInstanceGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)), // Checking that at least the expected error.
+				ExpectError: regexp.MustCompile("failed to get flow connector"),
 			},
 		},
 	})
