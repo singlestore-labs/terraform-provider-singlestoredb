@@ -206,7 +206,7 @@ func TestCRUDFlowInstance(t *testing.T) {
 	})
 }
 
-func TestFlowInstanceResourceIntegration(t *testing.T) {
+func TestFlowInstanceIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
