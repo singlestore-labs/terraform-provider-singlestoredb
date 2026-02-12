@@ -225,9 +225,29 @@ func (r *flowInstanceResource) Configure(_ context.Context, req resource.Configu
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	resp.Diagnostics.AddError("Cannot update fields",
-		"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
-		"Please explicitly delete the Flow instance before updating fields.")
+	var state *flowInstanceResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() || state == nil {
+		return
+	}
+
+	var plan *flowInstanceResourceModel
+	diags = req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() || plan == nil {
+		return
+	}
+
+	if !plan.Name.Equal(state.Name) ||
+		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
+		!plan.UserName.Equal(state.UserName) ||
+		!plan.DatabaseName.Equal(state.DatabaseName) ||
+		!plan.Size.Equal(state.Size) {
+		resp.Diagnostics.AddError("Cannot update fields",
+			"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
+				"Please explicitly delete the Flow instance before updating fields.")
+	}
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
