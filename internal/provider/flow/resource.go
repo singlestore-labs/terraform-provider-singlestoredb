@@ -68,37 +68,24 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The name of the Flow instance.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"workspace_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The unique identifier of the workspace to associate the Flow instance with.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"user_name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The username of the SingleStore database user to connect with.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"database_name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The name of the SingleStore database to connect to.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"size": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The size of the Flow instance (in Flow size notation), such as \"F1\".",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -236,24 +223,11 @@ func (r *flowInstanceResource) Configure(_ context.Context, req resource.Configu
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-// ModifyPlan validates that immutable fields are not changed.
+// ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *flowInstanceResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *flowInstanceResourceModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	// We don't need any additional validation here since all mutable fields
-	// have RequiresReplace plan modifiers.
+	resp.Diagnostics.AddError("Cannot update fields",
+		"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
+		"Please explicitly delete the Flow instance before updating fields.")
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
