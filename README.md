@@ -111,6 +111,8 @@ For more detailed information about `terraform-provider-singlestoredb`, includin
 
 Contributions from the community are welcomed and appreciated! See our [DEVELOPMENT.md](DEVELOPMENT.md) guide for information on how to get started.
 
+**Note:** Integration tests may require manual approval before running. A maintainer may need to manually trigger the [integration workflow](https://github.com/singlestore-labs/terraform-provider-singlestoredb/actions/workflows/integration.yml) before a PR can be merged.
+
 ## Code of Conduct
 
 We strive to ensure a safe and positive environment for our community. Please review and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
