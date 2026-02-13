@@ -39,6 +39,9 @@ var (
 	TeamRoleResourceIntegration      = mustRead("resources/singlestoredb_team_role_integration/resource.tf")
 	TeamRolesResource                = mustRead("resources/singlestoredb_team_roles/resource.tf")
 	TeamRolesResourceIntegration     = mustRead("resources/singlestoredb_team_roles_integration/resource.tf")
+	FlowGetDataSource                = mustRead("data-sources/singlestoredb_flow/data-source.tf")
+	FlowListDataSource               = mustRead("data-sources/singlestoredb_flows/data-source.tf")
+	FlowResource                     = mustRead("resources/singlestoredb_flow/resource.tf")
 )
 
 func mustRead(path string) string {

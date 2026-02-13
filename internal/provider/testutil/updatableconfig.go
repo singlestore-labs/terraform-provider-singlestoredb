@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
@@ -104,9 +105,21 @@ func (uc UpdatableConfig) WithTeamRolesResource(teamRolesName string) AttributeS
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.TeamRolesGrantResourceName), teamRolesName})
 }
 
+func (uc UpdatableConfig) WithFlowInstanceGetDataSource(flowInstanceName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(flow.DataSourceGetName), flowInstanceName})
+}
+
+func (uc UpdatableConfig) WithFlowInstanceListDataSource(flowInstanceListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(flow.DataSourceListName), flowInstanceListName})
+}
+
+func (uc UpdatableConfig) WithFlowInstanceResource(flowInstanceName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(flow.ResourceName), flowInstanceName})
+}
+
 // WithAPIKey extends the config with the API key if the key is not empty.
 func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
-	if apiKey == "" {
+	if apiKey == "" || uc == "" {
 		return uc
 	}
 
@@ -122,9 +135,9 @@ func (uc UpdatableConfig) WithAPIKeyPath(apiKeyPath string) UpdatableConfig {
 	)
 }
 
-// WithAPIKey extends the config with the API service url if the url is not empty.
+// WithAPIServiceURL extends the config with the API service url if the url is not empty.
 func (uc UpdatableConfig) WithAPIServiceURL(url string) UpdatableConfig {
-	if url == "" {
+	if url == "" || uc == "" {
 		return uc
 	}
 
