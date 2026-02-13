@@ -20,6 +20,12 @@ func TestValidateTerraformSize(t *testing.T) {
 	err = flow.ValidateTerraformSize("F4")
 	require.NoError(t, err, "Only F-format sizes are allowed as Terraform input")
 
+	err = flow.ValidateTerraformSize("Fnan")
+	require.Error(t, err)
+
+	err = flow.ValidateTerraformSize("S-00")
+	require.Error(t, err)
+
 	err = flow.ValidateTerraformSize(".")
 	require.Error(t, err)
 
