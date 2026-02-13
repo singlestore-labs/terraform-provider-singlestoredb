@@ -4,8 +4,10 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_flow_instances" "all" {}
+data "singlestoredb_flow" "this" {
+  name = "my-flow-instance"
+}
 
-output "all_flow_instances" {
-  value = data.singlestoredb_flow_instances.all
+output "this_flow" {
+  value = data.singlestoredb_flow.this
 }

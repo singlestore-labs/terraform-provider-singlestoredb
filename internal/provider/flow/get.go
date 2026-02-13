@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DataSourceGetName = "flow_instance"
+	DataSourceGetName = "flow"
 )
 
 // flowInstanceDataSourceGet is the data source implementation.

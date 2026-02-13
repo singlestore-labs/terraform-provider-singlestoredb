@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DataSourceListName = "flow_instances"
+	DataSourceListName = "flows"
 )
 
 // flowInstancesDataSourceList is the data source implementation.
@@ -23,7 +23,7 @@ type flowInstancesDataSourceList struct {
 // flowInstancesListDataSourceModel maps the data source schema data.
 type flowInstancesListDataSourceModel struct {
 	ID            types.String                  `tfsdk:"id"`
-	FlowInstances []flowInstanceDataSourceModel `tfsdk:"flow_instances"`
+	FlowInstances []flowInstanceDataSourceModel `tfsdk:"flows"`
 }
 
 var _ datasource.DataSourceWithConfigure = &flowInstancesDataSourceList{}

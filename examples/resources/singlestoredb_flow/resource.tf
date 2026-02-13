@@ -20,7 +20,7 @@ resource "singlestoredb_workspace" "example" {
   suspended          = false
 }
 
-resource "singlestoredb_flow_instance" "this" {
+resource "singlestoredb_flow" "this" {
   name          = "my-flow-instance"
   workspace_id  = singlestoredb_workspace.example.id
   user_name     = "admin"
@@ -29,5 +29,5 @@ resource "singlestoredb_flow_instance" "this" {
 }
 
 output "flow_endpoint" {
-  value = singlestoredb_flow_instance.this.endpoint
+  value = singlestoredb_flow.this.endpoint
 }

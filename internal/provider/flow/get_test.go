@@ -51,11 +51,11 @@ func TestReadsFlowInstanceByID(t *testing.T) {
 					WithFlowInstanceGetDataSource("this")("name", unset).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", config.IDAttribute, flowInstance.FlowID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "name", flowInstance.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "workspace_id", flowInstance.WorkspaceID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "endpoint", *flowInstance.Endpoint),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "size", *flowInstance.Size),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", config.IDAttribute, flowInstance.FlowID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "name", flowInstance.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "workspace_id", flowInstance.WorkspaceID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "endpoint", *flowInstance.Endpoint),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "size", *flowInstance.Size),
 				),
 			},
 		},
@@ -163,11 +163,11 @@ func TestReadsFlowInstanceByName(t *testing.T) {
 					WithFlowInstanceGetDataSource("this")("name", cty.StringVal(flowInstance.Name)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", config.IDAttribute, flowInstance.FlowID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "name", flowInstance.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "workspace_id", flowInstance.WorkspaceID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "endpoint", *flowInstance.Endpoint),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "size", *flowInstance.Size),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", config.IDAttribute, flowInstance.FlowID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "name", flowInstance.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "workspace_id", flowInstance.WorkspaceID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "endpoint", *flowInstance.Endpoint),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "size", *flowInstance.Size),
 				),
 			},
 		},
@@ -365,8 +365,8 @@ func TestFlowInstanceByNameCaseInsensitive(t *testing.T) {
 					WithFlowInstanceGetDataSource("this")("name", cty.StringVal("  my-flow-instance  ")).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", config.IDAttribute, flowInstance.FlowID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow_instance.this", "name", flowInstance.Name),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", config.IDAttribute, flowInstance.FlowID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "name", flowInstance.Name),
 				),
 			},
 		},

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	ResourceName = "flow_instance"
+	ResourceName = "flow"
 )
 
 var (
