@@ -85,7 +85,7 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 			"size": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The size of the Flow instance (in Flow size notation), such as \"F1\", \"F2\", or \"F3\".",
-				Validators: []validator.String{NewSizeValidator()},
+				Validators:          []validator.String{NewSizeValidator()},
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
