@@ -184,7 +184,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 
 // Update updates the resource and sets the updated Terraform state on success.
 // Since Flow instances are immutable, all changes require replacement.
-// This method should not be called due to RequiresReplace plan modifiers.
+// The `ModifyUpdate` method is enforcing this restriction.
 func (r *flowInstanceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError(
 		"Update not supported",
