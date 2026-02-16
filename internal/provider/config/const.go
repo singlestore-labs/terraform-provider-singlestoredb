@@ -47,6 +47,10 @@ const (
 	WorkspaceConsistencyThreshold = 5
 	// PrivateConnectionConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	PrivateConnectionConsistencyThreshold = 5
+	// FlowInstanceCreationTimeout limits the Flow instance creation time.
+	FlowInstanceCreationTimeout = 20 * time.Minute
+	// FlowInstanceConsistencyThreshold is the count of polling iterations where the endpoint should be consistently available.
+	FlowInstanceConsistencyThreshold = 5
 
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
