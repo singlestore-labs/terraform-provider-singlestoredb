@@ -1,7 +1,9 @@
 package testutil
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -39,6 +41,9 @@ type IntegrationTestConfig struct {
 	WorkspaceGroupName string
 }
 
+// Generate unique workspace group name for this test run to enable parallel execution.
+var UniqueGroupName = GenerateUniqueResourceName(config.TestInitialWorkspaceGroupName)
+
 // UnitTest is a helper around resource.UnitTest with provider factories
 // already configured.
 func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
@@ -74,13 +79,13 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
 	for i, s := range c.Steps {
+		updatedConfig := UpdatableConfig(s.Config).WithUniqueWorkspaceGroupNames(UniqueGroupName)
+
 		if conf.WorkspaceGroupName != "" {
 			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
-
-			c.Steps[i].Config = UpdatableConfig(s.Config).
-				WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(instantExpiration)).
-				String() // Ensures garbage collection.
+			updatedConfig = updatedConfig.WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(instantExpiration))
 		}
+		c.Steps[i].Config = updatedConfig.String() // Ensures garbage collection and unique naming for parallel test execution.
 	}
 
 	t.Setenv("TF_ACC", "on") // Enables running the integration test.
@@ -91,6 +96,16 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
 	resource.Test(t, c)
+}
+
+// GenerateUniqueResourceName generates a unique resource name by appending a timestamp and random suffix.
+// This enables running multiple test suites in parallel without resource name conflicts.
+func GenerateUniqueResourceName(baseName string) string {
+	timestamp := time.Now().UTC().Format("20060102-150405")
+	randomBytes := make([]byte, 4)
+	_, _ = rand.Read(randomBytes)
+	randomSuffix := hex.EncodeToString(randomBytes)
+	return fmt.Sprintf("terraform-%s-%s-%s", baseName, timestamp, randomSuffix)
 }
 
 func MustJSON(s interface{}) []byte {

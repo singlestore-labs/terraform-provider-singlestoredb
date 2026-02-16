@@ -151,6 +151,27 @@ func (uc UpdatableConfig) String() string {
 	return string(uc)
 }
 
+// WithUniqueWorkspaceGroupNames applies a unique name to ALL workspace group resources in the config.
+// This enables parallel test execution by ensuring no name conflicts.
+func (uc UpdatableConfig) WithUniqueWorkspaceGroupNames(uniqueName string) UpdatableConfig {
+	file, diags := hclwrite.ParseConfig([]byte(uc), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		panic(diags)
+	}
+
+	// Find all workspace group resources and update their names
+	for _, block := range file.Body().Blocks() {
+		if block.Type() == config.ResourceTypeName &&
+			len(block.Labels()) >= 2 &&
+			block.Labels()[0] == resourceTypeName(workspacegroups.ResourceName) {
+			// This is a workspace group resource, update its name
+			_ = block.Body().SetAttributeValue("name", cty.StringVal(uniqueName))
+		}
+	}
+
+	return UpdatableConfig(file.Bytes())
+}
+
 // withAttribute accesses a resource, data source, or a provider defined by the typeName and labels,
 // that is a part of the updatable config and returns a function that enables setting an attribute.
 //
