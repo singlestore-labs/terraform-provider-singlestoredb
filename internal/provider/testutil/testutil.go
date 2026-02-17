@@ -101,7 +101,9 @@ func GenerateUniqueResourceName(baseName string) string {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	byteLen := 4
 	randomBytes := make([]byte, byteLen)
-	_, _ = rand.Read(randomBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
+		panic(fmt.Sprintf("Failed to generate random bytes: %v", err))
+	}
 	randomSuffix := hex.EncodeToString(randomBytes)
 
 	return fmt.Sprintf("terraform-test-%s-%s-%s", baseName, timestamp, randomSuffix)
