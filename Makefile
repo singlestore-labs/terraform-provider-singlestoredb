@@ -44,3 +44,8 @@ gencheck:
             (echo; echo "Unexpected difference in directories after code generation. Run 'make generate && make format' command and commit."; exit 1)
 	tfplugindocs validate
 	./.validate_readme
+
+install-hooks:
+	cp scripts/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
+	@echo "Git hooks installed successfully!"
