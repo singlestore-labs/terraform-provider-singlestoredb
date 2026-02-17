@@ -41,9 +41,6 @@ type IntegrationTestConfig struct {
 	WorkspaceGroupName string
 }
 
-// Generate unique workspace group name for this test run to enable parallel execution.
-var UniqueGroupName = GenerateUniqueResourceName(config.TestInitialWorkspaceGroupName)
-
 // UnitTest is a helper around resource.UnitTest with provider factories
 // already configured.
 func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
@@ -78,14 +75,15 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 
 	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
-	for i, s := range c.Steps {
-		updatedConfig := UpdatableConfig(s.Config).WithUniqueWorkspaceGroupNames(UniqueGroupName)
 
+	for i, s := range c.Steps {
 		if conf.WorkspaceGroupName != "" {
 			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
-			updatedConfig = updatedConfig.WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(instantExpiration))
+
+			c.Steps[i].Config = UpdatableConfig(s.Config).
+				WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(instantExpiration)).
+				String() // Ensures garbage collection.
 		}
-		c.Steps[i].Config = updatedConfig.String() // Ensures garbage collection and unique naming for parallel test execution.
 	}
 
 	t.Setenv("TF_ACC", "on") // Enables running the integration test.
@@ -107,7 +105,7 @@ func GenerateUniqueResourceName(baseName string) string {
 	_, _ = rand.Read(randomBytes)
 	randomSuffix := hex.EncodeToString(randomBytes)
 
-	return fmt.Sprintf("terraform-%s-%s-%s", baseName, timestamp, randomSuffix)
+	return fmt.Sprintf("terraform-test-%s-%s-%s", baseName, timestamp, randomSuffix)
 }
 
 func MustJSON(s interface{}) []byte {
@@ -190,9 +188,7 @@ func CreateTemp(body string) (string, func(), error) {
 	}
 
 	if _, err = f.Write([]byte(body)); err != nil {
-		if err != nil {
-			return "", nil, err
-		}
+		return "", nil, err
 	}
 
 	if err := f.Close(); err != nil {
