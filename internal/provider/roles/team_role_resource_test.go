@@ -14,6 +14,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 var (
@@ -85,12 +86,18 @@ func TestGrantRevokeTeamRole(t *testing.T) {
 }
 
 func TestGrantRevokeTeamRoleIntegration(t *testing.T) {
+	t1Name := testutil.GenerateUniqueResourceName("t1")
+	t2Name := testutil.GenerateUniqueResourceName("t2")
+
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.TeamRoleResourceIntegration,
+				Config: testutil.UpdatableConfig(examples.TeamRoleResourceIntegration).
+					WithTeamResource("t1")("name", cty.StringVal(t1Name)).
+					WithTeamResource("t2")("name", cty.StringVal(t2Name)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_team_role.this", "role.resource_type", "Team"),
 					resource.TestCheckResourceAttr("singlestoredb_team_role.this", "role.role_name", "Owner"),

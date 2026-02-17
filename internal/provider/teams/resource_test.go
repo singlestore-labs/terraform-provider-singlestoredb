@@ -184,24 +184,29 @@ func TestCRUDTeam(t *testing.T) {
 }
 
 func TestTeamResourceIntegration(t *testing.T) {
+	uniqueTeamName := testutil.GenerateUniqueResourceName("team")
+	uniqueTeamNameUpdated := testutil.GenerateUniqueResourceName("team-updated")
+
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.TeamsResource,
+				Config: testutil.UpdatableConfig(examples.TeamsResource).
+					WithTeamResource("this")("name", cty.StringVal(uniqueTeamName)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_team.this", "name", team.Name),
+					resource.TestCheckResourceAttr("singlestoredb_team.this", "name", uniqueTeamName),
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "description", team.Description),
 				),
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.TeamsResource).
-					WithTeamResource("this")("name", cty.StringVal(nameUpdate)).
+					WithTeamResource("this")("name", cty.StringVal(uniqueTeamNameUpdated)).
 					WithTeamResource("this")("description", cty.StringVal(descriptionUpdate)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_team.this", "name", nameUpdate),
+					resource.TestCheckResourceAttr("singlestoredb_team.this", "name", uniqueTeamNameUpdated),
 					resource.TestCheckResourceAttr("singlestoredb_team.this", "description", descriptionUpdate),
 				),
 			},
