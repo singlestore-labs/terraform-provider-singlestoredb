@@ -102,9 +102,11 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 // This enables running multiple test suites in parallel without resource name conflicts.
 func GenerateUniqueResourceName(baseName string) string {
 	timestamp := time.Now().UTC().Format("20060102-150405")
-	randomBytes := make([]byte, 4)
+	byteLen := 4
+	randomBytes := make([]byte, byteLen)
 	_, _ = rand.Read(randomBytes)
 	randomSuffix := hex.EncodeToString(randomBytes)
+
 	return fmt.Sprintf("terraform-%s-%s-%s", baseName, timestamp, randomSuffix)
 }
 
