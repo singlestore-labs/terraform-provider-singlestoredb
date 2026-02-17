@@ -75,7 +75,6 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 
 	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
-
 	for i, s := range c.Steps {
 		if conf.WorkspaceGroupName != "" {
 			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
