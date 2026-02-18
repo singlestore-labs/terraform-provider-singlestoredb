@@ -4,14 +4,19 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
   schedule:
-    - cron: '0 1 * * *'
+    # This is used to check that Management API hasn't changed in a way that breaks the provider
+    - cron: '0 3 * * *' # Runs every day at 3:00 AM UTC.
   workflow_dispatch:
 
 jobs:
   integration:
     runs-on: ubuntu-latest
     environment: test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
     - name: Checkout code

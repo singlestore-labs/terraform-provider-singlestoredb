@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+echo "Running pre-commit checks..."
+
+echo "→ Installing tools..."
+make tools
+
+echo "→ Building..."
+make
+
+echo "→ Generating documentation..."
+make generate
+
+echo "→ Formatting code..."
+make format
+
+echo "→ Checking generated files..."
+make gencheck
+
+echo "→ Running linter..."
+make lint
+
+echo "✓ All pre-commit checks passed!"

@@ -1,7 +1,9 @@
 package testutil
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -93,6 +95,20 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	resource.Test(t, c)
 }
 
+// GenerateUniqueResourceName generates a unique resource name by appending a timestamp and random suffix.
+// This enables running multiple test suites in parallel without resource name conflicts.
+func GenerateUniqueResourceName(baseName string) string {
+	timestamp := time.Now().UTC().Format("20060102-150405")
+	byteLen := 4
+	randomBytes := make([]byte, byteLen)
+	if _, err := rand.Read(randomBytes); err != nil {
+		panic(fmt.Sprintf("Failed to generate random bytes: %v", err))
+	}
+	randomSuffix := hex.EncodeToString(randomBytes)
+
+	return fmt.Sprintf("terraform-test-%s-%s-%s", baseName, timestamp, randomSuffix)
+}
+
 func MustJSON(s interface{}) []byte {
 	result, err := json.Marshal(s)
 	if err != nil {
@@ -173,9 +189,7 @@ func CreateTemp(body string) (string, func(), error) {
 	}
 
 	if _, err = f.Write([]byte(body)); err != nil {
-		if err != nil {
-			return "", nil, err
-		}
+		return "", nil, err
 	}
 
 	if err := f.Close(); err != nil {

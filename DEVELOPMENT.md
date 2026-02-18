@@ -31,6 +31,11 @@ This document provides information on how to develop `terraform-provider-singles
     make install
     ```
 
+4. (Optional) Install git hooks for automated pre-commit checks.
+    ```shell
+    make install-hooks
+    ```
+
 ## Examples
 
 Try out any example in the [examples](examples) directory!
