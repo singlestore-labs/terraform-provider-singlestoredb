@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -154,15 +155,22 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"update_window": schema.SingleNestedAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
 				Attributes: map[string]schema.Attribute{
 					"hour": schema.Int64Attribute{
-						Optional:            true,
+						Required:            true,
 						MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
+						Validators: []validator.Int64{
+							int64validator.Between(0, 23), //nolint:mnd
+						},
 					},
 					"day": schema.Int64Attribute{
-						Optional:            true,
+						Required:            true,
 						MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
+						Validators: []validator.Int64{
+							int64validator.Between(0, 6), //nolint:mnd
+						},
 					},
 				},
 			},

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -291,4 +292,40 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestUpdateWindowValidation(t *testing.T) {
+	testCases := []struct {
+		day         int
+		hour        int
+		expectError string
+	}{
+		{7, 12, `update_window\.day`},
+		{-1, 12, `update_window\.day`},
+		{3, 24, `update_window\.hour`},
+		{3, -1, `update_window\.hour`},
+	}
+
+	for _, tc := range testCases {
+		testutil.UnitTest(t, testutil.UnitTestConfig{
+			APIKey:        testutil.UnusedAPIKey,
+			APIServiceURL: "http://unused",
+		}, resource.TestCase{
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "test" {
+	name            = %[1]q
+	cloud_provider  = "AWS"
+	region_name     = "us-east-1"
+	firewall_ranges = [%[2]q]
+	update_window   = { day = %[3]d, hour = %[4]d }
+}`, config.TestInitialWorkspaceGroupName, config.TestInitialFirewallRange, tc.day, tc.hour),
+					ExpectError: regexp.MustCompile(tc.expectError),
+				},
+			},
+		})
+	}
 }
