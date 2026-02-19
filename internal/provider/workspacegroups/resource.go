@@ -8,10 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -46,20 +48,20 @@ type updateWindowResourceModel struct {
 
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
-	ID                       types.String               `tfsdk:"id"`
-	Name                     types.String               `tfsdk:"name"`
-	FirewallRanges           []types.String             `tfsdk:"firewall_ranges"`
-	CreatedAt                types.String               `tfsdk:"created_at"`
-	ExpiresAt                types.String               `tfsdk:"expires_at"`
-	RegionID                 types.String               `tfsdk:"region_id"`
-	CloudProvider            types.String               `tfsdk:"cloud_provider"`
-	RegionName               types.String               `tfsdk:"region_name"`
-	AdminPassword            types.String               `tfsdk:"admin_password"`
-	DeploymentType           types.String               `tfsdk:"deployment_type"`
-	OptInPreviewFeature      types.Bool                 `tfsdk:"opt_in_preview_feature"`
-	HighAvailabilityTwoZones types.Bool                 `tfsdk:"high_availability_two_zones"`
-	OutboundAllowList        types.String               `tfsdk:"outbound_allow_list"`
-	UpdateWindow             *updateWindowResourceModel `tfsdk:"update_window"`
+	ID                       types.String   `tfsdk:"id"`
+	Name                     types.String   `tfsdk:"name"`
+	FirewallRanges           []types.String `tfsdk:"firewall_ranges"`
+	CreatedAt                types.String   `tfsdk:"created_at"`
+	ExpiresAt                types.String   `tfsdk:"expires_at"`
+	RegionID                 types.String   `tfsdk:"region_id"`
+	CloudProvider            types.String   `tfsdk:"cloud_provider"`
+	RegionName               types.String   `tfsdk:"region_name"`
+	AdminPassword            types.String   `tfsdk:"admin_password"`
+	DeploymentType           types.String   `tfsdk:"deployment_type"`
+	OptInPreviewFeature      types.Bool     `tfsdk:"opt_in_preview_feature"`
+	HighAvailabilityTwoZones types.Bool     `tfsdk:"high_availability_two_zones"`
+	OutboundAllowList        types.String   `tfsdk:"outbound_allow_list"`
+	UpdateWindow             types.Object   `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -152,11 +154,17 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"outbound_allow_list": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"update_window": schema.SingleNestedAttribute{
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"hour": schema.Int64Attribute{
 						Required:            true,
@@ -216,7 +224,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
-		UpdateWindow:             toManagementUpdateWindow(plan.UpdateWindow),
+		UpdateWindow:             toManagementUpdateWindow(ctx, plan.UpdateWindow),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -337,7 +345,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
 			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
-			UpdateWindow:   toManagementUpdateWindow(plan.UpdateWindow),
+			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -635,24 +643,38 @@ func waitConditionFirewallRanges(firewallRanges []types.String) func(management.
 	}
 }
 
-func toManagementUpdateWindow(uw *updateWindowResourceModel) *management.UpdateWindow {
-	if uw == nil {
+func toManagementUpdateWindow(ctx context.Context, uw types.Object) *management.UpdateWindow {
+	if uw.IsNull() || uw.IsUnknown() {
 		return nil
 	}
 
+	var model updateWindowResourceModel
+	uw.As(ctx, &model, basetypes.ObjectAsOptions{})
+
 	return &management.UpdateWindow{
-		Hour: float32(uw.Hour.ValueInt64()),
-		Day:  float32(uw.Day.ValueInt64()),
+		Hour: float32(model.Hour.ValueInt64()),
+		Day:  float32(model.Day.ValueInt64()),
 	}
 }
 
-func toUpdateWindowResourceModel(uw *management.UpdateWindow) *updateWindowResourceModel {
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
 	if uw == nil {
-		return nil
+		return types.ObjectNull(map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		})
 	}
 
-	return &updateWindowResourceModel{
-		Hour: types.Int64Value(int64(uw.Hour)),
-		Day:  types.Int64Value(int64(uw.Day)),
-	}
+	obj, _ := types.ObjectValue(
+		map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		},
+		map[string]attr.Value{
+			"hour": types.Int64Value(int64(uw.Hour)),
+			"day":  types.Int64Value(int64(uw.Day)),
+		},
+	)
+
+	return obj
 }
