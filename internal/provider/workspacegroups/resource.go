@@ -668,7 +668,7 @@ func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
 		})
 	}
 
-	obj, _ := types.ObjectValue(
+	obj, diags := types.ObjectValue(
 		map[string]attr.Type{
 			"hour": types.Int64Type,
 			"day":  types.Int64Type,
@@ -678,6 +678,10 @@ func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
 			"day":  types.Int64Value(int64(uw.Day)),
 		},
 	)
+	if diags.HasError() {
+		// This should never happen unless there's a programming error in the type definitions
+		panic(fmt.Sprintf("failed to create update_window object: %v", diags.Errors()))
+	}
 
 	return obj
 }

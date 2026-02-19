@@ -329,3 +329,168 @@ resource "singlestoredb_workspace_group" "test" {
 		})
 	}
 }
+
+func TestUpdateWindowRemoval(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	workspaceGroupID := uuid.New()
+	regionID := uuid.New()
+	testOutboundAllowList := "test-account-id"
+
+	writeHandlers := []func(http.ResponseWriter, *http.Request){
+		// CREATE workspace group
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+
+			var input management.WorkspaceGroupCreate
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+
+			// Verify update_window was specified in create
+			require.NotNil(t, input.UpdateWindow)
+			require.Equal(t, float32(config.TestInitialUpdateWindowDay), input.UpdateWindow.Day)
+			require.Equal(t, float32(config.TestInitialUpdateWindowHour), input.UpdateWindow.Hour)
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				management.WorkspaceGroup{
+					WorkspaceGroupID:  workspaceGroupID,
+					Name:              config.TestInitialWorkspaceGroupName,
+					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+					RegionID:          regionID,
+					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+					TerminatedAt:      nil,
+					State:             management.WorkspaceGroupStateACTIVE,
+					Provider:          management.CloudProviderAWS,
+					RegionName:        regionsv2[0].RegionName,
+					UpdateWindow:      &management.UpdateWindow{Day: float32(config.TestInitialUpdateWindowDay), Hour: float32(config.TestInitialUpdateWindowHour)},
+					OutboundAllowList: &testOutboundAllowList,
+					DeploymentType:    &defaultDeploymentType,
+				},
+			))
+			require.NoError(t, err)
+		},
+		// UPDATE is NOT called when update_window is just removed from config
+		// because it's Optional+Computed, Terraform keeps the existing value
+	}
+
+	readHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+
+		// Value persists at the initially set value
+		uw := &management.UpdateWindow{Day: float32(config.TestInitialUpdateWindowDay), Hour: float32(config.TestInitialUpdateWindowHour)}
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(
+			management.WorkspaceGroup{
+				WorkspaceGroupID:  workspaceGroupID,
+				Name:              config.TestInitialWorkspaceGroupName,
+				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+				RegionID:          regionID,
+				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+				ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+				TerminatedAt:      nil,
+				State:             management.WorkspaceGroupStateACTIVE,
+				Provider:          management.CloudProviderAWS,
+				RegionName:        regionsv2[0].RegionName,
+				UpdateWindow:      uw,
+				OutboundAllowList: &testOutboundAllowList,
+				DeploymentType:    &defaultDeploymentType,
+			},
+		))
+		require.NoError(t, err)
+	}
+
+	regionsHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v2/regions", r.URL.Path)
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(regionsv2))
+		require.NoError(t, err)
+	}
+
+	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodDelete, r.Method)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
+		require.NoError(t, err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/regions" {
+			regionsHandler(w, r)
+			return //nolint:nlreturn
+		}
+
+		if r.Method == http.MethodGet {
+			readHandler(w, r)
+			return //nolint:nlreturn
+		}
+
+		if r.Method == http.MethodDelete {
+			deleteHandler(w, r)
+			return //nolint:nlreturn
+		}
+
+		require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
+		h := writeHandlers[0]
+		h(w, r)
+		writeHandlers = writeHandlers[1:]
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				// Create with update_window specified
+				Config: examples.WorkspaceGroupsResource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
+				),
+			},
+			{
+				// Remove update_window from config
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_workspace_group" "this" {
+	name            = %[1]q
+	cloud_provider  = "AWS"
+	region_name     = "us-east-1"
+	admin_password  = %[2]q
+	firewall_ranges = [%[3]q]
+	expires_at      = %[4]q
+	# update_window intentionally removed
+}`, config.TestInitialWorkspaceGroupName, config.TestInitialAdminPassword, config.TestInitialFirewallRange, config.TestInitialWorkspaceGroupExpiresAt),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// When update_window is removed from config, the value persists from previous state
+					// No update is triggered because the field is Optional+Computed
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
+				),
+			},
+		},
+	})
+
+	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
+}
