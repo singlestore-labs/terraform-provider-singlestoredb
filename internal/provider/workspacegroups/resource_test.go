@@ -277,8 +277,6 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 			{
@@ -287,6 +285,11 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
+					WithWorkspaceGroupResource("this")(
+					"update_window", cty.ObjectVal(map[string]cty.Value{
+						"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
+						"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
+					})).
 					String(), // Not testing updating expires at because of the limitations of testutil.IntegrationTest that ensures garbage collection.
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
@@ -294,6 +297,8 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 		},
