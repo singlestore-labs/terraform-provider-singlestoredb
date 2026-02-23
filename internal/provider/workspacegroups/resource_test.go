@@ -467,27 +467,19 @@ func TestUpdateWindowRemoval(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// Create with update_window specified
-				Config: examples.WorkspaceGroupsResource,
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
+					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
+					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
+				})).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 			{
-				// Remove update_window from config
-				Config: fmt.Sprintf(`
-provider "singlestoredb" {
-}
-
-resource "singlestoredb_workspace_group" "this" {
-	name            = %[1]q
-	cloud_provider  = "AWS"
-	region_name     = "us-east-1"
-	admin_password  = %[2]q
-	firewall_ranges = [%[3]q]
-	expires_at      = %[4]q
-	# update_window intentionally removed
-}`, config.TestInitialWorkspaceGroupName, config.TestInitialAdminPassword, config.TestInitialFirewallRange, config.TestInitialWorkspaceGroupExpiresAt),
+				Config: examples.WorkspaceGroupsResource, // No update_window in config
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// When update_window is removed from config, the value persists from previous state
 					// No update is triggered because the field is Optional+Computed
