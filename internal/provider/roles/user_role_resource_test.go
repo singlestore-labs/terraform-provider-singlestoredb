@@ -248,12 +248,16 @@ func handleRevokes(grantedRoles *[]management.IdentityRole, revokes []management
 }
 
 func TestGrantRevokeUserRoleIntegration(t *testing.T) {
+	uniqueTeamName := testutil.GenerateUniqueResourceName("role-test-team")
+
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.UserRoleResourceIntegration,
+				Config: testutil.UpdatableConfig(examples.UserRoleResourceIntegration).
+					WithTeamResource("t1")("name", cty.StringVal(uniqueTeamName)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.resource_type", "Team"),
 					resource.TestCheckResourceAttr("singlestoredb_user_role.this", "role.role_name", "Owner"),
