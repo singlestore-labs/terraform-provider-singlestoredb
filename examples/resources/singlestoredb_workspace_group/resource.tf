@@ -11,8 +11,4 @@ resource "singlestoredb_workspace_group" "this" {
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
   admin_password  = "mockPassword193!"
-  update_window = {
-    day  = 6
-    hour = 14
-  }
 }
