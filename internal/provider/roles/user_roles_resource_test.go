@@ -127,12 +127,19 @@ func TestGrantRevokeUserRoles(t *testing.T) {
 }
 
 func TestGrantRevokeUserRolesIntegration(t *testing.T) {
+	uniqueTeamName := testutil.GenerateUniqueResourceName("role-test-team")
+	uniqueWorkspaceGroupName := testutil.GenerateUniqueResourceName("test-role-group")
+
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
-		APIKey: os.Getenv(config.EnvTestAPIKey),
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "g",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.UserRolesResourceIntegration,
+				Config: testutil.UpdatableConfig(examples.UserRolesResourceIntegration).
+					WithTeamResource("t1")("name", cty.StringVal(uniqueTeamName)).
+					WithWorkspaceGroupResource("g")("name", cty.StringVal(uniqueWorkspaceGroupName)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.0.resource_type", "Team"),
 					resource.TestCheckResourceAttr("singlestoredb_user_roles.this", "roles.0.role_name", "Owner"),
