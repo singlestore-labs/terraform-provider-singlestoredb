@@ -14,4 +14,8 @@ resource "singlestoredb_workspace_group" "this" {
   deployment_type             = "NON-PRODUCTION"
   opt_in_preview_feature      = true
   high_availability_two_zones = true
+  update_window = {
+    day  = 6
+    hour = 14
+  }
 }

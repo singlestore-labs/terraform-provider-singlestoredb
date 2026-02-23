@@ -47,12 +47,21 @@ resource "singlestoredb_workspace_group" "this" {
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
 - `region_id` (String, Deprecated) The unique identifier of the region where the workspace group is to be created.
 - `region_name` (String) The region code name used to resolve region.
+- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
 
 ### Read-Only
 
 - `created_at` (String) The timestamp when the workspace was created.
 - `id` (String) The unique identifier of the workspace group.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
+
+<a id="nestedatt--update_window"></a>
+### Nested Schema for `update_window`
+
+Required:
+
+- `day` (Number) The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.
+- `hour` (Number) The hour of the day, in 24-hour UTC format (0-23), when the update window starts.
 
 ## Import
 

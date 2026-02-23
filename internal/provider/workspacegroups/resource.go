@@ -6,11 +6,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -38,6 +41,11 @@ type workspaceGroupResource struct {
 	management.ClientWithResponsesInterface
 }
 
+type updateWindowResourceModel struct {
+	Hour types.Int64 `tfsdk:"hour"`
+	Day  types.Int64 `tfsdk:"day"`
+}
+
 // workspaceGroupResourceModel maps the resource schema data.
 type workspaceGroupResourceModel struct {
 	ID                       types.String   `tfsdk:"id"`
@@ -53,6 +61,7 @@ type workspaceGroupResourceModel struct {
 	OptInPreviewFeature      types.Bool     `tfsdk:"opt_in_preview_feature"`
 	HighAvailabilityTwoZones types.Bool     `tfsdk:"high_availability_two_zones"`
 	OutboundAllowList        types.String   `tfsdk:"outbound_allow_list"`
+	UpdateWindow             types.Object   `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -120,6 +129,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Computed:            true,
 				Sensitive:           true,
 				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"deployment_type": schema.StringAttribute{
 				Optional:            true,
@@ -145,6 +157,33 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"outbound_allow_list": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"update_window": schema.SingleNestedAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"hour": schema.Int64Attribute{
+						Required:            true,
+						MarkdownDescription: "The hour of the day, in 24-hour UTC format (0-23), when the update window starts.",
+						Validators: []validator.Int64{
+							int64validator.Between(0, 23), //nolint:mnd
+						},
+					},
+					"day": schema.Int64Attribute{
+						Required:            true,
+						MarkdownDescription: "The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.",
+						Validators: []validator.Int64{
+							int64validator.Between(0, 6), //nolint:mnd
+						},
+					},
+				},
 			},
 		},
 	}
@@ -188,6 +227,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
+		UpdateWindow:             toManagementUpdateWindow(ctx, plan.UpdateWindow),
 	})
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -308,6 +348,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
 			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
+			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -510,6 +551,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
+		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
@@ -602,4 +644,44 @@ func waitConditionFirewallRanges(firewallRanges []types.String) func(management.
 			return nil
 		}
 	}
+}
+
+func toManagementUpdateWindow(ctx context.Context, uw types.Object) *management.UpdateWindow {
+	if uw.IsNull() || uw.IsUnknown() {
+		return nil
+	}
+
+	var model updateWindowResourceModel
+	uw.As(ctx, &model, basetypes.ObjectAsOptions{})
+
+	return &management.UpdateWindow{
+		Hour: float32(model.Hour.ValueInt64()),
+		Day:  float32(model.Day.ValueInt64()),
+	}
+}
+
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
+	if uw == nil {
+		return types.ObjectNull(map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		})
+	}
+
+	obj, diags := types.ObjectValue(
+		map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		},
+		map[string]attr.Value{
+			"hour": types.Int64Value(int64(uw.Hour)),
+			"day":  types.Int64Value(int64(uw.Day)),
+		},
+	)
+	if diags.HasError() {
+		// This should never happen unless there's a programming error in the type definitions
+		panic(fmt.Sprintf("failed to create update_window object: %v", diags.Errors()))
+	}
+
+	return obj
 }

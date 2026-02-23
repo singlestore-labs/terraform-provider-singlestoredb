@@ -68,6 +68,10 @@ const (
 	TestFirewallFirewallRangeAllTraffic = "0.0.0.0/0"
 	// TestInitialWorkspaceID is the workspace ID in the example.
 	TestInitialWorkspaceID = "26171125-ecb8-5944-9896-209fbffc1f15"
+	// TestInitialUpdateWindowDay is the default update window day in examples.
+	TestInitialUpdateWindowDay = 6
+	// TestInitialUpdateWindowHour is the default update window hour in examples.
+	TestInitialUpdateWindowHour = 14
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "workspace-1"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
