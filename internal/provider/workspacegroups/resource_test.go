@@ -30,7 +30,7 @@ var (
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
-func TestCRUDWorkspaceGroup(t *testing.T) {
+func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
@@ -106,8 +106,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
 		require.Equal(t, regionsv2[0].RegionName, *input.RegionName)
-		require.Equal(t, config.TestInitialUpdateWindowDay, int(input.UpdateWindow.Day))
-		require.Equal(t, config.TestInitialUpdateWindowHour, int(input.UpdateWindow.Hour))
+		require.Nil(t, input.UpdateWindow)
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -144,6 +143,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 		require.Empty(t, util.Deref(input.FirewallRanges))
 		require.Equal(t, updatedWorkspaceGroupName, util.Deref(input.Name))
 		require.Equal(t, string(updatedDeploymentType), string(*input.DeploymentType))
+		require.NotNil(t, input.UpdateWindow)
+		require.Equal(t, config.TestInitialUpdateWindowDay, int(input.UpdateWindow.Day))
+		require.Equal(t, config.TestInitialUpdateWindowHour, int(input.UpdateWindow.Hour))
 
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -224,8 +226,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 			{
@@ -237,6 +237,10 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					WithWorkspaceGroupResource("this")("cloud_provider", cty.StringVal(string(management.CloudProviderAWS))).
 					WithWorkspaceGroupResource("this")("region_name", cty.StringVal(workspaceGroup.RegionName)).
+					WithWorkspaceGroupResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
+					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
+					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
@@ -248,6 +252,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
 			},
 		},
