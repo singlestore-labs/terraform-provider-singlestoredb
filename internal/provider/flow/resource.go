@@ -237,14 +237,27 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	if !plan.Name.Equal(state.Name) ||
-		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
-		!plan.UserName.Equal(state.UserName) ||
-		!plan.DatabaseName.Equal(state.DatabaseName) ||
-		!plan.Size.Equal(state.Size) {
-		resp.Diagnostics.AddError("Cannot update fields",
-			"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
-				"Please explicitly delete the Flow instance before updating fields.")
+	immutableFields := []struct {
+		name     string
+		planVal  types.String
+		stateVal types.String
+	}{
+		{"name", plan.Name, state.Name},
+		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
+		{"user_name", plan.UserName, state.UserName},
+		{"database_name", plan.DatabaseName, state.DatabaseName},
+		{"size", plan.Size, state.Size},
+	}
+
+	for _, f := range immutableFields {
+		if !f.planVal.Equal(f.stateVal) {
+			resp.Diagnostics.AddError(
+				"Cannot update "+f.name,
+				"To prevent accidental deletion of data, updating the \""+f.name+"\" field for Flow instances is not allowed. "+
+					"Current value: \""+f.stateVal.ValueString()+"\", configured value: \""+f.planVal.ValueString()+"\". "+
+					"Please explicitly delete the Flow instance before updating this field.",
+			)
+		}
 	}
 }
 
