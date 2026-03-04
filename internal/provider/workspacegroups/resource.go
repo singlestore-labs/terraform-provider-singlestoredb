@@ -438,14 +438,16 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 
 	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
 		resp.Diagnostics.AddError("Cannot change the high_availability_two_zones configuration for the workspace group.",
-			"Changing the high_availability_two_zones configuration is currently not supported.")
+			"Changing the high_availability_two_zones configuration is currently not supported. "+
+				"Current value: "+state.HighAvailabilityTwoZones.String()+", configured value: "+plan.HighAvailabilityTwoZones.String()+".")
 
 		return
 	}
 
 	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
 		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the workspace group.",
-			"Changing the opt_in_preview_feature configuration is currently not supported.")
+			"Changing the opt_in_preview_feature configuration is currently not supported. "+
+				"Current value: "+state.OptInPreviewFeature.String()+", configured value: "+plan.OptInPreviewFeature.String()+".")
 
 		return
 	}
@@ -453,7 +455,8 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
 		resp.Diagnostics.AddError(
 			"Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the workspace group when the opt_in_preview_feature is enabled.",
-			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported.",
+			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. "+
+				"Current value: \""+state.DeploymentType.ValueString()+"\", configured value: \""+plan.DeploymentType.ValueString()+"\".",
 		)
 
 		return

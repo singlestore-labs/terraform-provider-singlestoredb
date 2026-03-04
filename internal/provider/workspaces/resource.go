@@ -442,6 +442,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 	if !plan.Name.Equal(state.Name) {
 		resp.Diagnostics.AddError("Cannot update workspace name",
 			"To prevent accidental deletion of the databases that are attached to the workspace, updating the name is not permitted. "+
+				"Current value: \""+state.Name.ValueString()+"\", configured value: \""+plan.Name.ValueString()+"\". "+
 				"Please explicitly delete the workspace before changing its name.")
 
 		return
@@ -449,7 +450,8 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 
 	if !plan.KaiEnabled.Equal(state.KaiEnabled) {
 		resp.Diagnostics.AddError("Cannot change the kai_enabled configuration for the workspace",
-			"Changing the kai_enabled configuration is currently not supported.")
+			"Changing the kai_enabled configuration is currently not supported. "+
+				"Current value: "+state.KaiEnabled.String()+", configured value: "+plan.KaiEnabled.String()+".")
 
 		return
 	}
@@ -457,6 +459,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 	if !plan.WorkspaceGroupID.Equal(state.WorkspaceGroupID) {
 		resp.Diagnostics.AddError("Cannot update workspace group ID",
 			"To prevent accidental deletion of the databases that are attached to the workspace, updating the workspace group ID is not permitted. "+
+				"Current value: \""+state.WorkspaceGroupID.ValueString()+"\", configured value: \""+plan.WorkspaceGroupID.ValueString()+"\". "+
 				"Please explicitly delete the workspace before changing its workspace group ID.")
 
 		return
