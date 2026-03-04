@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
@@ -145,4 +146,36 @@ func TestFilter(t *testing.T) {
 	})
 
 	require.Equal(t, []int{2, 4, 6}, evenNums)
+}
+
+func TestValidateUUID(t *testing.T) {
+	t.Run("valid UUID", func(t *testing.T) {
+		var diags diag.Diagnostics
+		result := util.ValidateUUID("550e8400-e29b-41d4-a716-446655440000", &diags)
+		require.True(t, result)
+		require.False(t, diags.HasError())
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		var diags diag.Diagnostics
+		result := util.ValidateUUID("", &diags)
+		require.False(t, result)
+		require.True(t, diags.HasError())
+		require.Contains(t, diags.Errors()[0].Detail(), "\"\"")
+	})
+
+	t.Run("not a UUID", func(t *testing.T) {
+		var diags diag.Diagnostics
+		result := util.ValidateUUID("not-a-uuid", &diags)
+		require.False(t, result)
+		require.True(t, diags.HasError())
+		require.Contains(t, diags.Errors()[0].Detail(), "\"not-a-uuid\"")
+	})
+
+	t.Run("UUID without dashes", func(t *testing.T) {
+		var diags diag.Diagnostics
+		result := util.ValidateUUID("550e8400e29b41d4a716446655440000", &diags)
+		require.True(t, result)
+		require.False(t, diags.HasError())
+	})
 }

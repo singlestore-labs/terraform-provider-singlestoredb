@@ -204,7 +204,7 @@ func IsValidEmail(email string) bool {
 // ValidateUUID checks if the given string is a valid UUID and adds a diagnostic error if not.
 // Returns true if valid, false otherwise.
 func ValidateUUID(id string, diags *diag.Diagnostics) bool {
-	if err := uuid.Validate(id); err != nil {
+	if _, err := uuid.Parse(id); err != nil {
 		diags.AddError(
 			"Invalid import ID",
 			"The provided import ID is not a valid UUID: \""+id+"\".",
