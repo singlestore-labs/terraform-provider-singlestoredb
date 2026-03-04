@@ -250,6 +250,12 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 	}
 
 	for _, f := range immutableFields {
+		// After import, the API does not return certain fields (e.g., user_name, database_name),
+		// so the state value is empty. Skip the check in that case to allow the config to populate them.
+		if f.stateVal.ValueString() == "" {
+			continue
+		}
+
 		if !f.planVal.Equal(f.stateVal) {
 			resp.Diagnostics.AddError(
 				"Cannot update "+f.name,
