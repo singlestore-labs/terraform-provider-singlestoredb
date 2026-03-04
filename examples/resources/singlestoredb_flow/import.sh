@@ -1,3 +1,3 @@
-terraform import singlestoredb_workspace_group.example 3c0c0d99-3c09-45ac-a01f-5ab62afd35cf
-terraform import singlestoredb_workspace.example 01ede7ad-6e5e-43f2-80e6-f1139aebc47a
-terraform import singlestoredb_flow.this 7a1455d7-8e0d-4b75-86b8-f301811bd8c5
+terraform import singlestoredb_workspace_group.example e1e98809-aa6b-4d9e-b1d6-de37a26d5743
+terraform import singlestoredb_workspace.example 4814753b-b348-4c42-9a90-91d683f0bc39
+terraform import singlestoredb_flow.this 6a9bdb6c-d0b8-4b12-adf6-b601c5938dfa
