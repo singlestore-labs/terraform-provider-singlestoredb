@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
@@ -420,16 +419,7 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *privateConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if err := uuid.Validate(req.ID); err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"The provided import ID is not a valid UUID: \""+req.ID+"\".",
-		)
-
-		return
-	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStateValidateUUID(ctx, req, resp)
 }
 
 func toPrivateConnectionModel(privateConnection management.PrivateConnection) (PrivateConnectionModel, *util.SummaryWithDetailError) {

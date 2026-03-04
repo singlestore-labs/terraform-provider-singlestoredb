@@ -359,16 +359,7 @@ func (r *teamResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRe
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *teamResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if err := uuid.Validate(req.ID); err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"The provided import ID is not a valid UUID: \""+req.ID+"\".",
-		)
-
-		return
-	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStateValidateUUID(ctx, req, resp)
 }
 
 func toTeamResourceModel(team management.Team) TeamResourceModel {

@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -539,16 +538,7 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if err := uuid.Validate(req.ID); err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"The provided import ID is not a valid UUID: \""+req.ID+"\".",
-		)
-
-		return
-	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStateValidateUUID(ctx, req, resp)
 }
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {

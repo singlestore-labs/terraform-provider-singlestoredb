@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -269,16 +268,7 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if err := uuid.Validate(req.ID); err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid import ID",
-			"The provided import ID is not a valid UUID: \""+req.ID+"\".",
-		)
-
-		return
-	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStateValidateUUID(ctx, req, resp)
 }
 
 func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourceModel) flowInstanceResourceModel {
