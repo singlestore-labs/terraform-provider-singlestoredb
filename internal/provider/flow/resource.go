@@ -240,18 +240,6 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	immutableFields := []struct {
-		name     string
-		planVal  types.String
-		stateVal types.String
-	}{
-		{"name", plan.Name, state.Name},
-		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
-		{"user_name", plan.UserName, state.UserName},
-		{"database_name", plan.DatabaseName, state.DatabaseName},
-		{"size", plan.Size, state.Size},
-	}
-
 	// After import, the API does not return user_name and database_name,
 	// so they are empty in state. Copy the state values into the plan
 	// to suppress a spurious diff.
@@ -263,12 +251,17 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		resp.Plan.SetAttribute(ctx, path.Root("database_name"), state.DatabaseName)
 	}
 
-	for _, f := range immutableFields {
-		// After import, the API does not return certain fields (e.g., user_name, database_name). Skipping check while we do not populate those fields
-		if f.name == "user_name" || f.name == "database_name" {
-			continue
-		}
+	immutableFields := []struct {
+		name     string
+		planVal  types.String
+		stateVal types.String
+	}{
+		{"name", plan.Name, state.Name},
+		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
+		{"size", plan.Size, state.Size},
+	}
 
+	for _, f := range immutableFields {
 		if !f.planVal.Equal(f.stateVal) {
 			resp.Diagnostics.AddError(
 				"Cannot update "+f.name,
