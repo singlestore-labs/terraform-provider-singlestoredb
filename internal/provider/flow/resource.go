@@ -95,6 +95,9 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 				MarkdownDescription: "The timestamp when the Flow instance was created.",
 			},
 			"endpoint": schema.StringAttribute{
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the Flow instance.",
 			},
@@ -249,6 +252,17 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		{"size", plan.Size, state.Size},
 	}
 
+	// After import, the API does not return user_name and database_name,
+	// so they are empty in state. Copy the state values into the plan
+	// to suppress a spurious diff.
+	if state.UserName.ValueString() == "" {
+		resp.Plan.SetAttribute(ctx, path.Root("user_name"), state.UserName)
+	}
+
+	if state.DatabaseName.ValueString() == "" {
+		resp.Plan.SetAttribute(ctx, path.Root("database_name"), state.DatabaseName)
+	}
+
 	for _, f := range immutableFields {
 		// After import, the API does not return certain fields (e.g., user_name, database_name). Skipping check while we do not populate those fields
 		if f.name == "user_name" || f.name == "database_name" {
@@ -283,8 +297,8 @@ func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourc
 		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
 		Endpoint:     util.MaybeStringValue(flow.Endpoint),
 		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     state.UserName,
-		DatabaseName: state.DatabaseName,
+		UserName:     util.FirstSetStringValue(state.UserName, types.StringValue("")),
+		DatabaseName: util.FirstSetStringValue(state.DatabaseName, types.StringValue("")),
 	}
 
 	return model
