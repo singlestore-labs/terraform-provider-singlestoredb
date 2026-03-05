@@ -474,11 +474,7 @@ func (r *workspaceResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if !util.ValidateUUID(req.ID, &resp.Diagnostics) {
-		return
-	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
 func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceModel {

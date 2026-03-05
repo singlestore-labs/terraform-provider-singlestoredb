@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"net/mail"
 	"os"
@@ -9,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -201,19 +202,18 @@ func IsValidEmail(email string) bool {
 	return err == nil
 }
 
-// ValidateUUID checks if the given string is a valid UUID and adds a diagnostic error if not.
-// Returns true if valid, false otherwise.
-func ValidateUUID(id string, diags *diag.Diagnostics) bool {
-	if _, err := uuid.Parse(id); err != nil {
-		diags.AddError(
+// ImportStatePassthroughID validates the import ID is a valid UUID before passing it through.
+func ImportStatePassthroughID(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if _, err := uuid.Parse(req.ID); err != nil {
+		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			"The provided import ID is not a valid UUID: \""+id+"\".",
+			"The provided import ID is not a valid UUID: \""+req.ID+"\".",
 		)
 
-		return false
+		return
 	}
 
-	return true
+	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
 }
 
 func ValidateEmails(emails []string) error {
