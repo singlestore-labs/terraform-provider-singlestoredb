@@ -161,6 +161,11 @@ func TestCRUDTeam(t *testing.T) {
 				),
 			},
 			{
+				ResourceName:      "singlestoredb_team.this",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
 				Config: testutil.UpdatableConfig(examples.TeamsResource).
 					WithTeamResource("this")("name", cty.StringVal(nameUpdate)).
 					WithTeamResource("this")("description", cty.StringVal(descriptionUpdate)).
