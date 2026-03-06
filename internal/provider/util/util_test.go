@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
@@ -145,4 +146,22 @@ func TestFilter(t *testing.T) {
 	})
 
 	require.Equal(t, []int{2, 4, 6}, evenNums)
+}
+
+func TestImportStatePassthroughID(t *testing.T) {
+	t.Run("empty string", func(t *testing.T) {
+		req := resource.ImportStateRequest{ID: ""}
+		resp := resource.ImportStateResponse{}
+		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		require.True(t, resp.Diagnostics.HasError())
+		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"\"")
+	})
+
+	t.Run("not a UUID", func(t *testing.T) {
+		req := resource.ImportStateRequest{ID: "not-a-uuid"}
+		resp := resource.ImportStateResponse{}
+		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		require.True(t, resp.Diagnostics.HasError())
+		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"not-a-uuid\"")
+	})
 }

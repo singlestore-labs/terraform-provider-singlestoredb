@@ -229,6 +229,12 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 				),
 			},
 			{
+				ResourceName:            "singlestoredb_workspace_group.this",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"admin_password"},
+			},
+			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).

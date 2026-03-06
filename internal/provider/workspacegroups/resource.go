@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -438,14 +437,16 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 
 	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
 		resp.Diagnostics.AddError("Cannot change the high_availability_two_zones configuration for the workspace group.",
-			"Changing the high_availability_two_zones configuration is currently not supported.")
+			"Changing the high_availability_two_zones configuration is currently not supported. "+
+				"Current value: "+state.HighAvailabilityTwoZones.String()+", configured value: "+plan.HighAvailabilityTwoZones.String()+".")
 
 		return
 	}
 
 	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
 		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the workspace group.",
-			"Changing the opt_in_preview_feature configuration is currently not supported.")
+			"Changing the opt_in_preview_feature configuration is currently not supported. "+
+				"Current value: "+state.OptInPreviewFeature.String()+", configured value: "+plan.OptInPreviewFeature.String()+".")
 
 		return
 	}
@@ -453,7 +454,8 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
 		resp.Diagnostics.AddError(
 			"Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the workspace group when the opt_in_preview_feature is enabled.",
-			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported.",
+			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. "+
+				"Current value: \""+state.DeploymentType.ValueString()+"\", configured value: \""+plan.DeploymentType.ValueString()+"\".",
 		)
 
 		return
@@ -536,7 +538,7 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {

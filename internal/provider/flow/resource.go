@@ -95,6 +95,9 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 				MarkdownDescription: "The timestamp when the Flow instance was created.",
 			},
 			"endpoint": schema.StringAttribute{
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the Flow instance.",
 			},
@@ -237,20 +240,42 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	if !plan.Name.Equal(state.Name) ||
-		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
-		!plan.UserName.Equal(state.UserName) ||
-		!plan.DatabaseName.Equal(state.DatabaseName) ||
-		!plan.Size.Equal(state.Size) {
-		resp.Diagnostics.AddError("Cannot update fields",
-			"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
-				"Please explicitly delete the Flow instance before updating fields.")
+	// After import, the API does not return user_name and database_name,
+	// so they are empty in state. Copy the state values into the plan
+	// to suppress a spurious diff.
+	if state.UserName.ValueString() == "" {
+		resp.Plan.SetAttribute(ctx, path.Root("user_name"), state.UserName)
+	}
+
+	if state.DatabaseName.ValueString() == "" {
+		resp.Plan.SetAttribute(ctx, path.Root("database_name"), state.DatabaseName)
+	}
+
+	immutableFields := []struct {
+		name     string
+		planVal  types.String
+		stateVal types.String
+	}{
+		{"name", plan.Name, state.Name},
+		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
+		{"size", plan.Size, state.Size},
+	}
+
+	for _, f := range immutableFields {
+		if !f.planVal.Equal(f.stateVal) {
+			resp.Diagnostics.AddError(
+				"Cannot update "+f.name,
+				"To prevent accidental deletion of data, updating the \""+f.name+"\" field for Flow instances is not allowed. "+
+					"Current value: \""+f.stateVal.ValueString()+"\", configured value: \""+f.planVal.ValueString()+"\". "+
+					"Please explicitly delete the Flow instance before updating this field.",
+			)
+		}
 	}
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
 func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourceModel) flowInstanceResourceModel {
@@ -261,8 +286,8 @@ func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourc
 		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
 		Endpoint:     util.MaybeStringValue(flow.Endpoint),
 		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     state.UserName,
-		DatabaseName: state.DatabaseName,
+		UserName:     util.FirstSetStringValue(state.UserName, types.StringValue("")),
+		DatabaseName: util.FirstSetStringValue(state.DatabaseName, types.StringValue("")),
 	}
 
 	return model
