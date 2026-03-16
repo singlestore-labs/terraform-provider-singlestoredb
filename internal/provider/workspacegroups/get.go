@@ -29,6 +29,7 @@ type workspaceGroupsDataSourceGet struct {
 type workspaceGroupDataSourceModel struct {
 	ID                       types.String                 `tfsdk:"id"`
 	Name                     types.String                 `tfsdk:"name"`
+	ProjectID                types.String                 `tfsdk:"project_id"`
 	State                    types.String                 `tfsdk:"state"`
 	FirewallRanges           []types.String               `tfsdk:"firewall_ranges"`
 	AllowAllTraffic          types.Bool                   `tfsdk:"allow_all_traffic"`
@@ -137,6 +138,10 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 			Computed:            conf.computeName,
 			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the workspace group.",
+		},
+		"project_id": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The unique identifier of the project to which the workspace group is assigned.",
 		},
 		"state": schema.StringAttribute{
 			Computed:            true,

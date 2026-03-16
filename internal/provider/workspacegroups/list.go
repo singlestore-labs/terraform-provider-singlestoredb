@@ -98,6 +98,7 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) w
 	return workspaceGroupDataSourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
+		ProjectID:                util.MaybeUUIDStringValue(workspaceGroup.ProjectID),
 		State:                    util.WorkspaceGroupStateStringValue(workspaceGroup.State),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
