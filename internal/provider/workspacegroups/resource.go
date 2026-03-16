@@ -49,6 +49,7 @@ type updateWindowResourceModel struct {
 type workspaceGroupResourceModel struct {
 	ID                       types.String   `tfsdk:"id"`
 	Name                     types.String   `tfsdk:"name"`
+	ProjectID                types.String   `tfsdk:"project_id"`
 	FirewallRanges           []types.String `tfsdk:"firewall_ranges"`
 	CreatedAt                types.String   `tfsdk:"created_at"`
 	ExpiresAt                types.String   `tfsdk:"expires_at"`
@@ -88,6 +89,11 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Name of the workspace group.",
+			},
+			"project_id": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The unique identifier of the project to which the workspace group is assigned.",
+				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -214,12 +220,18 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
+	projectIDIsSet := !plan.ProjectID.IsNull() && !plan.ProjectID.IsUnknown()
+	var projectID *uuid.UUID
+	if projectIDIsSet {
+		projectID = util.Ptr(uuid.MustParse(plan.ProjectID.ValueString()))
+	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
 		AdminPassword:            util.MaybeString(plan.AdminPassword),
 		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
 		Name:                     plan.Name.ValueString(),
+		ProjectID:                projectID,
 		RegionID:                 regionID,
 		Provider:                 util.WorkspaceGroupCloudProviderString(plan.CloudProvider.ValueString()),
 		RegionName:               util.MaybeString(plan.RegionName),
@@ -435,6 +447,12 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
+	if err := validateModifyProjectID(plan, state); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
 	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
 		resp.Diagnostics.AddError("Cannot change the high_availability_two_zones configuration for the workspace group.",
 			"Changing the high_availability_two_zones configuration is currently not supported. "+
@@ -536,6 +554,17 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 	return nil
 }
 
+func validateModifyProjectID(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.ProjectID.Equal(state.ProjectID) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group project_id",
+			Detail:  fmt.Sprintf("Updating the project_id is not permitted. Expected value is '%s'.", state.ProjectID.ValueString()),
+		}
+	}
+
+	return nil
+}
+
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
@@ -545,6 +574,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
+		ProjectID:                util.MaybeUUIDStringValue(workspaceGroup.ProjectID),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
