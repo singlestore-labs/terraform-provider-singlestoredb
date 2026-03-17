@@ -252,12 +252,27 @@ func readByID(data workspaceGroupDataSourceModel, ctx context.Context, d *worksp
 
 	projectNamesByID := map[string]string{}
 	if workspaceGroup.JSON200.ProjectID != nil {
-		if resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface); perr == nil {
-			projectNamesByID = resolvedProjectNamesByID
+		resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
+		if perr != nil {
+			resp.Diagnostics.AddError(
+				perr.Summary,
+				perr.Detail,
+			)
+
+			return
 		}
+		projectNamesByID = resolvedProjectNamesByID
 	}
 
-	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200, projectNamesByID)
+	result, merr := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200, projectNamesByID)
+	if merr != nil {
+		resp.Diagnostics.AddError(
+			merr.Summary,
+			merr.Detail,
+		)
+
+		return
+	}
 
 	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -298,11 +313,28 @@ func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *work
 
 	projectNamesByID := map[string]string{}
 	if result[0].ProjectID != nil {
-		if resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface); perr == nil {
-			projectNamesByID = resolvedProjectNamesByID
+		resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
+		if perr != nil {
+			resp.Diagnostics.AddError(
+				perr.Summary,
+				perr.Detail,
+			)
+
+			return
 		}
+		projectNamesByID = resolvedProjectNamesByID
 	}
 
-	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0], projectNamesByID)))
+	model, merr := toWorkspaceGroupDataSourceModel(result[0], projectNamesByID)
+	if merr != nil {
+		resp.Diagnostics.AddError(
+			merr.Summary,
+			merr.Detail,
+		)
+
+		return
+	}
+
+	diags := resp.State.Set(ctx, util.Ptr(model))
 	resp.Diagnostics.Append(diags...)
 }

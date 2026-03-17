@@ -85,23 +85,23 @@ To try this example, follow these steps:
 
 1. **Create the workspace:**
 
-    ```shell
-    terraform apply
-    ```
+   ```shell
+   terraform apply
+   ```
 
 2. **Connect to the new workspace:**
 
-    ```shell
-    export endpoint=$(terraform output -raw endpoint)
-    export admin_password=$(terraform output -raw admin_password)
-    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
-    ```
+   ```shell
+   export endpoint=$(terraform output -raw endpoint)
+   export admin_password=$(terraform output -raw admin_password)
+   mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
+   ```
 
 3. **Terminate the workspace:**
 
-    ```shell
-    terraform destroy
-    ```
+   ```shell
+   terraform destroy
+   ```
 
 ## Documentation
 
