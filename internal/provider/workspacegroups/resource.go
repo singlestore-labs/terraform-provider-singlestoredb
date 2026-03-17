@@ -553,12 +553,6 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 		return nil
 	}
 
-	// If the state contains the fallback project ID representation, allow configuring the
-	// project name to avoid blocking import/apply flows when name resolution was unavailable.
-	if _, err := uuid.Parse(state.ProjectName.ValueString()); err == nil {
-		return nil
-	}
-
 	if !plan.ProjectName.Equal(state.ProjectName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
