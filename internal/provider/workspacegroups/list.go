@@ -76,14 +76,11 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 		return
 	}
 
-	projectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
-	if perr != nil {
-		resp.Diagnostics.AddError(
-			perr.Summary,
-			perr.Detail,
-		)
-
-		return
+	projectNamesByID := map[string]string{}
+	if hasWorkspaceGroupWithProjectID(util.Deref(workspaceGroups.JSON200)) {
+		if resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface); perr == nil {
+			projectNamesByID = resolvedProjectNamesByID
+		}
 	}
 
 	result := workspaceGroupsListDataSourceModel{
@@ -148,6 +145,16 @@ func getProjectNamesByID(ctx context.Context, c management.ClientWithResponsesIn
 	}
 
 	return result, nil
+}
+
+func hasWorkspaceGroupWithProjectID(workspaceGroups []management.WorkspaceGroup) bool {
+	for _, workspaceGroup := range workspaceGroups {
+		if workspaceGroup.ProjectID != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {
