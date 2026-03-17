@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -49,7 +51,7 @@ type updateWindowResourceModel struct {
 type workspaceGroupResourceModel struct {
 	ID                       types.String   `tfsdk:"id"`
 	Name                     types.String   `tfsdk:"name"`
-	ProjectID                types.String   `tfsdk:"project_id"`
+	ProjectName              types.String   `tfsdk:"project_name"`
 	FirewallRanges           []types.String `tfsdk:"firewall_ranges"`
 	CreatedAt                types.String   `tfsdk:"created_at"`
 	ExpiresAt                types.String   `tfsdk:"expires_at"`
@@ -90,10 +92,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Required:            true,
 				MarkdownDescription: "Name of the workspace group.",
 			},
-			"project_id": schema.StringAttribute{
+			"project_name": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The unique identifier of the project to which the workspace group is assigned.",
-				Validators:          []validator.String{util.NewUUIDValidator()},
+				MarkdownDescription: "The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.",
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -220,10 +221,20 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
-	projectIDIsSet := !plan.ProjectID.IsNull() && !plan.ProjectID.IsUnknown()
+	projectNameIsSet := !plan.ProjectName.IsNull() && !plan.ProjectName.IsUnknown()
 	var projectID *uuid.UUID
-	if projectIDIsSet {
-		projectID = util.Ptr(uuid.MustParse(plan.ProjectID.ValueString()))
+	if projectNameIsSet {
+		resolvedProjectID, perr := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+		if perr != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("project_name"),
+				perr.Summary,
+				perr.Detail,
+			)
+
+			return
+		}
+		projectID = resolvedProjectID
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
@@ -263,7 +274,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	), regionIDIsSet)
+	), regionIDIsSet, plan.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -334,7 +345,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet, state.ProjectName)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -382,7 +393,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -447,34 +458,13 @@ func (r *workspaceGroupResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if err := validateModifyProjectID(plan, state); err != nil {
+	if err := validateModifyProjectName(plan, state); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
 	}
-
-	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
-		resp.Diagnostics.AddError("Cannot change the high_availability_two_zones configuration for the workspace group.",
-			"Changing the high_availability_two_zones configuration is currently not supported. "+
-				"Current value: "+state.HighAvailabilityTwoZones.String()+", configured value: "+plan.HighAvailabilityTwoZones.String()+".")
-
-		return
-	}
-
-	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
-		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the workspace group.",
-			"Changing the opt_in_preview_feature configuration is currently not supported. "+
-				"Current value: "+state.OptInPreviewFeature.String()+", configured value: "+plan.OptInPreviewFeature.String()+".")
-
-		return
-	}
-
-	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
-		resp.Diagnostics.AddError(
-			"Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the workspace group when the opt_in_preview_feature is enabled.",
-			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. "+
-				"Current value: \""+state.DeploymentType.ValueString()+"\", configured value: \""+plan.DeploymentType.ValueString()+"\".",
-		)
+	if err := validateModifyImmutableWorkspaceGroupFlags(plan, state); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
 	}
@@ -554,11 +544,39 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 	return nil
 }
 
-func validateModifyProjectID(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if !plan.ProjectID.Equal(state.ProjectID) {
+func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.ProjectName.Equal(state.ProjectName) {
 		return &util.SummaryWithDetailError{
-			Summary: "Cannot update workspace group project_id",
-			Detail:  fmt.Sprintf("Updating the project_id is not permitted. Expected value is '%s'.", state.ProjectID.ValueString()),
+			Summary: "Cannot update workspace group project_name",
+			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
+		}
+	}
+
+	return nil
+}
+
+func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot change the high_availability_two_zones configuration for the workspace group.",
+			Detail: "Changing the high_availability_two_zones configuration is currently not supported. " +
+				"Current value: " + state.HighAvailabilityTwoZones.String() + ", configured value: " + plan.HighAvailabilityTwoZones.String() + ".",
+		}
+	}
+
+	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot change the opt_in_preview_feature configuration for the workspace group.",
+			Detail: "Changing the opt_in_preview_feature configuration is currently not supported. " +
+				"Current value: " + state.OptInPreviewFeature.String() + ", configured value: " + plan.OptInPreviewFeature.String() + ".",
+		}
+	}
+
+	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the workspace group when the opt_in_preview_feature is enabled.",
+			Detail: "Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. " +
+				"Current value: \"" + state.DeploymentType.ValueString() + "\", configured value: \"" + plan.DeploymentType.ValueString() + "\".",
 		}
 	}
 
@@ -570,11 +588,11 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, projectName types.String) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectID:                util.MaybeUUIDStringValue(workspaceGroup.ProjectID),
+		ProjectName:              projectName,
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
@@ -593,6 +611,34 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	}
 
 	return result
+}
+
+func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
+	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
+	if serr := util.StatusOK(projectsResponse, err); serr != nil {
+		return nil, serr
+	}
+
+	projects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
+		return strings.EqualFold(strings.TrimSpace(project.Name), strings.TrimSpace(projectName))
+	})
+	if len(projects) == 0 {
+		return nil, &util.SummaryWithDetailError{
+			Summary: "Project not found",
+			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name.", projectName),
+		}
+	}
+
+	if len(projects) > 1 {
+		return nil, &util.SummaryWithDetailError{
+			Summary: "Multiple projects found",
+			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for workspace group assignment.", projectName),
+		}
+	}
+
+	projectID := uuid.UUID(projects[0].ProjectID)
+
+	return &projectID, nil
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {

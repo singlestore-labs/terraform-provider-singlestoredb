@@ -29,7 +29,7 @@ type workspaceGroupsDataSourceGet struct {
 type workspaceGroupDataSourceModel struct {
 	ID                       types.String                 `tfsdk:"id"`
 	Name                     types.String                 `tfsdk:"name"`
-	ProjectID                types.String                 `tfsdk:"project_id"`
+	ProjectName              types.String                 `tfsdk:"project_name"`
 	State                    types.String                 `tfsdk:"state"`
 	FirewallRanges           []types.String               `tfsdk:"firewall_ranges"`
 	AllowAllTraffic          types.Bool                   `tfsdk:"allow_all_traffic"`
@@ -139,9 +139,9 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the workspace group.",
 		},
-		"project_id": schema.StringAttribute{
+		"project_name": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The unique identifier of the project to which the workspace group is assigned.",
+			MarkdownDescription: "The name of the project to which the workspace group is assigned.",
 		},
 		"state": schema.StringAttribute{
 			Computed:            true,
@@ -250,7 +250,17 @@ func readByID(data workspaceGroupDataSourceModel, ctx context.Context, d *worksp
 		return
 	}
 
-	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200)
+	projectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
+	if perr != nil {
+		resp.Diagnostics.AddError(
+			perr.Summary,
+			perr.Detail,
+		)
+
+		return
+	}
+
+	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200, projectNamesByID)
 
 	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -289,6 +299,16 @@ func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *work
 		return
 	}
 
-	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0])))
+	projectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
+	if perr != nil {
+		resp.Diagnostics.AddError(
+			perr.Summary,
+			perr.Detail,
+		)
+
+		return
+	}
+
+	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0], projectNamesByID)))
 	resp.Diagnostics.Append(diags...)
 }

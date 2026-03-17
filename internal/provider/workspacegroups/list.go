@@ -76,9 +76,21 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 		return
 	}
 
+	projectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
+	if perr != nil {
+		resp.Diagnostics.AddError(
+			perr.Summary,
+			perr.Detail,
+		)
+
+		return
+	}
+
 	result := workspaceGroupsListDataSourceModel{
 		ID:              types.StringValue(config.TestIDValue),
-		WorkspaceGroups: util.Map(util.Deref(workspaceGroups.JSON200), toWorkspaceGroupDataSourceModel),
+		WorkspaceGroups: util.Map(util.Deref(workspaceGroups.JSON200), func(wg management.WorkspaceGroup) workspaceGroupDataSourceModel {
+			return toWorkspaceGroupDataSourceModel(wg, projectNamesByID)
+		}),
 	}
 
 	diags := resp.State.Set(ctx, &result)
@@ -94,11 +106,20 @@ func (d *workspaceGroupsDataSourceList) Configure(_ context.Context, req datasou
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) workspaceGroupDataSourceModel {
+func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup, projectNamesByID map[string]string) workspaceGroupDataSourceModel {
+	projectName := types.StringNull()
+	if workspaceGroup.ProjectID != nil {
+		if name, ok := projectNamesByID[workspaceGroup.ProjectID.String()]; ok {
+			projectName = types.StringValue(name)
+		} else {
+			projectName = types.StringValue(workspaceGroup.ProjectID.String())
+		}
+	}
+
 	return workspaceGroupDataSourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectID:                util.MaybeUUIDStringValue(workspaceGroup.ProjectID),
+		ProjectName:              projectName,
 		State:                    util.WorkspaceGroupStateStringValue(workspaceGroup.State),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
@@ -113,6 +134,20 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) w
 		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 	}
+}
+
+func getProjectNamesByID(ctx context.Context, c management.ClientWithResponsesInterface) (map[string]string, *util.SummaryWithDetailError) {
+	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
+	if serr := util.StatusOK(projectsResponse, err, util.ReturnNilOnNotFound); serr != nil {
+		return nil, serr
+	}
+
+	result := map[string]string{}
+	for _, project := range util.Deref(projectsResponse.JSON200) {
+		result[project.ProjectID.String()] = project.Name
+	}
+
+	return result, nil
 }
 
 func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {

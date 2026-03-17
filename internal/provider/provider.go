@@ -17,6 +17,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/projects"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
 	regions_v2 "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
@@ -178,6 +179,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		roles.NewTeamRolesDataSourceList,
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
+		projects.NewDataSourceList,
 	}
 }
 

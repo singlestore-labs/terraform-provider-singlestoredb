@@ -40,6 +40,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	projectID := uuid.MustParse("cb58e63f-f9ca-42d0-b6ea-f0d34a42c9d5")
+	projectName := "core-project"
 
 	workspaceGroup := management.WorkspaceGroup{
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -66,6 +67,24 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(regionsv2))
+		require.NoError(t, err)
+
+		return true
+	}
+	projectsHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/v1/projects" || r.Method != http.MethodGet {
+			return false
+		}
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Project{
+			{
+				ProjectID: projectID,
+				Name:      projectName,
+				Edition:   management.ProjectEdition("STANDARD"),
+				CreatedAt: time.Now().UTC(),
+			},
+		}))
 		require.NoError(t, err)
 
 		return true
@@ -183,6 +202,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		regionsv2Handler,
+		projectsHandler,
 		workspaceGroupsGetHandler,
 	}
 
@@ -217,12 +237,12 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_id", cty.StringVal(projectID.String())).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_id", projectID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
@@ -243,7 +263,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
-					WithWorkspaceGroupResource("this")("project_id", cty.StringVal(projectID.String())).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
@@ -258,7 +278,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_id", projectID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
