@@ -30,7 +30,7 @@ var (
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
-func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
+func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
