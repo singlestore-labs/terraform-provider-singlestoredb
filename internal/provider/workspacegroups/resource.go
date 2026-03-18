@@ -94,7 +94,11 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
