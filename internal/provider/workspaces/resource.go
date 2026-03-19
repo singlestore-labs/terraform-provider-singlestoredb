@@ -266,6 +266,7 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		CacheConfig:      util.MaybeFloat32(plan.CacheConfig),
 		ScaleFactor:      util.MaybeFloat32(plan.ScaleFactor),
 		AutoSuspend:      toCreateAutoSuspend(plan),
+		AutoScale:        toCreateAutoScale(plan),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -274,23 +275,6 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		)
 
 		return
-	}
-
-	// Execute PATCH call to proceed autoScale
-	if !plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
-		workspace, err := r.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, workspaceCreateResponse.JSON200.WorkspaceID,
-			management.PatchV1WorkspacesWorkspaceIDJSONRequestBody{
-				AutoScale: toAutoScale(plan),
-			},
-		)
-		if serr := util.StatusOK(workspace, err); serr != nil {
-			resp.Diagnostics.AddError(
-				serr.Summary,
-				serr.Detail,
-			)
-
-			return
-		}
 	}
 
 	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.WorkspaceID, config.WorkspaceCreationTimeout,
@@ -512,6 +496,17 @@ func toCreateAutoSuspend(plan workspaceResourceModel) *struct {
 	}
 }
 
+func toCreateAutoScale(plan workspaceResourceModel) *management.AutoScale {
+	if plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+		return nil
+	}
+
+	return &management.AutoScale{
+		MaxScaleFactor: util.MaybeFloat32(plan.AutoScale.MaxScaleFactor),
+		Sensitivity:    util.WorkspaceAutoScaleSensitivityString(plan.AutoScale.Sensitivity),
+	}
+}
+
 func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendResourceModel {
 	if ws.AutoSuspend == nil {
 		return &workspaceAutoSuspendResourceModel{
@@ -531,20 +526,14 @@ func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendRe
 	}
 }
 
-func toAutoScale(plan workspaceResourceModel) *struct {
-	MaxScaleFactor *float32                                        `json:"maxScaleFactor,omitempty"`
-	Sensitivity    *management.WorkspaceUpdateAutoScaleSensitivity `json:"sensitivity,omitempty"`
-} {
+func toAutoScale(plan workspaceResourceModel) *management.AutoScale {
 	// If MaxScaleFactor = 1 ignore sensitivity to disable autoscaling
-	var sensitivity *management.WorkspaceUpdateAutoScaleSensitivity
+	var sensitivity *management.AutoScaleSensitivity
 	if !plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
 		sensitivity = util.WorkspaceAutoScaleSensitivityString(plan.AutoScale.Sensitivity)
 	}
 
-	return &struct {
-		MaxScaleFactor *float32                                        `json:"maxScaleFactor,omitempty"`
-		Sensitivity    *management.WorkspaceUpdateAutoScaleSensitivity `json:"sensitivity,omitempty"`
-	}{
+	return &management.AutoScale{
 		MaxScaleFactor: util.MaybeFloat32(plan.AutoScale.MaxScaleFactor),
 		Sensitivity:    sensitivity,
 	}
@@ -559,7 +548,7 @@ func toAutoScaleResourceModel(ws management.Workspace) *autoScaleResourceModel {
 	}
 
 	return &autoScaleResourceModel{
-		MaxScaleFactor: types.Float32Value(ws.AutoScale.MaxScaleFactor),
+		MaxScaleFactor: types.Float32PointerValue(ws.AutoScale.MaxScaleFactor),
 		Sensitivity:    util.StringValueOrNull(ws.AutoScale.Sensitivity),
 	}
 }
