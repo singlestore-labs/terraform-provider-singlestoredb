@@ -134,8 +134,8 @@ func MaybeFloat32(f types.Float32) *float32 {
 	return Ptr(f.ValueFloat32())
 }
 
-func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.WorkspaceUpdateAutoScaleSensitivity {
-	for _, s := range []management.WorkspaceUpdateAutoScaleSensitivity{
+func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.AutoScaleSensitivity {
+	for _, s := range []management.AutoScaleSensitivity{
 		management.LOW,
 		management.NORMAL,
 		management.HIGH,
