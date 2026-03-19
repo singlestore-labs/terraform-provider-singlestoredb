@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -240,17 +239,6 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	// After import, the API does not return user_name and database_name,
-	// so they are empty in state. Copy the state values into the plan
-	// to suppress a spurious diff.
-	if state.UserName.ValueString() == "" {
-		resp.Plan.SetAttribute(ctx, path.Root("user_name"), state.UserName)
-	}
-
-	if state.DatabaseName.ValueString() == "" {
-		resp.Plan.SetAttribute(ctx, path.Root("database_name"), state.DatabaseName)
-	}
-
 	immutableFields := []struct {
 		name     string
 		planVal  types.String
@@ -258,6 +246,8 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 	}{
 		{"name", plan.Name, state.Name},
 		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
+		{"user_name", plan.UserName, state.UserName},
+		{"database_name", plan.DatabaseName, state.DatabaseName},
 		{"size", plan.Size, state.Size},
 	}
 
