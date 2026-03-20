@@ -272,7 +272,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	), regionIDIsSet, getWorkspaceGroupProjectName(ctx, r.ClientWithResponsesInterface, wg, plan.ProjectName))
+	), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -355,9 +355,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet,
-		getWorkspaceGroupProjectName(ctx, r.ClientWithResponsesInterface, *workspaceGroup.JSON200, state.ProjectName),
-	)
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -405,9 +403,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet,
-		getWorkspaceGroupProjectName(ctx, r.ClientWithResponsesInterface, wg, plan.ProjectName),
-	)
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -606,11 +602,11 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, projectName types.String) workspaceGroupResourceModel {
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectName:              projectName,
+		ProjectName:              util.StringValueOrNull(workspaceGroup.ProjectName),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
@@ -657,24 +653,6 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	projectID := projects[0].ProjectID
 
 	return &projectID, nil
-}
-
-func getWorkspaceGroupProjectName(ctx context.Context, c management.ClientWithResponsesInterface, workspaceGroup management.WorkspaceGroup, fallback types.String) types.String {
-	if workspaceGroup.ProjectID == nil {
-		return types.StringNull()
-	}
-
-	if projectNamesByID, err := getProjectNamesByID(ctx, c); err == nil {
-		if name, ok := projectNamesByID[workspaceGroup.ProjectID.String()]; ok {
-			return types.StringValue(name)
-		}
-	}
-
-	if !fallback.IsNull() && !fallback.IsUnknown() {
-		return fallback
-	}
-
-	return types.StringValue(workspaceGroup.ProjectID.String())
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {

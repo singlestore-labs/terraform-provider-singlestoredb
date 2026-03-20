@@ -76,32 +76,9 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 		return
 	}
 
-	projectNamesByID := map[string]string{}
-	if hasWorkspaceGroupWithProjectID(util.Deref(workspaceGroups.JSON200)) {
-		resolvedProjectNamesByID, perr := getProjectNamesByID(ctx, d.ClientWithResponsesInterface)
-		if perr != nil {
-			resp.Diagnostics.AddError(
-				perr.Summary,
-				perr.Detail,
-			)
-
-			return
-		}
-		projectNamesByID = resolvedProjectNamesByID
-	}
-
 	workspaceGroupModels := make([]workspaceGroupDataSourceModel, 0, len(util.Deref(workspaceGroups.JSON200)))
 	for _, wg := range util.Deref(workspaceGroups.JSON200) {
-		model, merr := toWorkspaceGroupDataSourceModel(wg, projectNamesByID)
-		if merr != nil {
-			resp.Diagnostics.AddError(
-				merr.Summary,
-				merr.Detail,
-			)
-
-			return
-		}
-
+		model := toWorkspaceGroupDataSourceModel(wg)
 		workspaceGroupModels = append(workspaceGroupModels, model)
 	}
 
@@ -123,23 +100,11 @@ func (d *workspaceGroupsDataSourceList) Configure(_ context.Context, req datasou
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup, projectNamesByID map[string]string) (workspaceGroupDataSourceModel, *util.SummaryWithDetailError) {
-	projectName := types.StringNull()
-	if workspaceGroup.ProjectID != nil {
-		name, ok := projectNamesByID[workspaceGroup.ProjectID.String()]
-		if !ok {
-			return workspaceGroupDataSourceModel{}, &util.SummaryWithDetailError{
-				Summary: "Failed to resolve project name",
-				Detail:  "Unable to resolve project name for workspace group project ID '" + workspaceGroup.ProjectID.String() + "'.",
-			}
-		}
-		projectName = types.StringValue(name)
-	}
-
+func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) workspaceGroupDataSourceModel {
 	return workspaceGroupDataSourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectName:              projectName,
+		ProjectName:              util.MaybeStringValue(workspaceGroup.ProjectName),
 		State:                    util.WorkspaceGroupStateStringValue(workspaceGroup.State),
 		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
 		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
@@ -153,31 +118,7 @@ func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup, p
 		OptInPreviewFeature:      util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
-	}, nil
-}
-
-func getProjectNamesByID(ctx context.Context, c management.ClientWithResponsesInterface) (map[string]string, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
-	if serr := util.StatusOK(projectsResponse, err, util.ReturnNilOnNotFound); serr != nil {
-		return nil, serr
 	}
-
-	result := map[string]string{}
-	for _, project := range util.Deref(projectsResponse.JSON200) {
-		result[project.ProjectID.String()] = project.Name
-	}
-
-	return result, nil
-}
-
-func hasWorkspaceGroupWithProjectID(workspaceGroups []management.WorkspaceGroup) bool {
-	for _, workspaceGroup := range workspaceGroups {
-		if workspaceGroup.ProjectID != nil {
-			return true
-		}
-	}
-
-	return false
 }
 
 func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {

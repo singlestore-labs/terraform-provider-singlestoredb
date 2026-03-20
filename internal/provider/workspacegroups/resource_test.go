@@ -54,6 +54,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		UpdateWindow:      &management.UpdateWindow{Day: config.TestInitialUpdateWindowDay, Hour: config.TestInitialUpdateWindowHour},
 		WorkspaceGroupID:  workspaceGroupID,
 		ProjectID:         &projectID,
+		ProjectName:       &projectName,
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
