@@ -80,6 +80,31 @@ func TestReadProjectsError(t *testing.T) {
 	})
 }
 
+func TestReadProjectsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/projects", r.URL.Path)
+		w.Header().Add("Content-Type", "application/json")
+		_, err := w.Write(testutil.MustJSON([]management.Project{}))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.ProjectsListDataSource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.singlestoredb_projects.all", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestoredb_projects.all", "projects.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func TestReadProjectsIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
