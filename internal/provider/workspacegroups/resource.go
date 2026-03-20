@@ -94,7 +94,11 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -565,8 +569,16 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 }
 
 func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if isUnsetString(plan.ProjectName) && isUnsetString(state.ProjectName) {
+	// Legacy configs may not set project_name; treat that as unmanaged and allow refresh-only state updates.
+	if isUnsetString(plan.ProjectName) {
 		return nil
+	}
+
+	if isUnsetString(state.ProjectName) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group project_name",
+			Detail:  "Updating the project_name is not permitted. Expected value is ''.",
+		}
 	}
 
 	if !plan.ProjectName.Equal(state.ProjectName) {

@@ -927,7 +927,7 @@ func TestWorkspaceGroupNoProjectLookupWhenProjectNameNotSet(t *testing.T) {
 	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
 }
 
-func TestProjectNameCannotBeRemovedAfterCreation(t *testing.T) {
+func TestProjectNameCanBeUnmanagedAfterCreation(t *testing.T) {
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
@@ -1040,8 +1040,104 @@ func TestProjectNameCannotBeRemovedAfterCreation(t *testing.T) {
 					String(),
 			},
 			{
-				Config:      examples.WorkspaceGroupsResource,
-				ExpectError: regexp.MustCompile("Cannot update workspace group project_name"),
+				Config: examples.WorkspaceGroupsResource,
+			},
+		},
+	})
+
+	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
+}
+
+func TestLegacyConfigWithoutProjectNameNoConflict(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	workspaceGroupID := uuid.New()
+	regionID := uuid.New()
+	projectID := uuid.New()
+	projectName := "default"
+	testOutboundAllowList := "test-account-id"
+
+	writeHandlers := []func(http.ResponseWriter, *http.Request){
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+			var input management.WorkspaceGroupCreate
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+			require.Nil(t, input.ProjectID)
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			}))
+			require.NoError(t, err)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodDelete, r.Method)
+			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			}))
+			require.NoError(t, err)
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v2/regions":
+			require.Equal(t, http.MethodGet, r.Method)
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(regionsv2))
+			require.NoError(t, err)
+		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID):
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				management.WorkspaceGroup{
+					WorkspaceGroupID:  workspaceGroupID,
+					Name:              config.TestInitialWorkspaceGroupName,
+					ProjectID:         &projectID,
+					ProjectName:       &projectName,
+					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+					RegionID:          regionID,
+					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+					TerminatedAt:      nil,
+					State:             management.WorkspaceGroupStateACTIVE,
+					Provider:          management.CloudProviderAWS,
+					RegionName:        regionsv2[0].RegionName,
+					OutboundAllowList: &testOutboundAllowList,
+					DeploymentType:    &defaultDeploymentType,
+				},
+			))
+			require.NoError(t, err)
+		default:
+			require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
+			h := writeHandlers[0]
+			h(w, r)
+			writeHandlers = writeHandlers[1:]
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.WorkspaceGroupsResource,
+			},
+			{
+				Config: examples.WorkspaceGroupsResource,
 			},
 		},
 	})
