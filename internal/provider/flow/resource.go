@@ -147,7 +147,7 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	result := toFlowInstanceResourceModel(flow, plan)
+	result := toFlowInstanceResourceModel(flow)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -179,7 +179,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	result := toFlowInstanceResourceModel(*flow.JSON200, state)
+	result := toFlowInstanceResourceModel(*flow.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -268,7 +268,7 @@ func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.Imp
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourceModel) flowInstanceResourceModel {
+func toFlowInstanceResourceModel(flow management.Flow) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
 		ID:           util.UUIDStringValue(flow.FlowID),
 		Name:         types.StringValue(flow.Name),
@@ -276,8 +276,8 @@ func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourc
 		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
 		Endpoint:     util.MaybeStringValue(flow.Endpoint),
 		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     util.FirstSetStringValue(state.UserName, types.StringValue("")),
-		DatabaseName: util.FirstSetStringValue(state.DatabaseName, types.StringValue("")),
+		UserName:     util.MaybeStringValue(flow.UserName),
+		DatabaseName: util.MaybeStringValue(flow.DatabaseName),
 	}
 
 	return model
