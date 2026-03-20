@@ -821,7 +821,7 @@ func TestWorkspaceGroupProjectNameMatchingIsTrimmedAndCaseInsensitive(t *testing
 					WorkspaceGroupID:  workspaceGroupID,
 					Name:              config.TestInitialWorkspaceGroupName,
 					ProjectID:         &projectID,
-					ProjectName:       util.Ptr(configProjectName),
+					ProjectName:       util.Ptr(resolvedProjectName),
 					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 					RegionID:          regionID,
 					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -849,6 +849,14 @@ func TestWorkspaceGroupProjectNameMatchingIsTrimmedAndCaseInsensitive(t *testing
 		APIKey:        testutil.UnusedAPIKey,
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(configProjectName)).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", configProjectName),
+				),
+			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(configProjectName)).

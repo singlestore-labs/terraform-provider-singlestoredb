@@ -95,7 +95,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"project_name": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.",
+				MarkdownDescription: "The name of the project to which the workspace group is assigned. This value cannot be changed after the workspace group is created; to use a different project, create a new workspace group associated with the desired project and migrate any dependent resources.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -273,6 +273,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
 	), regionIDIsSet)
+	result.ProjectName = preferConfiguredProjectName(plan.ProjectName, result.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -355,7 +356,9 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
+	previousProjectName := state.ProjectName
 	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
+	state.ProjectName = preferConfiguredProjectName(previousProjectName, state.ProjectName)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -418,6 +421,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
+	result.ProjectName = preferConfiguredProjectName(plan.ProjectName, result.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -581,7 +585,7 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 		}
 	}
 
-	if !plan.ProjectName.Equal(state.ProjectName) {
+	if !isEquivalentProjectName(plan.ProjectName, state.ProjectName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
 			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
@@ -616,6 +620,30 @@ func stringListValuesEqual(left, right []types.String) bool {
 
 func isUnsetString(v types.String) bool {
 	return v.IsNull() || v.IsUnknown()
+}
+
+func normalizeProjectName(v string) string {
+	return strings.TrimSpace(v)
+}
+
+func isEquivalentProjectName(left, right types.String) bool {
+	if isUnsetString(left) || isUnsetString(right) {
+		return false
+	}
+
+	return strings.EqualFold(normalizeProjectName(left.ValueString()), normalizeProjectName(right.ValueString()))
+}
+
+func preferConfiguredProjectName(configured, apiValue types.String) types.String {
+	if isUnsetString(configured) || isUnsetString(apiValue) {
+		return apiValue
+	}
+
+	if isEquivalentProjectName(configured, apiValue) {
+		return configured
+	}
+
+	return apiValue
 }
 
 func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
@@ -683,7 +711,7 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	}
 
 	projects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
-		return strings.EqualFold(strings.TrimSpace(project.Name), strings.TrimSpace(projectName))
+		return strings.EqualFold(normalizeProjectName(project.Name), normalizeProjectName(projectName))
 	})
 	if len(projects) == 0 {
 		return nil, &util.SummaryWithDetailError{
