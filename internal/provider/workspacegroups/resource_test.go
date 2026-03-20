@@ -386,6 +386,8 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	workspaceGroupID := uuid.New()
 	regionID := uuid.New()
+	projectID := uuid.New()
+	projectName := "default"
 	testOutboundAllowList := "test-account-id"
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
@@ -407,6 +409,8 @@ func TestUpdateWindowRemoval(t *testing.T) {
 				management.WorkspaceGroup{
 					WorkspaceGroupID:  workspaceGroupID,
 					Name:              config.TestInitialWorkspaceGroupName,
+					ProjectID:         &projectID,
+					ProjectName:       &projectName,
 					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 					RegionID:          regionID,
 					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -438,6 +442,8 @@ func TestUpdateWindowRemoval(t *testing.T) {
 			management.WorkspaceGroup{
 				WorkspaceGroupID:  workspaceGroupID,
 				Name:              config.TestInitialWorkspaceGroupName,
+				ProjectID:         &projectID,
+				ProjectName:       &projectName,
 				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 				RegionID:          regionID,
 				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
