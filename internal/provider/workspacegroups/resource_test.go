@@ -532,3 +532,131 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
 }
+
+func TestProjectNameCannotBeSetAfterCreation(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	workspaceGroupID := uuid.New()
+	regionID := uuid.New()
+	testOutboundAllowList := "test-account-id"
+
+	writeHandlers := []func(http.ResponseWriter, *http.Request){
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				management.WorkspaceGroup{
+					WorkspaceGroupID:  workspaceGroupID,
+					Name:              config.TestInitialWorkspaceGroupName,
+					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+					RegionID:          regionID,
+					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+					TerminatedAt:      nil,
+					State:             management.WorkspaceGroupStateACTIVE,
+					Provider:          management.CloudProviderAWS,
+					RegionName:        regionsv2[0].RegionName,
+					OutboundAllowList: &testOutboundAllowList,
+					DeploymentType:    &defaultDeploymentType,
+				},
+			))
+			require.NoError(t, err)
+		},
+	}
+
+	readHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(
+			management.WorkspaceGroup{
+				WorkspaceGroupID:  workspaceGroupID,
+				Name:              config.TestInitialWorkspaceGroupName,
+				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+				RegionID:          regionID,
+				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+				ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+				TerminatedAt:      nil,
+				State:             management.WorkspaceGroupStateACTIVE,
+				Provider:          management.CloudProviderAWS,
+				RegionName:        regionsv2[0].RegionName,
+				OutboundAllowList: &testOutboundAllowList,
+				DeploymentType:    &defaultDeploymentType,
+			},
+		))
+		require.NoError(t, err)
+	}
+
+	regionsHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v2/regions", r.URL.Path)
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(regionsv2))
+		require.NoError(t, err)
+	}
+
+	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodDelete, r.Method)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(
+			struct {
+				WorkspaceGroupID uuid.UUID
+			}{
+				WorkspaceGroupID: workspaceGroupID,
+			},
+		))
+		require.NoError(t, err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/regions" {
+			regionsHandler(w, r)
+			return
+		}
+
+		if r.Method == http.MethodGet {
+			readHandler(w, r)
+			return
+		}
+
+		if r.Method == http.MethodDelete {
+			deleteHandler(w, r)
+			return
+		}
+
+		require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
+		h := writeHandlers[0]
+		h(w, r)
+		writeHandlers = writeHandlers[1:]
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.WorkspaceGroupsResource,
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal("new-project")).
+					String(),
+				ExpectError: regexp.MustCompile("Cannot update workspace group project_name"),
+			},
+		},
+	})
+
+	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
+}

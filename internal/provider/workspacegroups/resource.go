@@ -94,11 +94,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
 				MarkdownDescription: "The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -372,6 +368,20 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	var state workspaceGroupResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if isNoOpWorkspaceGroupUpdate(plan, state) {
+		diags = resp.State.Set(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+
+		return
+	}
+
 	id := uuid.MustParse(plan.ID.ValueString())
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
 		management.WorkspaceGroupUpdate{
@@ -555,7 +565,7 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 }
 
 func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if state.ProjectName.IsNull() || state.ProjectName.IsUnknown() {
+	if isUnsetString(plan.ProjectName) && isUnsetString(state.ProjectName) {
 		return nil
 	}
 
@@ -567,6 +577,33 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 	}
 
 	return nil
+}
+
+func isNoOpWorkspaceGroupUpdate(plan, state workspaceGroupResourceModel) bool {
+	return plan.Name.Equal(state.Name) &&
+		plan.AdminPassword.Equal(state.AdminPassword) &&
+		plan.ExpiresAt.Equal(state.ExpiresAt) &&
+		stringListValuesEqual(plan.FirewallRanges, state.FirewallRanges) &&
+		plan.DeploymentType.Equal(state.DeploymentType) &&
+		plan.UpdateWindow.Equal(state.UpdateWindow)
+}
+
+func stringListValuesEqual(left, right []types.String) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	for i := range left {
+		if !left[i].Equal(right[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isUnsetString(v types.String) bool {
+	return v.IsNull() || v.IsUnknown()
 }
 
 func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
