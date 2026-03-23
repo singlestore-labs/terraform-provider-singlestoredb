@@ -70,18 +70,6 @@ func FirstNotEmpty(ss ...string) string {
 	return ""
 }
 
-// FirstSetStringValue returns the first set string value.
-// If not found, it returns an unset string.
-func FirstSetStringValue(ss ...types.String) types.String {
-	for _, s := range ss {
-		if !s.IsNull() && !s.IsUnknown() {
-			return s
-		}
-	}
-
-	return types.StringNull()
-}
-
 // Map applies the function f to each element of the input list and returns a new
 // list containing the results. The input list is not modified. The function f
 // should take an element of the input list as its argument and return a value
