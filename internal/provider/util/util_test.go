@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -50,13 +49,6 @@ func TestFirstNotEmpty(t *testing.T) {
 	require.Equal(t, util.FirstNotEmpty("a"), "a")
 	require.Equal(t, util.FirstNotEmpty("", "a"), "a")
 	require.Equal(t, util.FirstNotEmpty("a", "b"), "a")
-}
-
-func TestFirstSetStringValue(t *testing.T) {
-	require.Equal(t, util.FirstSetStringValue(), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringNull()), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringUnknown(), types.StringNull()), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringUnknown(), types.StringValue("foo"), types.StringNull()).ValueString(), "foo")
 }
 
 func TestMapWithError(t *testing.T) {
