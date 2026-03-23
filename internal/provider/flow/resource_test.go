@@ -209,7 +209,6 @@ func TestCRUDFlowInstance(t *testing.T) {
 				ResourceName:            "singlestoredb_flow.this",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"user_name", "database_name"},
 			},
 		},
 	})
