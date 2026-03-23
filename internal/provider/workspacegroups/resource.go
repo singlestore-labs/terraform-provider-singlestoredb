@@ -383,6 +383,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	if isNoOpWorkspaceGroupUpdate(plan, state) {
+		state.ProjectName = preferConfiguredProjectName(plan.ProjectName, state.ProjectName)
 		diags = resp.State.Set(ctx, &state)
 		resp.Diagnostics.Append(diags...)
 
