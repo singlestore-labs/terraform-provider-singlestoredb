@@ -61,12 +61,14 @@ func newTestWorkspace() management.Workspace {
 
 func newTestFlowInstance() management.Flow {
 	return management.Flow{
-		FlowID:      testFlowInstanceID,
-		Name:        testFlowInstanceName,
-		WorkspaceID: util.Ptr(testWorkspaceID),
-		CreatedAt:   time.Now().UTC(),
-		Endpoint:    util.Ptr(testFlowEndpoint),
-		Size:        util.Ptr("F1"),
+		FlowID:       testFlowInstanceID,
+		Name:         testFlowInstanceName,
+		WorkspaceID:  util.Ptr(testWorkspaceID),
+		CreatedAt:    time.Now().UTC(),
+		Endpoint:     util.Ptr(testFlowEndpoint),
+		Size:         util.Ptr("F1"),
+		UserName:     util.Ptr("admin"),
+		DatabaseName: util.Ptr("my_database"),
 	}
 }
 
