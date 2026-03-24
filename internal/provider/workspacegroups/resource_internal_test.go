@@ -124,32 +124,3 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 		require.Equal(t, int64(5), model.Day.ValueInt64())
 	})
 }
-
-func TestPreferConfiguredProjectName(t *testing.T) {
-	t.Run("returns configured formatting when equivalent project names", func(t *testing.T) {
-		configured := types.StringValue("  Core-Project  ")
-		apiValue := types.StringValue("core-project")
-
-		result := preferConfiguredProjectName(configured, apiValue)
-
-		require.Equal(t, configured.ValueString(), result.ValueString())
-	})
-
-	t.Run("returns API value when names are different", func(t *testing.T) {
-		configured := types.StringValue("core-project")
-		apiValue := types.StringValue("analytics-project")
-
-		result := preferConfiguredProjectName(configured, apiValue)
-
-		require.Equal(t, apiValue.ValueString(), result.ValueString())
-	})
-
-	t.Run("returns API value when configured is null", func(t *testing.T) {
-		configured := types.StringNull()
-		apiValue := types.StringValue("core-project")
-
-		result := preferConfiguredProjectName(configured, apiValue)
-
-		require.Equal(t, apiValue.ValueString(), result.ValueString())
-	})
-}

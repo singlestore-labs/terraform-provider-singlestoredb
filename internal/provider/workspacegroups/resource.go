@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -273,7 +272,6 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
 	), regionIDIsSet)
-	result.ProjectName = preferConfiguredProjectName(plan.ProjectName, result.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -356,9 +354,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
-	previousProjectName := state.ProjectName
 	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
-	state.ProjectName = preferConfiguredProjectName(previousProjectName, state.ProjectName)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -379,14 +375,6 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if isNoOpWorkspaceGroupUpdate(plan, state) {
-		state.ProjectName = preferConfiguredProjectName(plan.ProjectName, state.ProjectName)
-		diags = resp.State.Set(ctx, &state)
-		resp.Diagnostics.Append(diags...)
-
 		return
 	}
 
@@ -422,7 +410,6 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 
 	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
 	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
-	result.ProjectName = preferConfiguredProjectName(plan.ProjectName, result.ProjectName)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -574,19 +561,18 @@ func validateModifyRegionNameAndProvider(plan, state *workspaceGroupResourceMode
 }
 
 func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	// Legacy configs may not set project_name; treat that as unmanaged and allow refresh-only state updates.
-	if isUnsetString(plan.ProjectName) {
-		return nil
+	if plan.ProjectName.IsNull() {
+		return nil // project_name is optional; when not configured, treat it as unmanaged.
 	}
 
-	if isUnsetString(state.ProjectName) {
+	if state.ProjectName.IsNull() {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
-			Detail:  "Updating the project_name is not permitted. Expected value is ''.",
+			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
 		}
 	}
 
-	if !isEquivalentProjectName(plan.ProjectName, state.ProjectName) {
+	if !plan.ProjectName.Equal(state.ProjectName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
 			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
@@ -594,57 +580,6 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 	}
 
 	return nil
-}
-
-func isNoOpWorkspaceGroupUpdate(plan, state workspaceGroupResourceModel) bool {
-	return plan.Name.Equal(state.Name) &&
-		plan.AdminPassword.Equal(state.AdminPassword) &&
-		plan.ExpiresAt.Equal(state.ExpiresAt) &&
-		stringListValuesEqual(plan.FirewallRanges, state.FirewallRanges) &&
-		plan.DeploymentType.Equal(state.DeploymentType) &&
-		plan.UpdateWindow.Equal(state.UpdateWindow)
-}
-
-func stringListValuesEqual(left, right []types.String) bool {
-	if len(left) != len(right) {
-		return false
-	}
-
-	for i := range left {
-		if !left[i].Equal(right[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isUnsetString(v types.String) bool {
-	return v.IsNull() || v.IsUnknown()
-}
-
-func normalizeProjectName(v string) string {
-	return strings.TrimSpace(v)
-}
-
-func isEquivalentProjectName(left, right types.String) bool {
-	if isUnsetString(left) || isUnsetString(right) {
-		return false
-	}
-
-	return strings.EqualFold(normalizeProjectName(left.ValueString()), normalizeProjectName(right.ValueString()))
-}
-
-func preferConfiguredProjectName(configured, apiValue types.String) types.String {
-	if isUnsetString(configured) || isUnsetString(apiValue) {
-		return apiValue
-	}
-
-	if isEquivalentProjectName(configured, apiValue) {
-		return configured
-	}
-
-	return apiValue
 }
 
 func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
@@ -712,7 +647,7 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	}
 
 	projects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
-		return strings.EqualFold(normalizeProjectName(project.Name), normalizeProjectName(projectName))
+		return project.Name == projectName
 	})
 	if len(projects) == 0 {
 		return nil, &util.SummaryWithDetailError{

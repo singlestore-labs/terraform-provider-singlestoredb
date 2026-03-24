@@ -717,7 +717,7 @@ func TestWorkspaceGroupProjectNameDuplicate(t *testing.T) {
 			},
 			{
 				ProjectID: uuid.New(),
-				Name:      strings.ToUpper(projectName),
+				Name:      projectName,
 				Edition:   management.ProjectEdition("ENTERPRISE"),
 				CreatedAt: time.Now().UTC(),
 			},
@@ -762,113 +762,6 @@ func TestWorkspaceGroupProjectLookupError(t *testing.T) {
 			},
 		},
 	})
-}
-
-func TestWorkspaceGroupProjectNameMatchingIsTrimmedAndCaseInsensitive(t *testing.T) {
-	workspaceGroupID := uuid.New()
-	regionID := uuid.New()
-	projectID := uuid.New()
-	configProjectName := "  CoRe-PrOjEcT  "
-	resolvedProjectName := testProjectNameCore
-	testOutboundAllowList := testAccountID
-
-	writeHandlers := []func(http.ResponseWriter, *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-			var input management.WorkspaceGroupCreate
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
-			require.Equal(t, projectID, util.Deref(input.ProjectID))
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodDelete, r.Method)
-			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == testPathProjects:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON([]management.Project{
-				{
-					ProjectID: projectID,
-					Name:      resolvedProjectName,
-					Edition:   management.ProjectEdition("STANDARD"),
-					CreatedAt: time.Now().UTC(),
-				},
-			}))
-			require.NoError(t, err)
-		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID):
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					ProjectID:         &projectID,
-					ProjectName:       util.Ptr(resolvedProjectName),
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        "us-east-1",
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		default:
-			require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
-			h := writeHandlers[0]
-			h(w, r)
-			writeHandlers = writeHandlers[1:]
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(configProjectName)).
-					String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", configProjectName),
-				),
-			},
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(configProjectName)).
-					String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", configProjectName),
-				),
-			},
-		},
-	})
-
-	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
 }
 
 func TestWorkspaceGroupNoProjectLookupWhenProjectNameNotSet(t *testing.T) {
