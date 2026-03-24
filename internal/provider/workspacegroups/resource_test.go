@@ -30,7 +30,13 @@ var (
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
-func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
+const (
+	testProjectName = "test-project"
+	pathV2Regions   = "/v2/regions"
+	pathV1Projects  = "/v1/projects"
+)
+
+func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
@@ -40,7 +46,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	projectID := uuid.New()
-	projectName := "test-project"
+	projectName := testProjectName
 
 	workspaceGroup := management.WorkspaceGroup{
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -61,7 +67,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
 
 	regionsv2Handler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != "/v2/regions" || r.Method != http.MethodGet {
+		if r.URL.Path != pathV2Regions || r.Method != http.MethodGet {
 			return false
 		}
 
@@ -73,7 +79,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	}
 
 	projectsHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != "/v1/projects" || r.Method != http.MethodGet {
+		if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
 			return false
 		}
 
@@ -387,7 +393,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	regionID := uuid.New()
 	testOutboundAllowList := "test-account-id"
 	projectID := uuid.New()
-	projectName := "test-project"
+	projectName := testProjectName
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		// CREATE workspace group
@@ -461,7 +467,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/v2/regions", r.URL.Path)
+		require.Equal(t, pathV2Regions, r.URL.Path)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(regionsv2))
 		require.NoError(t, err)
@@ -469,7 +475,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	projectsHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/v1/projects", r.URL.Path)
+		require.Equal(t, pathV1Projects, r.URL.Path)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON([]management.Project{
 			{
@@ -496,11 +502,11 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v2/regions" {
+		if r.URL.Path == pathV2Regions {
 			regionsHandler(w, r)
 			return //nolint:nlreturn
 		}
-		if r.URL.Path == "/v1/projects" {
+		if r.URL.Path == pathV1Projects {
 			projectsHandler(w, r)
 			return //nolint:nlreturn
 		}
@@ -569,23 +575,24 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 	workspaceGroupID := uuid.New()
 	regionID := uuid.New()
 	projectID := uuid.New()
-	projectName := "test-project"
+	projectName := testProjectName
 	updatedProjectName := "updated-project"
 	testOutboundAllowList := "test-account-id"
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != "/v2/regions" || r.Method != http.MethodGet {
+			if r.URL.Path != pathV2Regions || r.Method != http.MethodGet {
 				return false
 			}
 
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
+
 			return true
 		},
 		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != "/v1/projects" || r.Method != http.MethodGet {
+			if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
 				return false
 			}
 
@@ -597,6 +604,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 				},
 			}))
 			require.NoError(t, err)
+
 			return true
 		},
 		func(w http.ResponseWriter, r *http.Request) bool {
@@ -623,6 +631,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 				},
 			))
 			require.NoError(t, err)
+
 			return true
 		},
 	}
@@ -714,11 +723,11 @@ func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/v2/regions" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
-		case r.URL.Path == "/v1/projects" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV1Projects && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Project{
 				{
@@ -760,11 +769,11 @@ func TestWorkspaceGroupProjectNameMultipleProjectsFound(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/v2/regions" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
-		case r.URL.Path == "/v1/projects" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV1Projects && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Project{
 				{

@@ -218,13 +218,13 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	regionIDIsSet := isConfiguredString(plan.RegionID)
 	var regionID *uuid.UUID
 	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
 
-	projectNameIsSet := !plan.ProjectName.IsNull() && !plan.ProjectName.IsUnknown()
+	projectNameIsSet := isConfiguredString(plan.ProjectName)
 	var projectID *uuid.UUID
 	if projectNameIsSet {
 		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
@@ -647,7 +647,12 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	}
 
 	projectID := sameNameProjects[0].ProjectID
+
 	return &projectID, nil
+}
+
+func isConfiguredString(value types.String) bool {
+	return !value.IsNull() && !value.IsUnknown()
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {
