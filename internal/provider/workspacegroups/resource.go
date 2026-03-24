@@ -218,13 +218,13 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	regionIDIsSet := isConfiguredString(plan.RegionID)
+	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
 	var regionID *uuid.UUID
 	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
 
-	projectNameIsSet := isConfiguredString(plan.ProjectName)
+	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
 	var projectID *uuid.UUID
 	if projectNameIsSet {
 		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
@@ -280,8 +280,8 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 }
 
 func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	providerAndRegionNameAreSet := isConfiguredString(plan.CloudProvider) && isConfiguredString(plan.RegionName)
-	regionIDIsSet := isConfiguredString(plan.RegionID)
+	providerAndRegionNameAreSet := util.IsConfiguredString(plan.CloudProvider) && util.IsConfiguredString(plan.RegionName)
+	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
 
 	if regionIDIsSet && (providerAndRegionNameAreSet) ||
 		!regionIDIsSet && (!providerAndRegionNameAreSet) {
@@ -343,7 +343,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
 	}
 
-	regionIDIsSet := isConfiguredString(state.RegionID)
+	regionIDIsSet := util.IsConfiguredString(state.RegionID)
 	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -391,7 +391,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	regionIDIsSet := isConfiguredString(plan.RegionID)
+	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
 	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
@@ -649,10 +649,6 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	projectID := sameNameProjects[0].ProjectID
 
 	return &projectID, nil
-}
-
-func isConfiguredString(value types.String) bool {
-	return !value.IsNull() && !value.IsUnknown()
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {

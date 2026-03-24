@@ -78,8 +78,8 @@ func (d *flowInstanceDataSourceGet) Read(ctx context.Context, req datasource.Rea
 	}
 
 	// Validate that exactly one of id or name is provided
-	idProvided := !data.ID.IsNull() && !data.ID.IsUnknown()
-	nameProvided := !data.Name.IsNull() && !data.Name.IsUnknown()
+	idProvided := util.IsConfiguredString(data.ID)
+	nameProvided := util.IsConfiguredString(data.Name)
 
 	if !idProvided && !nameProvided {
 		resp.Diagnostics.AddError(

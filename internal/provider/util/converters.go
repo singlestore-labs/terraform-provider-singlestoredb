@@ -23,6 +23,10 @@ func ToString(s types.String) string {
 	return s.ValueString()
 }
 
+func IsConfiguredString(value types.String) bool {
+	return !value.IsNull() && !value.IsUnknown()
+}
+
 func MaybeStringValue(s *string) types.String {
 	return maybeElse(s, types.StringValue, types.StringNull)
 }

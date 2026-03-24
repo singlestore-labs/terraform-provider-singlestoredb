@@ -64,7 +64,7 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	if !data.ID.IsNull() && !data.ID.IsUnknown() {
+	if util.IsConfiguredString(data.ID) {
 		d.handleUserByID(ctx, data.ID.ValueString(), resp)
 	} else {
 		d.handleUserByEmail(ctx, data.Email.ValueString(), resp)
@@ -72,8 +72,8 @@ func (d *userDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest
 }
 
 func (d *userDataSourceGet) isMissingRequiredAttributes(data UserDataSourceModel, resp *datasource.ReadResponse) bool {
-	if (data.ID.IsNull() || data.ID.IsUnknown()) &&
-		(data.Email.IsNull() || data.Email.IsUnknown()) {
+	if !util.IsConfiguredString(data.ID) &&
+		!util.IsConfiguredString(data.Email) {
 		resp.Diagnostics.AddError(
 			"Missing required attribute",
 			"Either the ID or email attribute must be set to retrieve a user.",
