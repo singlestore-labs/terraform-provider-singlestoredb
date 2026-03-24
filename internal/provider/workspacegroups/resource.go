@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -224,16 +223,13 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	if regionIDIsSet {
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
+
 	projectNameIsSet := !plan.ProjectName.IsNull() && !plan.ProjectName.IsUnknown()
 	var projectID *uuid.UUID
 	if projectNameIsSet {
-		resolvedProjectID, perr := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
-		if perr != nil {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("project_name"),
-				perr.Summary,
-				perr.Detail,
-			)
+		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 			return
 		}
@@ -633,25 +629,24 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 		return nil, serr
 	}
 
-	projects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
+	sameNameProjects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
 		return project.Name == projectName
 	})
-	if len(projects) == 0 {
+	if len(sameNameProjects) == 0 {
 		return nil, &util.SummaryWithDetailError{
 			Summary: "Project not found",
 			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name.", projectName),
 		}
 	}
 
-	if len(projects) > 1 {
+	if len(sameNameProjects) > 1 {
 		return nil, &util.SummaryWithDetailError{
 			Summary: "Multiple projects found",
 			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for workspace group assignment.", projectName),
 		}
 	}
 
-	projectID := projects[0].ProjectID
-
+	projectID := sameNameProjects[0].ProjectID
 	return &projectID, nil
 }
 
