@@ -46,7 +46,7 @@ resource "singlestoredb_workspace_group" "this" {
 - `expires_at` (String) The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
 - `high_availability_two_zones` (Boolean) Enables deployment across two Availability Zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
-- `project_name` (String) The name of the project to which the workspace group is assigned. The provider resolves this name to the internal project ID.
+- `project_name` (String) The name of the project to which the workspace group is assigned. Use projects data source to get the available project names.
 - `region_id` (String, Deprecated) The unique identifier of the region where the workspace group is to be created.
 - `region_name` (String) The region code name used to resolve region.
 - `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
