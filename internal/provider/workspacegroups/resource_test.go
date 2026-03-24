@@ -23,13 +23,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-const (
-	testProjectNameCore = "core-project"
-	testPathRegionsV2   = "/v2/regions"
-	testPathProjects    = "/v1/projects"
-	testAccountID       = "test-account-id"
-)
-
 var (
 	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
 	updatedAdminPassword      = "mockPasswordUpdated193!"
@@ -37,7 +30,7 @@ var (
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
 )
 
-func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
+func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
@@ -46,8 +39,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	}
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
-	projectID := uuid.MustParse("cb58e63f-f9ca-42d0-b6ea-f0d34a42c9d5")
-	projectName := testProjectNameCore
 
 	workspaceGroup := management.WorkspaceGroup{
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -60,8 +51,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		TerminatedAt:      nil,
 		UpdateWindow:      &management.UpdateWindow{Day: config.TestInitialUpdateWindowDay, Hour: config.TestInitialUpdateWindowHour},
 		WorkspaceGroupID:  workspaceGroupID,
-		ProjectID:         &projectID,
-		ProjectName:       &projectName,
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
@@ -69,30 +58,12 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
 
 	regionsv2Handler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != testPathRegionsV2 || r.Method != http.MethodGet {
+		if r.URL.Path != "/v2/regions" || r.Method != http.MethodGet {
 			return false
 		}
 
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(regionsv2))
-		require.NoError(t, err)
-
-		return true
-	}
-	projectsHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != testPathProjects || r.Method != http.MethodGet {
-			return false
-		}
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON([]management.Project{
-			{
-				ProjectID: projectID,
-				Name:      projectName,
-				Edition:   management.ProjectEdition("STANDARD"),
-				CreatedAt: time.Now().UTC(),
-			},
-		}))
 		require.NoError(t, err)
 
 		return true
@@ -134,7 +105,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
-		require.Equal(t, projectID, util.Deref(input.ProjectID))
 		require.Equal(t, regionsv2[0].RegionName, *input.RegionName)
 		require.Nil(t, input.UpdateWindow)
 
@@ -210,7 +180,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		regionsv2Handler,
-		projectsHandler,
 		workspaceGroupsGetHandler,
 	}
 
@@ -244,13 +213,10 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
-					String(),
+				Config: examples.WorkspaceGroupsResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
@@ -271,7 +237,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
@@ -286,7 +251,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
@@ -393,9 +357,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	workspaceGroupID := uuid.New()
 	regionID := uuid.New()
-	projectID := uuid.New()
-	projectName := "default"
-	testOutboundAllowList := testAccountID
+	testOutboundAllowList := "test-account-id"
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		// CREATE workspace group
@@ -416,8 +378,6 @@ func TestUpdateWindowRemoval(t *testing.T) {
 				management.WorkspaceGroup{
 					WorkspaceGroupID:  workspaceGroupID,
 					Name:              config.TestInitialWorkspaceGroupName,
-					ProjectID:         &projectID,
-					ProjectName:       &projectName,
 					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 					RegionID:          regionID,
 					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -449,8 +409,6 @@ func TestUpdateWindowRemoval(t *testing.T) {
 			management.WorkspaceGroup{
 				WorkspaceGroupID:  workspaceGroupID,
 				Name:              config.TestInitialWorkspaceGroupName,
-				ProjectID:         &projectID,
-				ProjectName:       &projectName,
 				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 				RegionID:          regionID,
 				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -469,7 +427,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	regionsHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, testPathRegionsV2, r.URL.Path)
+		require.Equal(t, "/v2/regions", r.URL.Path)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(regionsv2))
 		require.NoError(t, err)
@@ -491,7 +449,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == testPathRegionsV2 {
+		if r.URL.Path == "/v2/regions" {
 			regionsHandler(w, r)
 			return //nolint:nlreturn
 		}
@@ -544,520 +502,4 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	})
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
-}
-
-func TestProjectNameCannotBeSetAfterCreation(t *testing.T) {
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	workspaceGroupID := uuid.New()
-	regionID := uuid.New()
-	testOutboundAllowList := testAccountID
-
-	writeHandlers := []func(http.ResponseWriter, *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        regionsv2[0].RegionName,
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		},
-	}
-
-	readHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(
-			management.WorkspaceGroup{
-				WorkspaceGroupID:  workspaceGroupID,
-				Name:              config.TestInitialWorkspaceGroupName,
-				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-				RegionID:          regionID,
-				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-				ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-				TerminatedAt:      nil,
-				State:             management.WorkspaceGroupStateACTIVE,
-				Provider:          management.CloudProviderAWS,
-				RegionName:        regionsv2[0].RegionName,
-				OutboundAllowList: &testOutboundAllowList,
-				DeploymentType:    &defaultDeploymentType,
-			},
-		))
-		require.NoError(t, err)
-	}
-
-	regionsHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, testPathRegionsV2, r.URL.Path)
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(regionsv2))
-		require.NoError(t, err)
-	}
-
-	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodDelete, r.Method)
-		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(
-			struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			},
-		))
-		require.NoError(t, err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == testPathRegionsV2 {
-			regionsHandler(w, r)
-
-			return
-		}
-
-		if r.Method == http.MethodGet {
-			readHandler(w, r)
-
-			return
-		}
-
-		if r.Method == http.MethodDelete {
-			deleteHandler(w, r)
-
-			return
-		}
-
-		require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
-		h := writeHandlers[0]
-		h(w, r)
-		writeHandlers = writeHandlers[1:]
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: examples.WorkspaceGroupsResource,
-			},
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal("new-project")).
-					String(),
-				ExpectError: regexp.MustCompile("Cannot update workspace group project_name"),
-			},
-		},
-	})
-
-	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
-}
-
-func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, testPathProjects, r.URL.Path)
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON([]management.Project{}))
-		require.NoError(t, err)
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal("missing-project")).
-					String(),
-				ExpectError: regexp.MustCompile("Project not found"),
-			},
-		},
-	})
-}
-
-func TestWorkspaceGroupProjectNameDuplicate(t *testing.T) {
-	projectName := "duplicate-project"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, testPathProjects, r.URL.Path)
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON([]management.Project{
-			{
-				ProjectID: uuid.New(),
-				Name:      projectName,
-				Edition:   management.ProjectEdition("STANDARD"),
-				CreatedAt: time.Now().UTC(),
-			},
-			{
-				ProjectID: uuid.New(),
-				Name:      projectName,
-				Edition:   management.ProjectEdition("ENTERPRISE"),
-				CreatedAt: time.Now().UTC(),
-			},
-		}))
-		require.NoError(t, err)
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
-					String(),
-				ExpectError: regexp.MustCompile("Multiple projects found"),
-			},
-		},
-	})
-}
-
-func TestWorkspaceGroupProjectLookupError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, testPathProjects, r.URL.Path)
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal("any-project")).
-					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusUnauthorized)),
-			},
-		},
-	})
-}
-
-func TestWorkspaceGroupNoProjectLookupWhenProjectNameNotSet(t *testing.T) {
-	workspaceGroupID := uuid.New()
-	regionID := uuid.New()
-	testOutboundAllowList := testAccountID
-
-	writeHandlers := []func(http.ResponseWriter, *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-			var input management.WorkspaceGroupCreate
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
-			require.Nil(t, input.ProjectID)
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodDelete, r.Method)
-			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == testPathProjects:
-			require.Fail(t, "project lookup should not be called when project_name is not configured")
-		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID):
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        "us-east-1",
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		default:
-			require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
-			h := writeHandlers[0]
-			h(w, r)
-			writeHandlers = writeHandlers[1:]
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: examples.WorkspaceGroupsResource,
-			},
-		},
-	})
-
-	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
-}
-
-func TestProjectNameCanBeUnmanagedAfterCreation(t *testing.T) {
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	workspaceGroupID := uuid.New()
-	regionID := uuid.New()
-	projectID := uuid.New()
-	projectName := testProjectNameCore
-	testOutboundAllowList := testAccountID
-
-	writeHandlers := []func(http.ResponseWriter, *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					ProjectID:         &projectID,
-					ProjectName:       &projectName,
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        regionsv2[0].RegionName,
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		},
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodDelete, r.Method)
-			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == testPathRegionsV2:
-			require.Equal(t, http.MethodGet, r.Method)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-		case r.URL.Path == testPathProjects:
-			require.Equal(t, http.MethodGet, r.Method)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON([]management.Project{
-				{
-					ProjectID: projectID,
-					Name:      projectName,
-					Edition:   management.ProjectEdition("STANDARD"),
-					CreatedAt: time.Now().UTC(),
-				},
-			}))
-			require.NoError(t, err)
-		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID):
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					ProjectID:         &projectID,
-					ProjectName:       &projectName,
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        regionsv2[0].RegionName,
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		default:
-			require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
-			h := writeHandlers[0]
-			h(w, r)
-			writeHandlers = writeHandlers[1:]
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
-					String(),
-			},
-			{
-				Config: examples.WorkspaceGroupsResource,
-			},
-		},
-	})
-
-	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
-}
-
-func TestLegacyConfigWithoutProjectNameNoConflict(t *testing.T) {
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	workspaceGroupID := uuid.New()
-	regionID := uuid.New()
-	projectID := uuid.New()
-	projectName := "default"
-	testOutboundAllowList := testAccountID
-
-	writeHandlers := []func(http.ResponseWriter, *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-			var input management.WorkspaceGroupCreate
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
-			require.Nil(t, input.ProjectID)
-
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, http.MethodDelete, r.Method)
-			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: workspaceGroupID,
-			}))
-			require.NoError(t, err)
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == testPathRegionsV2:
-			require.Equal(t, http.MethodGet, r.Method)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID):
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(
-				management.WorkspaceGroup{
-					WorkspaceGroupID:  workspaceGroupID,
-					Name:              config.TestInitialWorkspaceGroupName,
-					ProjectID:         &projectID,
-					ProjectName:       &projectName,
-					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
-					RegionID:          regionID,
-					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
-					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-					TerminatedAt:      nil,
-					State:             management.WorkspaceGroupStateACTIVE,
-					Provider:          management.CloudProviderAWS,
-					RegionName:        regionsv2[0].RegionName,
-					OutboundAllowList: &testOutboundAllowList,
-					DeploymentType:    &defaultDeploymentType,
-				},
-			))
-			require.NoError(t, err)
-		default:
-			require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
-			h := writeHandlers[0]
-			h(w, r)
-			writeHandlers = writeHandlers[1:]
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: examples.WorkspaceGroupsResource,
-			},
-			{
-				Config: examples.WorkspaceGroupsResource,
-			},
-		},
-	})
-
-	require.Empty(t, writeHandlers, "all mutating REST calls should be consumed, but %d remain", len(writeHandlers))
 }
