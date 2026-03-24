@@ -207,7 +207,13 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	if err := validateCreatePlan(&plan); err != nil {
+	if err := validateRequiredRegionParameters(&plan); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
+	if err := validateCreateOptInPreviewFeatureParameter(plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
 		return
@@ -287,18 +293,6 @@ func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.S
 			Summary: "Invalid region configuration",
 			Detail:  "Either 'region_id' must be set or both 'cloud_provider' and 'region_name' must be provided.",
 		}
-	}
-
-	return nil
-}
-
-func validateCreatePlan(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if err := validateRequiredRegionParameters(plan); err != nil {
-		return err
-	}
-
-	if err := validateCreateOptInPreviewFeatureParameter(*plan); err != nil {
-		return err
 	}
 
 	return nil
