@@ -280,8 +280,8 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 }
 
 func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	providerAndRegionNameAreSet := !plan.CloudProvider.IsNull() && !plan.CloudProvider.IsUnknown() && !plan.RegionName.IsNull() && !plan.RegionName.IsUnknown()
-	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	providerAndRegionNameAreSet := isConfiguredString(plan.CloudProvider) && isConfiguredString(plan.RegionName)
+	regionIDIsSet := isConfiguredString(plan.RegionID)
 
 	if regionIDIsSet && (providerAndRegionNameAreSet) ||
 		!regionIDIsSet && (!providerAndRegionNameAreSet) {
@@ -343,7 +343,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
 	}
 
-	regionIDIsSet := !state.RegionID.IsNull() && !state.RegionID.IsUnknown()
+	regionIDIsSet := isConfiguredString(state.RegionID)
 	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -391,7 +391,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	regionIDIsSet := !plan.RegionID.IsNull() && !plan.RegionID.IsUnknown()
+	regionIDIsSet := isConfiguredString(plan.RegionID)
 	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
