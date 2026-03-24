@@ -39,12 +39,15 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	}
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	projectID := uuid.New()
+	projectName := "test-project"
 
 	workspaceGroup := management.WorkspaceGroup{
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 		ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:    util.Ptr([]string{config.TestInitialFirewallRange}),
 		Name:              config.TestInitialWorkspaceGroupName,
+		ProjectName:       &projectName,
 		RegionName:        regionsv2[0].RegionName,
 		Provider:          management.CloudProviderAWS,
 		State:             management.WorkspaceGroupStatePENDING, // During the first poll, the status will still be PENDING.
@@ -64,6 +67,23 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(regionsv2))
+		require.NoError(t, err)
+
+		return true
+	}
+
+	projectsHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/v1/projects" || r.Method != http.MethodGet {
+			return false
+		}
+
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Project{
+			{
+				Name:      projectName,
+				ProjectID: projectID,
+			},
+		}))
 		require.NoError(t, err)
 
 		return true
@@ -105,6 +125,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, input.FirewallRanges)
 		require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
+		require.NotNil(t, input.ProjectID)
+		require.Equal(t, projectID, *input.ProjectID)
 		require.Equal(t, regionsv2[0].RegionName, *input.RegionName)
 		require.Nil(t, input.UpdateWindow)
 
@@ -180,6 +202,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		regionsv2Handler,
+		projectsHandler,
 		workspaceGroupsGetHandler,
 	}
 
@@ -213,7 +236,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroupsResource,
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
@@ -226,6 +251,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 				),
 			},
 			{
@@ -236,6 +262,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
@@ -260,6 +287,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 				),
 			},
 		},
@@ -358,6 +386,8 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	workspaceGroupID := uuid.New()
 	regionID := uuid.New()
 	testOutboundAllowList := "test-account-id"
+	projectID := uuid.New()
+	projectName := "test-project"
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		// CREATE workspace group
@@ -367,6 +397,8 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 			var input management.WorkspaceGroupCreate
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+			require.NotNil(t, input.ProjectID)
+			require.Equal(t, projectID, *input.ProjectID)
 
 			// Verify update_window was specified in create
 			require.NotNil(t, input.UpdateWindow)
@@ -378,6 +410,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 				management.WorkspaceGroup{
 					WorkspaceGroupID:  workspaceGroupID,
 					Name:              config.TestInitialWorkspaceGroupName,
+					ProjectName:       &projectName,
 					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 					RegionID:          regionID,
 					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -409,6 +442,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 			management.WorkspaceGroup{
 				WorkspaceGroupID:  workspaceGroupID,
 				Name:              config.TestInitialWorkspaceGroupName,
+				ProjectName:       &projectName,
 				FirewallRanges:    &[]string{config.TestInitialFirewallRange},
 				RegionID:          regionID,
 				CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -433,6 +467,19 @@ func TestUpdateWindowRemoval(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	projectsHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v1/projects", r.URL.Path)
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Project{
+			{
+				Name:      projectName,
+				ProjectID: projectID,
+			},
+		}))
+		require.NoError(t, err)
+	}
+
 	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodDelete, r.Method)
 		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
@@ -451,6 +498,10 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v2/regions" {
 			regionsHandler(w, r)
+			return //nolint:nlreturn
+		}
+		if r.URL.Path == "/v1/projects" {
+			projectsHandler(w, r)
 			return //nolint:nlreturn
 		}
 
@@ -479,6 +530,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 			{
 				// Create with update_window specified
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
 					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
 					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
@@ -490,7 +542,9 @@ func TestUpdateWindowRemoval(t *testing.T) {
 				),
 			},
 			{
-				Config: examples.WorkspaceGroupsResource, // No update_window in config
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
+					String(), // No update_window in config
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// When update_window is removed from config, the value persists from previous state
 					// No update is triggered because the field is Optional+Computed
@@ -502,4 +556,244 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	})
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
+}
+
+func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	workspaceGroupID := uuid.New()
+	regionID := uuid.New()
+	projectID := uuid.New()
+	projectName := "test-project"
+	updatedProjectName := "updated-project"
+	testOutboundAllowList := "test-account-id"
+
+	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != "/v2/regions" || r.Method != http.MethodGet {
+				return false
+			}
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(regionsv2))
+			require.NoError(t, err)
+			return true
+		},
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != "/v1/projects" || r.Method != http.MethodGet {
+				return false
+			}
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON([]management.Project{
+				{
+					Name:      projectName,
+					ProjectID: projectID,
+				},
+			}))
+			require.NoError(t, err)
+			return true
+		},
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID) || r.Method != http.MethodGet {
+				return false
+			}
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				management.WorkspaceGroup{
+					WorkspaceGroupID:  workspaceGroupID,
+					Name:              config.TestInitialWorkspaceGroupName,
+					ProjectName:       &projectName,
+					FirewallRanges:    &[]string{config.TestInitialFirewallRange},
+					RegionID:          regionID,
+					CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+					ExpiresAt:         util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+					TerminatedAt:      nil,
+					State:             management.WorkspaceGroupStateACTIVE,
+					Provider:          management.CloudProviderAWS,
+					RegionName:        regionsv2[0].RegionName,
+					OutboundAllowList: &testOutboundAllowList,
+					DeploymentType:    &defaultDeploymentType,
+				},
+			))
+			require.NoError(t, err)
+			return true
+		},
+	}
+
+	writeHandlers := []func(http.ResponseWriter, *http.Request){
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+
+			var input management.WorkspaceGroupCreate
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+			require.NotNil(t, input.ProjectID)
+			require.Equal(t, projectID, *input.ProjectID)
+			require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				struct {
+					WorkspaceGroupID uuid.UUID
+				}{
+					WorkspaceGroupID: workspaceGroupID,
+				},
+			))
+			require.NoError(t, err)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodDelete, r.Method)
+			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
+
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(
+				struct {
+					WorkspaceGroupID uuid.UUID
+				}{
+					WorkspaceGroupID: workspaceGroupID,
+				},
+			))
+			require.NoError(t, err)
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, h := range readOnlyHandlers {
+			if h(w, r) {
+				return
+			}
+		}
+
+		require.NotEmpty(t, writeHandlers, "unexpected write request: %s %s", r.Method, r.URL.Path)
+		h := writeHandlers[0]
+		h(w, r)
+		writeHandlers = writeHandlers[1:]
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(updatedProjectName)).
+					String(),
+				ExpectError: regexp.MustCompile("Cannot update workspace group project_name"),
+			},
+		},
+	})
+}
+
+func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	projectName := "missing-project"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v2/regions" && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(regionsv2))
+			require.NoError(t, err)
+		case r.URL.Path == "/v1/projects" && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON([]management.Project{
+				{
+					Name:      "another-project",
+					ProjectID: uuid.New(),
+				},
+			}))
+			require.NoError(t, err)
+		default:
+			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
+					String(),
+				ExpectError: regexp.MustCompile("Project not found"),
+			},
+		},
+	})
+}
+
+func TestWorkspaceGroupProjectNameMultipleProjectsFound(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	projectName := "duplicate-project"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v2/regions" && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(regionsv2))
+			require.NoError(t, err)
+		case r.URL.Path == "/v1/projects" && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON([]management.Project{
+				{
+					Name:      projectName,
+					ProjectID: uuid.New(),
+				},
+				{
+					Name:      projectName,
+					ProjectID: uuid.New(),
+				},
+			}))
+			require.NoError(t, err)
+		default:
+			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
+					String(),
+				ExpectError: regexp.MustCompile("Multiple projects found"),
+			},
+		},
+	})
 }
