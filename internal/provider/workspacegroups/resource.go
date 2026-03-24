@@ -371,13 +371,6 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	var state workspaceGroupResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	id := uuid.MustParse(plan.ID.ValueString())
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
 		management.WorkspaceGroupUpdate{
