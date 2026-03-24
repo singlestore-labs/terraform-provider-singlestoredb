@@ -709,6 +709,8 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 			},
 		},
 	})
+
+	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
 }
 
 func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
