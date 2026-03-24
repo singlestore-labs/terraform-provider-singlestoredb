@@ -551,14 +551,14 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 	if state.ProjectName.IsNull() {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
-			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
+			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is unset/null, but configured value is %s.", plan.ProjectName.String()),
 		}
 	}
 
 	if !plan.ProjectName.Equal(state.ProjectName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update workspace group project_name",
-			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is '%s'.", state.ProjectName.ValueString()),
+			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is %s, but configured value is %s.", state.ProjectName.String(), plan.ProjectName.String()),
 		}
 	}
 
