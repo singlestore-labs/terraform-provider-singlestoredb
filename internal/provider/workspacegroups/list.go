@@ -76,15 +76,9 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 		return
 	}
 
-	workspaceGroupModels := make([]workspaceGroupDataSourceModel, 0, len(util.Deref(workspaceGroups.JSON200)))
-	for _, wg := range util.Deref(workspaceGroups.JSON200) {
-		model := toWorkspaceGroupDataSourceModel(wg)
-		workspaceGroupModels = append(workspaceGroupModels, model)
-	}
-
 	result := workspaceGroupsListDataSourceModel{
 		ID:              types.StringValue(config.TestIDValue),
-		WorkspaceGroups: workspaceGroupModels,
+		WorkspaceGroups: util.Map(util.Deref(workspaceGroups.JSON200), toWorkspaceGroupDataSourceModel),
 	}
 
 	diags := resp.State.Set(ctx, &result)

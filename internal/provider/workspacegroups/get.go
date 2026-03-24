@@ -289,8 +289,6 @@ func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *work
 		return
 	}
 
-	model := toWorkspaceGroupDataSourceModel(result[0])
-
-	diags := resp.State.Set(ctx, util.Ptr(model))
+	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0])))
 	resp.Diagnostics.Append(diags...)
 }
