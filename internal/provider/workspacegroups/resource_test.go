@@ -758,7 +758,7 @@ func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					String(),
-				ExpectError: regexp.MustCompile("Available projects: 'alpha-project', 'zeta-project'\\."),
+				ExpectError: regexp.MustCompile(`Available projects: 'alpha-project', 'zeta-project'\.`),
 			},
 		},
 	})
