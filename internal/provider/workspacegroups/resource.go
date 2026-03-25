@@ -645,11 +645,11 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	for name := range availableProjectNamesSet {
 		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
 	}
-	sort.Strings(availableProjectNames)
 
 	if len(sameNameProjectIDs) == 0 {
 		availableProjectsDetail := ""
 		if len(availableProjectNames) > 0 {
+			sort.Strings(availableProjectNames)
 			availableProjectsDetail = fmt.Sprintf("Available projects: %s.", strings.Join(availableProjectNames, ", "))
 		}
 
