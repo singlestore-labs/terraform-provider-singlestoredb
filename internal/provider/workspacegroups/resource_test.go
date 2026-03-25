@@ -31,7 +31,6 @@ var (
 )
 
 const (
-	testProjectName = "test-project"
 	pathV2Regions   = "/v2/regions"
 	pathV1Projects  = "/v1/projects"
 )
@@ -46,7 +45,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	projectID := uuid.New()
-	projectName := testProjectName
+	projectName := config.TestInitialProjectName
 
 	workspaceGroup := management.WorkspaceGroup{
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
@@ -243,11 +242,11 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", *workspaceGroup.ExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
@@ -257,7 +256,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 				),
 			},
 			{
@@ -268,8 +266,8 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
@@ -284,6 +282,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "created_at", workspaceGroup.CreatedAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "cloud_provider", string(management.CloudProviderAWS)),
@@ -293,7 +292,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 				),
 			},
 		},
@@ -313,6 +311,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", config.TestInitialProjectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
@@ -322,6 +321,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
@@ -334,6 +334,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", config.TestInitialProjectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
@@ -393,7 +394,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 	regionID := uuid.New()
 	testOutboundAllowList := "test-account-id"
 	projectID := uuid.New()
-	projectName := testProjectName
+	projectName := config.TestInitialProjectName
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		// CREATE workspace group
@@ -575,7 +576,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 	workspaceGroupID := uuid.New()
 	regionID := uuid.New()
 	projectID := uuid.New()
-	projectName := testProjectName
+	projectName := config.TestInitialProjectName
 	updatedProjectName := "updated-project"
 	testOutboundAllowList := "test-account-id"
 

@@ -22,8 +22,7 @@ integration: install nocache # Integration tests depend on the binary.
 nocache:
 	go clean -testcache
 
-generate: install \
-	tools
+generate: install tools
 	terraform fmt -recursive ./examples/
 	tfplugindocs
 

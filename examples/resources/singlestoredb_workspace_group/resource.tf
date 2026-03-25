@@ -6,6 +6,7 @@ provider "singlestoredb" {
 
 resource "singlestoredb_workspace_group" "this" {
   name            = "group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"

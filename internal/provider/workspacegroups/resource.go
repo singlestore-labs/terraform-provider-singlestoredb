@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -629,24 +630,41 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 		return nil, serr
 	}
 
-	sameNameProjects := util.Filter(util.Deref(projectsResponse.JSON200), func(project management.Project) bool {
-		return project.Name == projectName
-	})
-	if len(sameNameProjects) == 0 {
+	var sameNameProjectIDs []uuid.UUID
+	availableProjectNamesSet := make(map[string]struct{})
+	for _, project := range util.Deref(projectsResponse.JSON200) {
+		if project.Name == projectName {
+			sameNameProjectIDs = append(sameNameProjectIDs, project.ProjectID)
+		}
+
+		availableProjectNamesSet[project.Name] = struct{}{}
+	}
+
+	availableProjectNames := make([]string, 0, len(availableProjectNamesSet))
+	for name := range availableProjectNamesSet {
+		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
+	}
+
+	if len(sameNameProjectIDs) == 0 {
+		availableProjectsDetail := ""
+		if len(availableProjectNames) > 0 {
+			availableProjectsDetail = fmt.Sprintf("Available projects: %s.", strings.Join(availableProjectNames, ", "))
+		}
+
 		return nil, &util.SummaryWithDetailError{
 			Summary: "Project not found",
-			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name.", projectName),
+			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name. %s", projectName, availableProjectsDetail),
 		}
 	}
 
-	if len(sameNameProjects) > 1 {
+	if len(sameNameProjectIDs) > 1 {
 		return nil, &util.SummaryWithDetailError{
 			Summary: "Multiple projects found",
 			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for workspace group assignment.", projectName),
 		}
 	}
 
-	projectID := sameNameProjects[0].ProjectID
+	projectID := sameNameProjectIDs[0]
 
 	return &projectID, nil
 }

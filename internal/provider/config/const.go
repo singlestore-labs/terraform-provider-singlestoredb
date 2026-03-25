@@ -89,6 +89,8 @@ const (
 	DataSourceTypeName = "data"
 	// ProviderTypeName is a type name for accessing provider objects in *.tf files. The other types are resource and data source.
 	ProviderTypeName = "provider"
+	// TestInitialProjectName is the initial project name in the example.
+	TestInitialProjectName = "Standard Project"
 )
 
 var (

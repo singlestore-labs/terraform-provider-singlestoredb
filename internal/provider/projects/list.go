@@ -116,6 +116,6 @@ func toProjectListItem(project management.Project) projectListItem {
 		ID:        util.UUIDStringValue(project.ProjectID),
 		Name:      types.StringValue(project.Name),
 		Edition:   types.StringValue(string(project.Edition)),
-		CreatedAt: types.StringValue(project.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")),
+		CreatedAt: types.StringValue(project.CreatedAt.String()),
 	}
 }
