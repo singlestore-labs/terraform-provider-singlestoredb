@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -94,7 +95,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"project_name": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The name of the project to which the workspace group is assigned. This value cannot be changed after the workspace group is created; to use a different project, create a new workspace group associated with the desired project and migrate any dependent resources. Use projects data source to get the available project names.",
+				MarkdownDescription: "The name of the project to which the workspace group is assigned. This value cannot be changed after the workspace group is created; to use a different project, create a new workspace group associated with the desired project and migrate any dependent resources. Use the `singlestoredb_projects` data source to get the available project names.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -644,6 +645,7 @@ func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponse
 	for name := range availableProjectNamesSet {
 		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
 	}
+	sort.Strings(availableProjectNames)
 
 	if len(sameNameProjectIDs) == 0 {
 		availableProjectsDetail := ""

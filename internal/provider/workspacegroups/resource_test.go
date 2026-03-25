@@ -734,7 +734,11 @@ func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Project{
 				{
-					Name:      "another-project",
+					Name:      "zeta-project",
+					ProjectID: uuid.New(),
+				},
+				{
+					Name:      "alpha-project",
 					ProjectID: uuid.New(),
 				},
 			}))
@@ -754,7 +758,7 @@ func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					String(),
-				ExpectError: regexp.MustCompile("Project not found"),
+				ExpectError: regexp.MustCompile("Available projects: 'alpha-project', 'zeta-project'\\."),
 			},
 		},
 	})
