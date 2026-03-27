@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/customroles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
@@ -115,6 +116,10 @@ func (uc UpdatableConfig) WithFlowInstanceListDataSource(flowInstanceListName st
 
 func (uc UpdatableConfig) WithFlowInstanceResource(flowInstanceName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(flow.ResourceName), flowInstanceName})
+}
+
+func (uc UpdatableConfig) WithCustomRoleResource(customRoleName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(customroles.ResourceName), customRoleName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.

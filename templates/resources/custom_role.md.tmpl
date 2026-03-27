@@ -1,0 +1,78 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/resources/singlestoredb_custom_role/resource.tf" }}
+
+### Assigning a Custom Role to a User
+
+After creating a custom role, you can assign it to users using the `singlestoredb_user_role` resource:
+
+```terraform
+resource "singlestoredb_custom_role" "example" {
+  name          = "custom-reader"
+  resource_type = "Organization"
+  description   = "A custom role with read-only permissions"
+
+  permissions = []
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    }
+  ]
+}
+
+# Assign the custom role to a user
+resource "singlestoredb_user_role" "user_with_custom_role" {
+  user_id = "17290909-3016-4f63-b601-e30410f1b05f"
+  role = {
+    role_name     = singlestoredb_custom_role.example.name
+    resource_type = "Organization"
+    resource_id   = "your-organization-id"
+  }
+}
+```
+
+### Assigning a Custom Role to a Team
+
+Similarly, you can assign custom roles to teams using `singlestoredb_team_role`:
+
+```terraform
+resource "singlestoredb_custom_role" "team_role" {
+  name          = "custom-team-manager"
+  resource_type = "Team"
+  description   = "Custom team management role"
+
+  permissions = []
+
+  inherits = [
+    {
+      resource_type = "Team"
+      role          = "Owner"
+    }
+  ]
+}
+
+# Assign the custom role to a team
+resource "singlestoredb_team_role" "team_with_custom_role" {
+  team_id = singlestoredb_team.my_team.id
+  role = {
+    role_name     = singlestoredb_custom_role.team_role.name
+    resource_type = "Team"
+    resource_id   = singlestoredb_team.target_team.id
+  }
+}
+```
+
+{{ .SchemaMarkdown | trimspace }}

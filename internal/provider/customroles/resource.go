@@ -1,0 +1,429 @@
+package customroles
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
+)
+
+const (
+	ResourceName  = "custom_role"
+	importIDParts = 2
+)
+
+var (
+	_ resource.ResourceWithConfigure   = &customRoleResource{}
+	_ resource.ResourceWithImportState = &customRoleResource{}
+)
+
+type InheritedRoleModel struct {
+	ResourceType types.String `tfsdk:"resource_type"`
+	Role         types.String `tfsdk:"role"`
+}
+
+type CustomRoleResourceModel struct {
+	ID           types.String         `tfsdk:"id"`
+	Name         types.String         `tfsdk:"name"`
+	ResourceType types.String         `tfsdk:"resource_type"`
+	Description  types.String         `tfsdk:"description"`
+	Permissions  []types.String       `tfsdk:"permissions"`
+	Inherits     []InheritedRoleModel `tfsdk:"inherits"`
+	IsCustom     types.Bool           `tfsdk:"is_custom"`
+	CreatedAt    types.String         `tfsdk:"created_at"`
+	UpdatedAt    types.String         `tfsdk:"updated_at"`
+}
+
+type customRoleResource struct {
+	management.ClientWithResponsesInterface
+}
+
+func NewResource() resource.Resource {
+	return &customRoleResource{}
+}
+
+func (r *customRoleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = util.ResourceTypeName(req, ResourceName)
+}
+
+func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	emptyPermissionsList, _ := types.ListValue(types.StringType, []attr.Value{})
+	emptyInheritsList, _ := types.ListValue(types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"resource_type": types.StringType,
+			"role":          types.StringType,
+		},
+	}, []attr.Value{})
+
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manage custom roles in SingleStoreDB. Custom roles allow you to define fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. The 'apply' action creates or updates a custom role, and 'destroy' deletes it.",
+		Attributes: map[string]schema.Attribute{
+			config.IDAttribute: schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The unique identifier of the custom role (combination of resource_type and name).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"name": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "The name of the custom role. This must be unique within the resource type.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"resource_type": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "The type of resource this role applies to. Must be one of: Organization, Cluster, Team, or Secret.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						string(ResourceTypeOrganization),
+						string(ResourceTypeWorkspaceGroup),
+						string(ResourceTypeTeam),
+						string(ResourceTypeSecret),
+					),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"description": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "A description of the custom role.",
+			},
+			"permissions": schema.ListAttribute{
+				Optional:            true,
+				Computed:            true,
+				ElementType:         types.StringType,
+				Default:             listdefault.StaticValue(emptyPermissionsList),
+				MarkdownDescription: "A list of permissions granted by this role. Available permissions depend on the resource type.",
+			},
+			"inherits": schema.ListNestedAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "A list of roles that this custom role inherits from. The custom role will have all permissions from the inherited roles.",
+				Default:             listdefault.StaticValue(emptyInheritsList),
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"resource_type": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "The resource type of the inherited role.",
+							Validators: []validator.String{
+								stringvalidator.OneOf(
+									string(ResourceTypeOrganization),
+									string(ResourceTypeWorkspaceGroup),
+									string(ResourceTypeTeam),
+									string(ResourceTypeSecret),
+								),
+							},
+						},
+						"role": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "The name of the role to inherit from.",
+						},
+					},
+				},
+			},
+			"is_custom": schema.BoolAttribute{
+				Computed:            true,
+				MarkdownDescription: "Indicates whether this is a custom role (always true for resources created through this provider).",
+			},
+			"created_at": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The timestamp when the custom role was created.",
+			},
+			"updated_at": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The timestamp when the custom role was last updated.",
+			},
+		},
+	}
+}
+
+func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan CustomRoleResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resourceType := plan.ResourceType.ValueString()
+	roleName := plan.Name.ValueString()
+
+	inherits := make([]management.TypedRole, 0, len(plan.Inherits))
+	for _, inherit := range plan.Inherits {
+		inherits = append(inherits, management.TypedRole{
+			ResourceType: inherit.ResourceType.ValueString(),
+			Role:         inherit.Role.ValueString(),
+		})
+	}
+
+	permissions := make([]string, 0, len(plan.Permissions))
+	for _, perm := range plan.Permissions {
+		permissions = append(permissions, perm.ValueString())
+	}
+
+	createReq := management.RoleCreate{
+		Role:        roleName,
+		Description: util.MaybeString(plan.Description),
+		Permissions: permissions,
+		Inherits:    inherits,
+	}
+
+	createResp, err := r.PostV1RolesResourceTypeWithResponse(ctx, resourceType, createReq)
+	if serr := util.StatusOK(createResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
+	if serr := util.StatusOK(getResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	result := toCustomRoleResourceModel(getResp.JSON200)
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *customRoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state CustomRoleResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resourceType := state.ResourceType.ValueString()
+	roleName := state.Name.ValueString()
+
+	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
+	if serr := util.StatusOK(getResp, err, util.ReturnNilOnNotFound); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	if getResp.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+
+		return
+	}
+
+	if serr := validateRoleIsCustom(getResp.JSON200); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	result := toCustomRoleResourceModel(getResp.JSON200)
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan CustomRoleResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resourceType := plan.ResourceType.ValueString()
+	roleName := plan.Name.ValueString()
+
+	inherits := make([]management.TypedRole, 0, len(plan.Inherits))
+	for _, inherit := range plan.Inherits {
+		inherits = append(inherits, management.TypedRole{
+			ResourceType: inherit.ResourceType.ValueString(),
+			Role:         inherit.Role.ValueString(),
+		})
+	}
+
+	permissions := make([]string, 0, len(plan.Permissions))
+	for _, perm := range plan.Permissions {
+		permissions = append(permissions, perm.ValueString())
+	}
+
+	updateReq := management.RoleUpdate{
+		Description: util.MaybeString(plan.Description),
+		Permissions: permissions,
+		Inherits:    inherits,
+	}
+
+	updateResp, err := r.PutV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName, updateReq)
+	if serr := util.StatusOK(updateResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
+	if serr := util.StatusOK(getResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	result := toCustomRoleResourceModel(getResp.JSON200)
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (r *customRoleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state CustomRoleResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resourceType := state.ResourceType.ValueString()
+	roleName := state.Name.ValueString()
+
+	deleteResp, err := r.DeleteV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
+	if serr := util.StatusOK(deleteResp, err, util.ReturnNilOnNotFound); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+}
+
+func (r *customRoleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return // Should not return an error for unknown reasons.
+	}
+
+	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
+}
+
+func (r *customRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	idParts := parseCustomRoleID(req.ID)
+	if idParts == nil {
+		resp.Diagnostics.AddError(
+			"Invalid import ID",
+			fmt.Sprintf("The import ID must be in the format 'resource_type/role_name', got: %s", req.ID),
+		)
+
+		return
+	}
+
+	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, idParts.ResourceType, idParts.RoleName)
+	if serr := util.StatusOK(getResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	if serr := validateRoleIsCustom(getResp.JSON200); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("resource_type"), idParts.ResourceType)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), idParts.RoleName)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+}
+
+func toCustomRoleResourceModel(role *management.RoleDefinition) CustomRoleResourceModel {
+	if role == nil {
+		return CustomRoleResourceModel{}
+	}
+
+	permissions := make([]types.String, 0, len(role.Permissions))
+	for _, perm := range role.Permissions {
+		permissions = append(permissions, types.StringValue(perm))
+	}
+
+	inherits := make([]InheritedRoleModel, 0, len(role.Inherits))
+	for _, inherit := range role.Inherits {
+		inherits = append(inherits, InheritedRoleModel{
+			ResourceType: types.StringValue(inherit.ResourceType),
+			Role:         types.StringValue(inherit.Role),
+		})
+	}
+
+	result := CustomRoleResourceModel{
+		ID:           types.StringValue(fmt.Sprintf("%s/%s", role.ResourceType, role.Role)),
+		Name:         types.StringValue(role.Role),
+		ResourceType: types.StringValue(role.ResourceType),
+		Description:  types.StringNull(),
+		Permissions:  permissions,
+		Inherits:     inherits,
+		IsCustom:     types.BoolValue(role.IsCustom),
+		CreatedAt:    types.StringNull(),
+		UpdatedAt:    types.StringNull(),
+	}
+
+	if role.Description != nil {
+		result.Description = types.StringValue(*role.Description)
+	}
+
+	if role.CreatedAt != nil {
+		result.CreatedAt = util.MaybeTimeValue(role.CreatedAt)
+	}
+
+	if role.UpdatedAt != nil {
+		result.UpdatedAt = util.MaybeTimeValue(role.UpdatedAt)
+	}
+
+	return result
+}
+
+func validateRoleIsCustom(role *management.RoleDefinition) *util.SummaryWithDetailError {
+	if role == nil || role.IsCustom {
+		return nil
+	}
+
+	return &util.SummaryWithDetailError{
+		Summary: "Role is not a custom role",
+		Detail: fmt.Sprintf(
+			"The role %q for resource type %q is a built-in role. The singlestoredb_custom_role resource only supports custom roles.",
+			role.Role,
+			role.ResourceType,
+		),
+	}
+}
+
+type customRoleIDParts struct {
+	ResourceType string
+	RoleName     string
+}
+
+func parseCustomRoleID(id string) *customRoleIDParts {
+	parts := strings.SplitN(id, "/", importIDParts)
+	if len(parts) != importIDParts || parts[1] == "" {
+		return nil
+	}
+
+	resourceType := parts[0]
+	for _, rt := range ResourceTypeList {
+		if string(rt) == resourceType {
+			return &customRoleIDParts{
+				ResourceType: resourceType,
+				RoleName:     parts[1],
+			}
+		}
+	}
+
+	return nil
+}

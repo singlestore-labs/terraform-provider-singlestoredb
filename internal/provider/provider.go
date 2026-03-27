@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/customroles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
@@ -177,6 +178,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		roles.NewUserRolesDataSourceList,
 		roles.NewRolesDataSourceList,
 		roles.NewTeamRolesDataSourceList,
+		customroles.NewAllRolesDataSourceList,
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
@@ -195,6 +197,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		roles.NewUserRolesGrantResource,
 		roles.NewTeamRoleGrantResource,
 		roles.NewTeamRolesGrantResource,
+		customroles.NewResource,
 		flow.NewResource,
 	}
 }
