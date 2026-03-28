@@ -93,7 +93,7 @@ func TestReadAllRoles(t *testing.T) {
 }
 
 func TestReadAllRolesWithBuiltInOnly(t *testing.T) {
-	emptyRolesList := []management.RoleDefinition{
+	builtInOnlyRolesList := []management.RoleDefinition{
 		{
 			Role:         "Owner",
 			ResourceType: "Organization",
@@ -107,7 +107,7 @@ func TestReadAllRolesWithBuiltInOnly(t *testing.T) {
 		require.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
-		_, err := w.Write(testutil.MustJSON(emptyRolesList))
+		_, err := w.Write(testutil.MustJSON(builtInOnlyRolesList))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)

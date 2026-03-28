@@ -22,11 +22,12 @@ import (
 )
 
 var (
-	testRoleName     = "custom-reader"
-	testResourceType = "Organization"
-	testDescription  = "A custom role with read-only permissions"
-	testPermissions  = []string{"View Organization"}
-	testInherits     = []management.TypedRole{
+	testRoleName           = "custom-reader"
+	testResourceType       = "Organization"
+	testDescription        = "A custom role with read-only permissions"
+	testUpdatedDescription = "An updated custom role description"
+	testPermissions        = []string{"View Organization"}
+	testInherits           = []management.TypedRole{
 		{
 			ResourceType: "Organization",
 			Role:         "Reader",
@@ -54,6 +55,31 @@ var (
 		IsCustom:     false,
 	}
 )
+
+var updatedDescriptionConfig = `provider "singlestoredb" {
+}
+
+resource "singlestoredb_custom_role" "example" {
+  name          = "custom-reader"
+  resource_type = "Organization"
+  description   = "An updated custom role description"
+
+  permissions = [
+    "View Organization",
+  ]
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    }
+  ]
+}
+
+output "custom_role" {
+  value = singlestoredb_custom_role.example
+}
+`
 
 func TestCreateReadUpdateDeleteCustomRole(t *testing.T) {
 	currentRole := testRoleDefinition
@@ -128,6 +154,20 @@ func TestCreateReadUpdateDeleteCustomRole(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "is_custom", "true"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "created_at", util.MaybeTimeValue(testRoleDefinition.CreatedAt).ValueString()),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "updated_at", util.MaybeTimeValue(testRoleDefinition.UpdatedAt).ValueString()),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "permissions.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "permissions.0", "View Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "inherits.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "inherits.0.resource_type", "Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "inherits.0.role", "Reader"),
+				),
+			},
+			{
+				Config: updatedDescriptionConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "name", testRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "resource_type", testResourceType),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "description", testUpdatedDescription),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "is_custom", "true"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "permissions.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "permissions.0", "View Organization"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.example", "inherits.#", "1"),
@@ -286,6 +326,18 @@ func TestCustomRoleIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "inherits.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "inherits.0.resource_type", "Organization"),
 					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "inherits.0.role", "Reader"),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.CustomRoleResourceIntegration).
+					WithCustomRoleResource("test")("name", cty.StringVal(uniqueRoleName)).
+					WithCustomRoleResource("test")("description", cty.StringVal("Updated integration test description")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "name", uniqueRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "resource_type", "Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "description", "Updated integration test description"),
+					resource.TestCheckResourceAttr("singlestoredb_custom_role.test", "is_custom", "true"),
 				),
 			},
 		},

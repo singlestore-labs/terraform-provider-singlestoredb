@@ -172,43 +172,18 @@ func toAllRolesDataSourceModel(resourceType types.String, roles *[]management.Ro
 
 	allRoles := make([]RoleModel, 0, len(*roles))
 	for _, role := range *roles {
-		permissions := make([]types.String, 0, len(role.Permissions))
-		for _, perm := range role.Permissions {
-			permissions = append(permissions, types.StringValue(perm))
-		}
+		description, createdAt, updatedAt := setOptionalRoleFields(&role)
 
-		inherits := make([]InheritedRoleModel, 0, len(role.Inherits))
-		for _, inherit := range role.Inherits {
-			inherits = append(inherits, InheritedRoleModel{
-				ResourceType: types.StringValue(inherit.ResourceType),
-				Role:         types.StringValue(inherit.Role),
-			})
-		}
-
-		roleModel := RoleModel{
+		allRoles = append(allRoles, RoleModel{
 			Name:         types.StringValue(role.Role),
 			ResourceType: types.StringValue(role.ResourceType),
-			Description:  types.StringNull(),
-			Permissions:  permissions,
-			Inherits:     inherits,
+			Description:  description,
+			Permissions:  convertPermissions(role.Permissions),
+			Inherits:     convertInherits(role.Inherits),
 			IsCustom:     types.BoolValue(role.IsCustom),
-			CreatedAt:    types.StringNull(),
-			UpdatedAt:    types.StringNull(),
-		}
-
-		if role.Description != nil {
-			roleModel.Description = types.StringValue(*role.Description)
-		}
-
-		if role.CreatedAt != nil {
-			roleModel.CreatedAt = util.MaybeTimeValue(role.CreatedAt)
-		}
-
-		if role.UpdatedAt != nil {
-			roleModel.UpdatedAt = util.MaybeTimeValue(role.UpdatedAt)
-		}
-
-		allRoles = append(allRoles, roleModel)
+			CreatedAt:    createdAt,
+			UpdatedAt:    updatedAt,
+		})
 	}
 
 	result.Roles = allRoles

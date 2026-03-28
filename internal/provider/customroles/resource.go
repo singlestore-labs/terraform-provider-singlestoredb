@@ -31,11 +31,6 @@ var (
 	_ resource.ResourceWithImportState = &customRoleResource{}
 )
 
-type InheritedRoleModel struct {
-	ResourceType types.String `tfsdk:"resource_type"`
-	Role         types.String `tfsdk:"role"`
-}
-
 type CustomRoleResourceModel struct {
 	ID           types.String         `tfsdk:"id"`
 	Name         types.String         `tfsdk:"name"`
@@ -320,7 +315,7 @@ func (r *customRoleResource) ImportState(ctx context.Context, req resource.Impor
 	if idParts == nil {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
-			fmt.Sprintf("The import ID must be in the format 'resource_type/role_name', got: %s", req.ID),
+			fmt.Sprintf("The import ID must be in the format 'resource_type/role_name', got: %s. %s", req.ID, formatResourceTypeList()),
 		)
 
 		return
@@ -349,44 +344,19 @@ func toCustomRoleResourceModel(role *management.RoleDefinition) CustomRoleResour
 		return CustomRoleResourceModel{}
 	}
 
-	permissions := make([]types.String, 0, len(role.Permissions))
-	for _, perm := range role.Permissions {
-		permissions = append(permissions, types.StringValue(perm))
-	}
+	description, createdAt, updatedAt := setOptionalRoleFields(role)
 
-	inherits := make([]InheritedRoleModel, 0, len(role.Inherits))
-	for _, inherit := range role.Inherits {
-		inherits = append(inherits, InheritedRoleModel{
-			ResourceType: types.StringValue(inherit.ResourceType),
-			Role:         types.StringValue(inherit.Role),
-		})
-	}
-
-	result := CustomRoleResourceModel{
+	return CustomRoleResourceModel{
 		ID:           types.StringValue(fmt.Sprintf("%s/%s", role.ResourceType, role.Role)),
 		Name:         types.StringValue(role.Role),
 		ResourceType: types.StringValue(role.ResourceType),
-		Description:  types.StringNull(),
-		Permissions:  permissions,
-		Inherits:     inherits,
+		Description:  description,
+		Permissions:  convertPermissions(role.Permissions),
+		Inherits:     convertInherits(role.Inherits),
 		IsCustom:     types.BoolValue(role.IsCustom),
-		CreatedAt:    types.StringNull(),
-		UpdatedAt:    types.StringNull(),
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
 	}
-
-	if role.Description != nil {
-		result.Description = types.StringValue(*role.Description)
-	}
-
-	if role.CreatedAt != nil {
-		result.CreatedAt = util.MaybeTimeValue(role.CreatedAt)
-	}
-
-	if role.UpdatedAt != nil {
-		result.UpdatedAt = util.MaybeTimeValue(role.UpdatedAt)
-	}
-
-	return result
 }
 
 func validateRoleIsCustom(role *management.RoleDefinition) *util.SummaryWithDetailError {
