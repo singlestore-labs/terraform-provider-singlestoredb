@@ -1,4 +1,4 @@
-package customroles
+package roles
 
 import (
 	"context"
@@ -21,10 +21,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
-const (
-	ResourceName  = "role"
-	importIDParts = 2
-)
+const importIDParts = 2
 
 var (
 	_ resource.ResourceWithConfigure   = &customRoleResource{}
@@ -32,27 +29,27 @@ var (
 )
 
 type CustomRoleResourceModel struct {
-	ID           types.String         `tfsdk:"id"`
-	Name         types.String         `tfsdk:"name"`
-	ResourceType types.String         `tfsdk:"resource_type"`
-	Description  types.String         `tfsdk:"description"`
-	Permissions  []types.String       `tfsdk:"permissions"`
-	Inherits     []InheritedRoleModel `tfsdk:"inherits"`
-	IsCustom     types.Bool           `tfsdk:"is_custom"`
-	CreatedAt    types.String         `tfsdk:"created_at"`
-	UpdatedAt    types.String         `tfsdk:"updated_at"`
+	ID           types.String       `tfsdk:"id"`
+	Name         types.String       `tfsdk:"name"`
+	ResourceType types.String       `tfsdk:"resource_type"`
+	Description  types.String       `tfsdk:"description"`
+	Permissions  []types.String     `tfsdk:"permissions"`
+	Inherits     []RoleInheritModel `tfsdk:"inherits"`
+	IsCustom     types.Bool         `tfsdk:"is_custom"`
+	CreatedAt    types.String       `tfsdk:"created_at"`
+	UpdatedAt    types.String       `tfsdk:"updated_at"`
 }
 
 type customRoleResource struct {
 	management.ClientWithResponsesInterface
 }
 
-func NewResource() resource.Resource {
+func NewRoleResource() resource.Resource {
 	return &customRoleResource{}
 }
 
 func (r *customRoleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = util.ResourceTypeName(req, ResourceName)
+	resp.TypeName = util.ResourceTypeName(req, RoleResourceName)
 }
 
 func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

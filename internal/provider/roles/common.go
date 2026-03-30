@@ -16,6 +16,69 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
+// RoleResourceName is the Terraform resource type name for the role resource.
+const RoleResourceName = "role"
+
+// RoleInheritModel represents a role inheritance relationship.
+type RoleInheritModel struct {
+	ResourceType types.String `tfsdk:"resource_type"`
+	Role         types.String `tfsdk:"role"`
+}
+
+func convertPermissions(permissions []string) []types.String {
+	result := make([]types.String, 0, len(permissions))
+	for _, perm := range permissions {
+		result = append(result, types.StringValue(perm))
+	}
+
+	return result
+}
+
+func convertInherits(inherits []management.TypedRole) []RoleInheritModel {
+	result := make([]RoleInheritModel, 0, len(inherits))
+	for _, inherit := range inherits {
+		result = append(result, RoleInheritModel{
+			ResourceType: types.StringValue(inherit.ResourceType),
+			Role:         types.StringValue(inherit.Role),
+		})
+	}
+
+	return result
+}
+
+func setOptionalRoleFields(role *management.RoleDefinition) (types.String, types.String, types.String) {
+	description := types.StringNull()
+	createdAt := types.StringNull()
+	updatedAt := types.StringNull()
+
+	if role.Description != nil {
+		description = types.StringValue(*role.Description)
+	}
+
+	if role.CreatedAt != nil {
+		createdAt = util.MaybeTimeValue(role.CreatedAt)
+	}
+
+	if role.UpdatedAt != nil {
+		updatedAt = util.MaybeTimeValue(role.UpdatedAt)
+	}
+
+	return description, createdAt, updatedAt
+}
+
+func resourceTypeNames() string {
+	names := make([]string, 0, len(ResourceTypeList))
+	for _, rt := range ResourceTypeList {
+		names = append(names, string(rt))
+	}
+
+	return strings.Join(names, ", ")
+}
+
+func formatResourceTypeList() string {
+	return fmt.Sprintf("Valid resource types are: %s", resourceTypeNames())
+}
+
 // RoleNotFoundError indicates that expected roles were not found.
 type RoleNotFoundError struct {
 	MissedRoles  []RoleAttributesModel

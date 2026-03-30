@@ -1,4 +1,4 @@
-package customroles_test
+package roles_test
 
 import (
 	"encoding/json"

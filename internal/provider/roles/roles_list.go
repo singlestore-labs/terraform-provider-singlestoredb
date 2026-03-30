@@ -30,11 +30,6 @@ type RoleDefinitionModel struct {
 	UpdatedAt    types.String       `tfsdk:"updated_at"`
 }
 
-type RoleInheritModel struct {
-	ResourceType types.String `tfsdk:"resource_type"`
-	Role         types.String `tfsdk:"role"`
-}
-
 type RolesModel struct {
 	ID              types.String          `tfsdk:"id"`
 	ResourceType    types.String          `tfsdk:"resource_type"`
@@ -230,41 +225,14 @@ func toRoleDefinitionsModel(resourceType types.String, roles *[]management.RoleD
 
 	definitions := make([]RoleDefinitionModel, 0, len(*roles))
 	for _, role := range *roles {
-		description := types.StringNull()
-		createdAt := types.StringNull()
-		updatedAt := types.StringNull()
-
-		if role.Description != nil {
-			description = types.StringValue(*role.Description)
-		}
-
-		if role.CreatedAt != nil {
-			createdAt = util.MaybeTimeValue(role.CreatedAt)
-		}
-
-		if role.UpdatedAt != nil {
-			updatedAt = util.MaybeTimeValue(role.UpdatedAt)
-		}
-
-		inherits := make([]RoleInheritModel, 0, len(role.Inherits))
-		for _, inherit := range role.Inherits {
-			inherits = append(inherits, RoleInheritModel{
-				ResourceType: types.StringValue(inherit.ResourceType),
-				Role:         types.StringValue(inherit.Role),
-			})
-		}
-
-		permissions := make([]types.String, 0, len(role.Permissions))
-		for _, perm := range role.Permissions {
-			permissions = append(permissions, types.StringValue(perm))
-		}
+		description, createdAt, updatedAt := setOptionalRoleFields(&role)
 
 		definitions = append(definitions, RoleDefinitionModel{
 			Name:         types.StringValue(role.Role),
 			ResourceType: types.StringValue(role.ResourceType),
 			Description:  description,
-			Permissions:  permissions,
-			Inherits:     inherits,
+			Permissions:  convertPermissions(role.Permissions),
+			Inherits:     convertInherits(role.Inherits),
 			IsCustom:     types.BoolValue(role.IsCustom),
 			CreatedAt:    createdAt,
 			UpdatedAt:    updatedAt,
