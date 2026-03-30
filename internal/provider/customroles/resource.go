@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	ResourceName  = "custom_role"
+	ResourceName  = "role"
 	importIDParts = 2
 )
 
@@ -65,7 +65,7 @@ func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}, []attr.Value{})
 
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage custom roles in SingleStoreDB. Custom roles allow you to define fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. The 'apply' action creates or updates a custom role, and 'destroy' deletes it.",
+		MarkdownDescription: "Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,
@@ -367,7 +367,7 @@ func validateRoleIsCustom(role *management.RoleDefinition) *util.SummaryWithDeta
 	return &util.SummaryWithDetailError{
 		Summary: "Role is not a custom role",
 		Detail: fmt.Sprintf(
-			"The role %q for resource type %q is a built-in role. The singlestoredb_custom_role resource only supports custom roles.",
+			"The role %q for resource type %q is a built-in role. Only roles with is_custom = true can be managed through this resource.",
 			role.Role,
 			role.ResourceType,
 		),

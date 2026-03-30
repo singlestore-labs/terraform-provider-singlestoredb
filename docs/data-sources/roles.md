@@ -3,12 +3,12 @@
 page_title: "singlestoredb_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.
+  This data source provides information about roles available in SingleStoreDB. When resource_id is specified, it returns the list of role names available for that specific resource object. When only resource_type is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
 ---
 
 # singlestoredb_roles (Data Source)
 
-This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.
+This data source provides information about roles available in SingleStoreDB. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
 
 ## Example Usage
 
@@ -34,10 +34,36 @@ output "all_roles" {
 
 ### Required
 
-- `resource_id` (String) The unique identifier of the resource object for which to list available roles.
-- `resource_type` (String) The type of the resource object for which to list available roles.
+- `resource_type` (String) The type of the resource for which to list roles.
+
+### Optional
+
+- `resource_id` (String) The unique identifier of a specific resource object. When provided, the data source returns role names available for that resource via the `roles` attribute. When omitted, the data source returns detailed role definitions via the `role_definitions` attribute.
 
 ### Read-Only
 
-- `id` (String) The unique identifier of the list roles.
-- `roles` (List of String) A list of role names available for the specified resource object. These roles can be assigned to users or teams to grant them specific permissions on this resource.
+- `id` (String) The unique identifier of the data source.
+- `role_definitions` (Attributes List) A list of detailed role definitions for the specified resource type, including both built-in and custom roles. Populated when `resource_id` is not provided. (see [below for nested schema](#nestedatt--role_definitions))
+- `roles` (List of String) A list of role names available for the specified resource object. Populated when `resource_id` is provided.
+
+<a id="nestedatt--role_definitions"></a>
+### Nested Schema for `role_definitions`
+
+Read-Only:
+
+- `created_at` (String) The timestamp when the role was created.
+- `description` (String) A description of the role.
+- `inherits` (Attributes List) The roles that this custom role inherits from. (see [below for nested schema](#nestedatt--role_definitions--inherits))
+- `is_custom` (Boolean) Indicates whether this role is custom or built-in.
+- `name` (String) The name of the role.
+- `permissions` (List of String) The permissions granted by this role.
+- `resource_type` (String) The resource type this role applies to.
+- `updated_at` (String) The timestamp when the role was last updated.
+
+<a id="nestedatt--role_definitions--inherits"></a>
+### Nested Schema for `role_definitions.inherits`
+
+Read-Only:
+
+- `resource_type` (String) The resource type of the inherited role.
+- `role` (String) The name of the inherited role.

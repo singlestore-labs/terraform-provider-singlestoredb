@@ -1,13 +1,15 @@
 ---
-page_title: "singlestoredb_custom_role Resource - terraform-provider-singlestoredb"
+page_title: "singlestoredb_role Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage custom roles in SingleStoreDB. Custom roles allow you to define fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. The 'apply' action creates or updates a custom role, and 'destroy' deletes it.
+  Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with is_custom = true can be created, modified, or deleted through this resource.
 ---
 
-# singlestoredb_custom_role (Resource)
+# singlestoredb_role (Resource)
 
-Manage custom roles in SingleStoreDB. Custom roles allow you to define fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. The 'apply' action creates or updates a custom role, and 'destroy' deletes it.
+Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.
+
+~> **Note:** Only roles with `is_custom = true` can be created, modified, or deleted through this resource. Built-in roles cannot be managed.
 
 ## Example Usage
 
@@ -18,7 +20,7 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_custom_role" "example" {
+resource "singlestoredb_role" "example" {
   name          = "custom-reader"
   resource_type = "Organization"
   description   = "A custom role with read-only permissions"
@@ -35,17 +37,17 @@ resource "singlestoredb_custom_role" "example" {
   ]
 }
 
-output "custom_role" {
-  value = singlestoredb_custom_role.example
+output "role" {
+  value = singlestoredb_role.example
 }
 ```
 
-### Assigning a Custom Role to a User
+### Assigning a Role to a User
 
-After creating a custom role, you can assign it to users using the `singlestoredb_user_role` resource:
+After creating a role, you can assign it to users using the `singlestoredb_user_role` resource:
 
 ```terraform
-resource "singlestoredb_custom_role" "example" {
+resource "singlestoredb_role" "example" {
   name          = "custom-reader"
   resource_type = "Organization"
   description   = "A custom role with read-only permissions"
@@ -60,23 +62,23 @@ resource "singlestoredb_custom_role" "example" {
   ]
 }
 
-# Assign the custom role to a user
+# Assign the role to a user
 resource "singlestoredb_user_role" "user_with_custom_role" {
   user_id = "17290909-3016-4f63-b601-e30410f1b05f"
   role = {
-    role_name     = singlestoredb_custom_role.example.name
+    role_name     = singlestoredb_role.example.name
     resource_type = "Organization"
     resource_id   = "your-organization-id"
   }
 }
 ```
 
-### Assigning a Custom Role to a Team
+### Assigning a Role to a Team
 
-Similarly, you can assign custom roles to teams using `singlestoredb_team_role`:
+Similarly, you can assign roles to teams using `singlestoredb_team_role`:
 
 ```terraform
-resource "singlestoredb_custom_role" "team_role" {
+resource "singlestoredb_role" "team_role" {
   name          = "custom-team-manager"
   resource_type = "Team"
   description   = "Custom team management role"
@@ -91,11 +93,11 @@ resource "singlestoredb_custom_role" "team_role" {
   ]
 }
 
-# Assign the custom role to a team
+# Assign the role to a team
 resource "singlestoredb_team_role" "team_with_custom_role" {
   team_id = singlestoredb_team.my_team.id
   role = {
-    role_name     = singlestoredb_custom_role.team_role.name
+    role_name     = singlestoredb_role.team_role.name
     resource_type = "Team"
     resource_id   = singlestoredb_team.target_team.id
   }

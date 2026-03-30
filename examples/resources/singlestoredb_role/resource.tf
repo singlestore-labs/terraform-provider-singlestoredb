@@ -4,7 +4,7 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_custom_role" "example" {
+resource "singlestoredb_role" "example" {
   name          = "custom-reader"
   resource_type = "Organization"
   description   = "A custom role with read-only permissions"
@@ -21,6 +21,6 @@ resource "singlestoredb_custom_role" "example" {
   ]
 }
 
-output "custom_role" {
-  value = singlestoredb_custom_role.example
+output "role" {
+  value = singlestoredb_role.example
 }

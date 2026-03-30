@@ -19,11 +19,28 @@ const (
 	RolesDataSourceListName = "roles"
 )
 
+type RoleDefinitionModel struct {
+	Name         types.String       `tfsdk:"name"`
+	ResourceType types.String       `tfsdk:"resource_type"`
+	Description  types.String       `tfsdk:"description"`
+	Permissions  []types.String     `tfsdk:"permissions"`
+	Inherits     []RoleInheritModel `tfsdk:"inherits"`
+	IsCustom     types.Bool         `tfsdk:"is_custom"`
+	CreatedAt    types.String       `tfsdk:"created_at"`
+	UpdatedAt    types.String       `tfsdk:"updated_at"`
+}
+
+type RoleInheritModel struct {
+	ResourceType types.String `tfsdk:"resource_type"`
+	Role         types.String `tfsdk:"role"`
+}
+
 type RolesModel struct {
-	ID           types.String   `tfsdk:"id"`
-	ResourceType types.String   `tfsdk:"resource_type"`
-	ResourceID   types.String   `tfsdk:"resource_id"`
-	Roles        []types.String `tfsdk:"roles"`
+	ID              types.String          `tfsdk:"id"`
+	ResourceType    types.String          `tfsdk:"resource_type"`
+	ResourceID      types.String          `tfsdk:"resource_id"`
+	Roles           []types.String        `tfsdk:"roles"`
+	RoleDefinitions []RoleDefinitionModel `tfsdk:"role_definitions"`
 }
 
 // rolesDataSourceList is the data source implementation.
@@ -46,27 +63,80 @@ func (d *rolesDataSourceList) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the data source.
 func (d *rolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source lists all available roles that are defined for a specific resource object. In Role-Based Access Control (RBAC), resources (or 'objects') have predefined roles that determine what level of access can be granted to subjects (users/teams). This data source returns those predefined roles associated with the specified resource object. When configuring RBAC permissions, first use this data source to discover what roles are available for the resource, then assign those roles to subjects using the appropriate team_role or user_role resources.",
+		MarkdownDescription: "This data source provides information about roles available in SingleStoreDB. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The unique identifier of the list roles.",
+				MarkdownDescription: "The unique identifier of the data source.",
 			},
 			"resource_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The type of the resource object for which to list available roles.",
+				MarkdownDescription: "The type of the resource for which to list roles.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(ResourceTypeOrganization), string(ResourceTypeWorkspaceGroup), string(ResourceTypeTeam), string(ResourceTypeSecret)),
 				},
 			},
 			"resource_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The unique identifier of the resource object for which to list available roles.",
+				Optional:            true,
+				MarkdownDescription: "The unique identifier of a specific resource object. When provided, the data source returns role names available for that resource via the `roles` attribute. When omitted, the data source returns detailed role definitions via the `role_definitions` attribute.",
 			},
 			"roles": schema.ListAttribute{
 				Computed:            true,
-				MarkdownDescription: "A list of role names available for the specified resource object. These roles can be assigned to users or teams to grant them specific permissions on this resource.",
+				MarkdownDescription: "A list of role names available for the specified resource object. Populated when `resource_id` is provided.",
 				ElementType:         types.StringType,
+			},
+			"role_definitions": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "A list of detailed role definitions for the specified resource type, including both built-in and custom roles. Populated when `resource_id` is not provided.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The name of the role.",
+						},
+						"resource_type": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The resource type this role applies to.",
+						},
+						"description": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "A description of the role.",
+						},
+						"permissions": schema.ListAttribute{
+							Computed:            true,
+							ElementType:         types.StringType,
+							MarkdownDescription: "The permissions granted by this role.",
+						},
+						"inherits": schema.ListNestedAttribute{
+							Computed:            true,
+							MarkdownDescription: "The roles that this custom role inherits from.",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"resource_type": schema.StringAttribute{
+										Computed:            true,
+										MarkdownDescription: "The resource type of the inherited role.",
+									},
+									"role": schema.StringAttribute{
+										Computed:            true,
+										MarkdownDescription: "The name of the inherited role.",
+									},
+								},
+							},
+						},
+						"is_custom": schema.BoolAttribute{
+							Computed:            true,
+							MarkdownDescription: "Indicates whether this role is custom or built-in.",
+						},
+						"created_at": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The timestamp when the role was created.",
+						},
+						"updated_at": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The timestamp when the role was last updated.",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -81,6 +151,14 @@ func (d *rolesDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
+	if !data.ResourceID.IsNull() && !data.ResourceID.IsUnknown() {
+		d.readByResourceID(ctx, &data, resp)
+	} else {
+		d.readByResourceType(ctx, &data, resp)
+	}
+}
+
+func (d *rolesDataSourceList) readByResourceID(ctx context.Context, data *RolesModel, resp *datasource.ReadResponse) {
 	roles, err := d.getRolesByResourceTypeAndID(ctx, data.ResourceType, data.ResourceID)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -93,7 +171,26 @@ func (d *rolesDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 
 	result := toRoleModel(data.ResourceType, data.ResourceID, roles)
 
-	diags = resp.State.Set(ctx, &result)
+	diags := resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
+}
+
+func (d *rolesDataSourceList) readByResourceType(ctx context.Context, data *RolesModel, resp *datasource.ReadResponse) {
+	resourceType := data.ResourceType.ValueString()
+
+	rolesResp, err := d.GetV1RolesResourceTypeWithResponse(ctx, resourceType)
+	if serr := util.StatusOK(rolesResp, err); serr != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch roles",
+			fmt.Sprintf("An error occurred while fetching roles for resource type %s: %s", resourceType, serr.Detail),
+		)
+
+		return
+	}
+
+	result := toRoleDefinitionsModel(data.ResourceType, rolesResp.JSON200)
+
+	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
 
@@ -116,6 +213,65 @@ func toRoleModel(resourceType, resourceID types.String, roles *[]management.Reso
 	for i, role := range *roles {
 		result.Roles[i] = types.StringValue(role.Role)
 	}
+
+	return result
+}
+
+func toRoleDefinitionsModel(resourceType types.String, roles *[]management.RoleDefinition) RolesModel {
+	result := RolesModel{
+		ID:              types.StringValue(config.TestIDValue),
+		ResourceType:    resourceType,
+		RoleDefinitions: []RoleDefinitionModel{},
+	}
+
+	if roles == nil {
+		return result
+	}
+
+	definitions := make([]RoleDefinitionModel, 0, len(*roles))
+	for _, role := range *roles {
+		description := types.StringNull()
+		createdAt := types.StringNull()
+		updatedAt := types.StringNull()
+
+		if role.Description != nil {
+			description = types.StringValue(*role.Description)
+		}
+
+		if role.CreatedAt != nil {
+			createdAt = util.MaybeTimeValue(role.CreatedAt)
+		}
+
+		if role.UpdatedAt != nil {
+			updatedAt = util.MaybeTimeValue(role.UpdatedAt)
+		}
+
+		inherits := make([]RoleInheritModel, 0, len(role.Inherits))
+		for _, inherit := range role.Inherits {
+			inherits = append(inherits, RoleInheritModel{
+				ResourceType: types.StringValue(inherit.ResourceType),
+				Role:         types.StringValue(inherit.Role),
+			})
+		}
+
+		permissions := make([]types.String, 0, len(role.Permissions))
+		for _, perm := range role.Permissions {
+			permissions = append(permissions, types.StringValue(perm))
+		}
+
+		definitions = append(definitions, RoleDefinitionModel{
+			Name:         types.StringValue(role.Role),
+			ResourceType: types.StringValue(role.ResourceType),
+			Description:  description,
+			Permissions:  permissions,
+			Inherits:     inherits,
+			IsCustom:     types.BoolValue(role.IsCustom),
+			CreatedAt:    createdAt,
+			UpdatedAt:    updatedAt,
+		})
+	}
+
+	result.RoleDefinitions = definitions
 
 	return result
 }

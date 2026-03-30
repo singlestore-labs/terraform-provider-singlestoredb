@@ -4,10 +4,21 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-data "singlestoredb_all_roles" "all" {
+resource "singlestoredb_role" "test" {
+  name          = "terraform-test-custom-role"
   resource_type = "Organization"
+  description   = "A test custom role created by Terraform integration tests"
+
+  permissions = []
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    }
+  ]
 }
 
-output "all_roles" {
-  value = data.singlestoredb_all_roles.all
+output "role_id" {
+  value = singlestoredb_role.test.id
 }
