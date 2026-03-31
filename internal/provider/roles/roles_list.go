@@ -194,20 +194,16 @@ func (d *rolesDataSourceList) readByResourceType(ctx context.Context, data *Role
 
 func toRoleModel(resourceType, resourceID types.String, roles *[]management.ResourceRole) RolesModel {
 	result := RolesModel{
-		ID:           types.StringValue(config.TestIDValue),
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
+		ID:              types.StringValue(config.TestIDValue),
+		ResourceType:    resourceType,
+		ResourceID:      resourceID,
+		RoleDefinitions: []RoleDefinitionModel{},
 	}
 	if roles == nil {
 		return result
 	}
-	result = RolesModel{
-		ID:           types.StringValue(config.TestIDValue),
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Roles:        make([]types.String, len(*roles)),
-	}
 
+	result.Roles = make([]types.String, len(*roles))
 	for i, role := range *roles {
 		result.Roles[i] = types.StringValue(role.Role)
 	}
@@ -219,6 +215,7 @@ func toRoleDefinitionsModel(resourceType types.String, roles *[]management.RoleD
 	result := RolesModel{
 		ID:              types.StringValue(config.TestIDValue),
 		ResourceType:    resourceType,
+		Roles:           []types.String{},
 		RoleDefinitions: []RoleDefinitionModel{},
 	}
 

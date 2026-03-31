@@ -115,7 +115,7 @@ var (
 
 func TestReadRoleDefinitions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.True(t, strings.HasPrefix(r.URL.Path, "/v1/roles/"))
+		require.Equal(t, "/v1/roles/Organization", r.URL.Path)
 		require.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
@@ -162,7 +162,7 @@ func TestReadRoleDefinitionsBuiltInOnly(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.True(t, strings.HasPrefix(r.URL.Path, "/v1/roles/"))
+		require.Equal(t, "/v1/roles/Organization", r.URL.Path)
 		require.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")

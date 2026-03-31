@@ -357,7 +357,14 @@ func toCustomRoleResourceModel(role *management.RoleDefinition) CustomRoleResour
 }
 
 func validateRoleIsCustom(role *management.RoleDefinition) *util.SummaryWithDetailError {
-	if role == nil || role.IsCustom {
+	if role == nil {
+		return &util.SummaryWithDetailError{
+			Summary: "Role not found",
+			Detail:  "The API returned an empty role definition.",
+		}
+	}
+
+	if role.IsCustom {
 		return nil
 	}
 
