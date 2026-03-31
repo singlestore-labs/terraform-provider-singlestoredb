@@ -177,6 +177,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		roles.NewUserRolesDataSourceList,
 		roles.NewRolesDataSourceList,
 		roles.NewTeamRolesDataSourceList,
+		roles.NewPermissionsDataSourceList,
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
