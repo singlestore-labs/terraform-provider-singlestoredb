@@ -2,14 +2,12 @@
 page_title: "singlestoredb_role Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with is_custom = true can be created, modified, or deleted through this resource.
+  This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with is_custom = true can be created, modified, or deleted through this resource.
 ---
 
 # singlestoredb_role (Resource)
 
-Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.
-
-~> **Note:** Only roles with `is_custom = true` can be created, modified, or deleted through this resource. Built-in roles cannot be managed.
+This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.
 
 ## Example Usage
 

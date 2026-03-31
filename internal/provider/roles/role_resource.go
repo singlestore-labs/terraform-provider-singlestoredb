@@ -62,7 +62,7 @@ func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}, []attr.Value{})
 
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage roles in SingleStoreDB. This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.",
+		MarkdownDescription: "This resource allows you to create and manage custom roles with fine-grained permissions for your organization. You can create roles with specific permissions and optionally inherit from other roles. Only roles with `is_custom = true` can be created, modified, or deleted through this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,
