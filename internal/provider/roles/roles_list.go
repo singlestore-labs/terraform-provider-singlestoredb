@@ -149,7 +149,16 @@ func (d *rolesDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	if !data.ResourceID.IsNull() && !data.ResourceID.IsUnknown() {
+	if data.ResourceID.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"Unknown resource_id",
+			"The resource_id value is not yet known. This data source cannot be read until resource_id has a known value.",
+		)
+
+		return
+	}
+
+	if !data.ResourceID.IsNull() {
 		d.readByResourceID(ctx, &data, resp)
 	} else {
 		d.readByResourceType(ctx, &data, resp)
