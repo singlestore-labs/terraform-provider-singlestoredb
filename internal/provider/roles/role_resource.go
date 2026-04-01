@@ -157,24 +157,11 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 	resourceType := plan.ResourceType.ValueString()
 	roleName := plan.Name.ValueString()
 
-	inherits := make([]management.TypedRole, 0, len(plan.Inherits))
-	for _, inherit := range plan.Inherits {
-		inherits = append(inherits, management.TypedRole{
-			ResourceType: inherit.ResourceType.ValueString(),
-			Role:         inherit.Role.ValueString(),
-		})
-	}
-
-	permissions := make([]string, 0, len(plan.Permissions))
-	for _, perm := range plan.Permissions {
-		permissions = append(permissions, perm.ValueString())
-	}
-
 	createReq := management.RoleCreate{
 		Role:        roleName,
 		Description: util.MaybeString(plan.Description),
-		Permissions: permissions,
-		Inherits:    inherits,
+		Permissions: permissionsToStrings(plan.Permissions),
+		Inherits:    inheritsToTypedRoles(plan.Inherits),
 	}
 
 	createResp, err := r.PostV1RolesResourceTypeWithResponse(ctx, resourceType, createReq)
@@ -242,23 +229,10 @@ func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequ
 	resourceType := plan.ResourceType.ValueString()
 	roleName := plan.Name.ValueString()
 
-	inherits := make([]management.TypedRole, 0, len(plan.Inherits))
-	for _, inherit := range plan.Inherits {
-		inherits = append(inherits, management.TypedRole{
-			ResourceType: inherit.ResourceType.ValueString(),
-			Role:         inherit.Role.ValueString(),
-		})
-	}
-
-	permissions := make([]string, 0, len(plan.Permissions))
-	for _, perm := range plan.Permissions {
-		permissions = append(permissions, perm.ValueString())
-	}
-
 	updateReq := management.RoleUpdate{
 		Description: util.MaybeString(plan.Description),
-		Permissions: permissions,
-		Inherits:    inherits,
+		Permissions: permissionsToStrings(plan.Permissions),
+		Inherits:    inheritsToTypedRoles(plan.Inherits),
 	}
 
 	updateResp, err := r.PutV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName, updateReq)

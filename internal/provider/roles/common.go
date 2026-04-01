@@ -34,12 +34,33 @@ func convertPermissions(permissions []string) []types.String {
 	return result
 }
 
+func permissionsToStrings(permissions []types.String) []string {
+	result := make([]string, 0, len(permissions))
+	for _, perm := range permissions {
+		result = append(result, perm.ValueString())
+	}
+
+	return result
+}
+
 func convertInherits(inherits []management.TypedRole) []RoleInheritModel {
 	result := make([]RoleInheritModel, 0, len(inherits))
 	for _, inherit := range inherits {
 		result = append(result, RoleInheritModel{
 			ResourceType: types.StringValue(inherit.ResourceType),
 			Role:         types.StringValue(inherit.Role),
+		})
+	}
+
+	return result
+}
+
+func inheritsToTypedRoles(inherits []RoleInheritModel) []management.TypedRole {
+	result := make([]management.TypedRole, 0, len(inherits))
+	for _, inherit := range inherits {
+		result = append(result, management.TypedRole{
+			ResourceType: inherit.ResourceType.ValueString(),
+			Role:         inherit.Role.ValueString(),
 		})
 	}
 
