@@ -48,14 +48,18 @@ After creating a role, you can assign it to users using the `singlestoredb_user_
 resource "singlestoredb_role" "example" {
   name          = "custom-reader"
   resource_type = "Organization"
-  description   = "A custom role with read-only permissions"
+  description   = "A custom role with read permissions and inherited roles"
 
-  permissions = []
+  permissions = ["View Audit Log", "View Virtual Workspaces"]
 
   inherits = [
     {
       resource_type = "Organization"
       role          = "Reader"
+    },
+    {
+      resource_type = "Cluster"
+      role          = "Restricted Operator"
     }
   ]
 }
@@ -114,7 +118,7 @@ resource "singlestoredb_team_role" "team_with_custom_role" {
 
 - `description` (String) A description of the custom role.
 - `inherits` (Attributes List) A list of roles that this custom role inherits from. The custom role will have all permissions from the inherited roles. (see [below for nested schema](#nestedatt--inherits))
-- `permissions` (List of String) A list of permissions granted by this role. Available permissions depend on the resource type.
+- `permissions` (List of String) A list of permissions granted by this role. Available permissions depend on the resource type. Use the `singlestoredb_role_permissions` data source to discover valid permission names.
 
 ### Read-Only
 

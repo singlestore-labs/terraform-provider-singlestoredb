@@ -102,7 +102,7 @@ func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Computed:            true,
 				ElementType:         types.StringType,
 				Default:             listdefault.StaticValue(emptyPermissionsList),
-				MarkdownDescription: "A list of permissions granted by this role. Available permissions depend on the resource type.",
+				MarkdownDescription: "A list of permissions granted by this role. Available permissions depend on the resource type. Use the `singlestoredb_role_permissions` data source to discover valid permission names.",
 			},
 			"inherits": schema.ListNestedAttribute{
 				Optional:            true,

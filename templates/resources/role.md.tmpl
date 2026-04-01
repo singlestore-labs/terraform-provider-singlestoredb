@@ -21,14 +21,18 @@ After creating a role, you can assign it to users using the `singlestoredb_user_
 resource "singlestoredb_role" "example" {
   name          = "custom-reader"
   resource_type = "Organization"
-  description   = "A custom role with read-only permissions"
+  description   = "A custom role with read permissions and inherited roles"
 
-  permissions = []
+  permissions = ["View Audit Log", "View Virtual Workspaces"]
 
   inherits = [
     {
       resource_type = "Organization"
       role          = "Reader"
+    },
+    {
+      resource_type = "Cluster"
+      role          = "Restricted Operator"
     }
   ]
 }
