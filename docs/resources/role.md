@@ -134,3 +134,24 @@ Required:
 
 - `resource_type` (String) The resource type of the inherited role.
 - `role` (String) The name of the role to inherit from.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_role.this
+  id = "Organization/custom-reader"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+# Import format: resource_type/role_name
+# Valid resource types: Organization, Cluster, Team, Secret
+terraform import singlestoredb_role.this Organization/custom-reader
+```

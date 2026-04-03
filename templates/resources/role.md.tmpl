@@ -80,3 +80,15 @@ resource "singlestoredb_team_role" "team_with_custom_role" {
 ```
 
 {{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+{{ tffile "examples/resources/singlestoredb_role/import-by-string-id.tf" }}
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+{{ codefile "shell" "examples/resources/singlestoredb_role/import.sh" }}

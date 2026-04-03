@@ -41,7 +41,6 @@ var (
 	TeamRolesResource                = mustRead("resources/singlestoredb_team_roles/resource.tf")
 	TeamRolesResourceIntegration     = mustRead("resources/singlestoredb_team_roles_integration/resource.tf")
 	RoleResource                     = mustRead("resources/singlestoredb_role/resource.tf")
-	RoleResourceIntegration          = mustRead("resources/singlestoredb_role_integration/resource.tf")
 	RolePermissionsDataSource        = mustRead("data-sources/singlestoredb_role_permissions/data-source.tf")
 	FlowGetDataSource                = mustRead("data-sources/singlestoredb_flow/data-source.tf")
 	FlowListDataSource               = mustRead("data-sources/singlestoredb_flows/data-source.tf")

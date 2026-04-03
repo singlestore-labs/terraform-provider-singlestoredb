@@ -316,28 +316,28 @@ func TestCustomRoleIntegration(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.RoleResourceIntegration).
-					WithRoleResource("test")("name", cty.StringVal(uniqueRoleName)).
+				Config: testutil.UpdatableConfig(examples.RoleResource).
+					WithRoleResource("example")("name", cty.StringVal(uniqueRoleName)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "name", uniqueRoleName),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "resource_type", "Organization"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "is_custom", "true"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "inherits.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "inherits.0.resource_type", "Organization"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "inherits.0.role", "Reader"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "name", uniqueRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "resource_type", "Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "is_custom", "true"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.resource_type", "Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.role", "Reader"),
 				),
 			},
 			{
-				Config: testutil.UpdatableConfig(examples.RoleResourceIntegration).
-					WithRoleResource("test")("name", cty.StringVal(uniqueRoleName)).
-					WithRoleResource("test")("description", cty.StringVal("Updated integration test description")).
+				Config: testutil.UpdatableConfig(examples.RoleResource).
+					WithRoleResource("example")("name", cty.StringVal(uniqueRoleName)).
+					WithRoleResource("example")("description", cty.StringVal("Updated integration test description")).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "name", uniqueRoleName),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "resource_type", "Organization"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "description", "Updated integration test description"),
-					resource.TestCheckResourceAttr("singlestoredb_role.test", "is_custom", "true"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "name", uniqueRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "resource_type", "Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "description", "Updated integration test description"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "is_custom", "true"),
 				),
 			},
 		},
