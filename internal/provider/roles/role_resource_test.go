@@ -155,7 +155,7 @@ func TestCreateReadUpdateDeleteCustomRole(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "created_at", util.MaybeTimeValue(testRoleDefinition.CreatedAt).ValueString()),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "updated_at", util.MaybeTimeValue(testRoleDefinition.UpdatedAt).ValueString()),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "VView Virtual Workspaces"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "View Virtual Workspaces"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.resource_type", "Organization"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.role", "Reader"),
