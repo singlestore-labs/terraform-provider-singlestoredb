@@ -25,6 +25,19 @@ type RoleInheritModel struct {
 	Role         types.String `tfsdk:"role"`
 }
 
+// RoleDefinitionModel represents the common fields for a role definition.
+// Used by both the data source (singlestoredb_roles) and the resource (singlestoredb_role).
+type RoleDefinitionModel struct {
+	Name         types.String       `tfsdk:"name"`
+	ResourceType types.String       `tfsdk:"resource_type"`
+	Description  types.String       `tfsdk:"description"`
+	Permissions  []types.String     `tfsdk:"permissions"`
+	Inherits     []RoleInheritModel `tfsdk:"inherits"`
+	IsCustom     types.Bool         `tfsdk:"is_custom"`
+	CreatedAt    types.String       `tfsdk:"created_at"`
+	UpdatedAt    types.String       `tfsdk:"updated_at"`
+}
+
 func convertPermissions(permissions []string) []types.String {
 	result := make([]types.String, 0, len(permissions))
 	for _, perm := range permissions {
@@ -85,6 +98,27 @@ func setOptionalRoleFields(role *management.RoleDefinition) (types.String, types
 	}
 
 	return description, createdAt, updatedAt
+}
+
+// toRoleDefinitionModel converts a management.RoleDefinition to RoleDefinitionModel.
+// This is the single source of truth for mapping API role definitions to Terraform models.
+func toRoleDefinitionModel(role *management.RoleDefinition) RoleDefinitionModel {
+	if role == nil {
+		return RoleDefinitionModel{}
+	}
+
+	description, createdAt, updatedAt := setOptionalRoleFields(role)
+
+	return RoleDefinitionModel{
+		Name:         types.StringValue(role.Role),
+		ResourceType: types.StringValue(role.ResourceType),
+		Description:  description,
+		Permissions:  convertPermissions(role.Permissions),
+		Inherits:     convertInherits(role.Inherits),
+		IsCustom:     types.BoolValue(role.IsCustom),
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
+	}
 }
 
 func resourceTypeNames() string {

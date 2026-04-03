@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -312,9 +311,9 @@ func (r *customRoleResource) ImportState(ctx context.Context, req resource.Impor
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("resource_type"), idParts.ResourceType)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), idParts.RoleName)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	result := toCustomRoleResourceModel(getResp.JSON200)
+	diags := resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
 }
 
 func toCustomRoleResourceModel(role *management.RoleDefinition) CustomRoleResourceModel {
@@ -322,18 +321,18 @@ func toCustomRoleResourceModel(role *management.RoleDefinition) CustomRoleResour
 		return CustomRoleResourceModel{}
 	}
 
-	description, createdAt, updatedAt := setOptionalRoleFields(role)
+	base := toRoleDefinitionModel(role)
 
 	return CustomRoleResourceModel{
 		ID:           types.StringValue(fmt.Sprintf("%s/%s", role.ResourceType, role.Role)),
-		Name:         types.StringValue(role.Role),
-		ResourceType: types.StringValue(role.ResourceType),
-		Description:  description,
-		Permissions:  convertPermissions(role.Permissions),
-		Inherits:     convertInherits(role.Inherits),
-		IsCustom:     types.BoolValue(role.IsCustom),
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
+		Name:         base.Name,
+		ResourceType: base.ResourceType,
+		Description:  base.Description,
+		Permissions:  base.Permissions,
+		Inherits:     base.Inherits,
+		IsCustom:     base.IsCustom,
+		CreatedAt:    base.CreatedAt,
+		UpdatedAt:    base.UpdatedAt,
 	}
 }
 

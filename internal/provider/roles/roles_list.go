@@ -19,17 +19,6 @@ const (
 	RolesDataSourceListName = "roles"
 )
 
-type RoleDefinitionModel struct {
-	Name         types.String       `tfsdk:"name"`
-	ResourceType types.String       `tfsdk:"resource_type"`
-	Description  types.String       `tfsdk:"description"`
-	Permissions  []types.String     `tfsdk:"permissions"`
-	Inherits     []RoleInheritModel `tfsdk:"inherits"`
-	IsCustom     types.Bool         `tfsdk:"is_custom"`
-	CreatedAt    types.String       `tfsdk:"created_at"`
-	UpdatedAt    types.String       `tfsdk:"updated_at"`
-}
-
 type RolesModel struct {
 	ID              types.String          `tfsdk:"id"`
 	ResourceType    types.String          `tfsdk:"resource_type"`
@@ -235,18 +224,7 @@ func toRoleDefinitionsModel(resourceType types.String, roles *[]management.RoleD
 
 	definitions := make([]RoleDefinitionModel, 0, len(*roles))
 	for _, role := range *roles {
-		description, createdAt, updatedAt := setOptionalRoleFields(&role)
-
-		definitions = append(definitions, RoleDefinitionModel{
-			Name:         types.StringValue(role.Role),
-			ResourceType: types.StringValue(role.ResourceType),
-			Description:  description,
-			Permissions:  convertPermissions(role.Permissions),
-			Inherits:     convertInherits(role.Inherits),
-			IsCustom:     types.BoolValue(role.IsCustom),
-			CreatedAt:    createdAt,
-			UpdatedAt:    updatedAt,
-		})
+		definitions = append(definitions, toRoleDefinitionModel(&role))
 	}
 
 	result.RoleDefinitions = definitions
