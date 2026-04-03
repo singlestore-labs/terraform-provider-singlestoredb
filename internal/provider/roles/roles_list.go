@@ -206,15 +206,16 @@ func toRoleModel(resourceType, resourceID types.String, roles *[]management.Reso
 		ID:              types.StringValue(config.TestIDValue),
 		ResourceType:    resourceType,
 		ResourceID:      resourceID,
+		Roles:           []types.String{},
 		RoleDefinitions: []RoleDefinitionModel{},
 	}
 	if roles == nil {
 		return result
 	}
 
-	result.Roles = make([]types.String, len(*roles))
-	for i, role := range *roles {
-		result.Roles[i] = types.StringValue(role.Role)
+	result.Roles = make([]types.String, 0, len(*roles))
+	for _, role := range *roles {
+		result.Roles = append(result.Roles, types.StringValue(role.Role))
 	}
 
 	return result
