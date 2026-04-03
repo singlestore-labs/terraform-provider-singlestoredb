@@ -92,7 +92,7 @@ var (
 			Role:         "custom-admin",
 			ResourceType: "Organization",
 			Description:  &roleDefDescription,
-			Permissions:  []string{"View Organization", "Edit Organization"},
+			Permissions:  []string{"View Virtual Workspaces", "Update Virtual Workspaces"},
 			Inherits: []management.TypedRole{
 				{ResourceType: "Organization", Role: "Reader"},
 			},
@@ -104,7 +104,7 @@ var (
 			Role:         "custom-viewer",
 			ResourceType: "Organization",
 			Description:  &roleDefDescription,
-			Permissions:  []string{"View Organization"},
+			Permissions:  []string{"View Virtual Workspaces"},
 			Inherits:     []management.TypedRole{},
 			IsCustom:     true,
 			CreatedAt:    &roleDefCreatedAt,

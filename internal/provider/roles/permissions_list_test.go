@@ -27,13 +27,13 @@ var permissionsRolesList = []management.RoleDefinition{
 	{
 		Role:         "Owner",
 		ResourceType: "Organization",
-		Permissions:  []string{"View Organization", "Edit Organization", "Delete Organization", "Manage Members"},
+		Permissions:  []string{"View Virtual Workspaces", "Edit Organization", "Delete Organization", "Manage Members"},
 		IsCustom:     false,
 	},
 	{
 		Role:         "Reader",
 		ResourceType: "Organization",
-		Permissions:  []string{"View Organization"},
+		Permissions:  []string{"View Virtual Workspaces"},
 		IsCustom:     false,
 	},
 }
@@ -75,7 +75,7 @@ func TestReadRolePermissionsOwnerNotFound(t *testing.T) {
 		{
 			Role:         "Reader",
 			ResourceType: "Organization",
-			Permissions:  []string{"View Organization"},
+			Permissions:  []string{"View Virtual Workspaces"},
 			IsCustom:     false,
 		},
 	}

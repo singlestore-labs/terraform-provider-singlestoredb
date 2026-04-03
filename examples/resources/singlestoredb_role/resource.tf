@@ -10,7 +10,7 @@ resource "singlestoredb_role" "example" {
   description   = "A custom role with read-only permissions"
 
   permissions = [
-    "View Organization",
+    "View Virtual Workspaces",
   ]
 
   inherits = [

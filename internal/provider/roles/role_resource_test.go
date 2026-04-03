@@ -26,7 +26,7 @@ var (
 	testResourceType       = "Organization"
 	testDescription        = "A custom role with read-only permissions"
 	testUpdatedDescription = "An updated custom role description"
-	testPermissions        = []string{"View Organization"}
+	testPermissions        = []string{"View Virtual Workspaces"}
 	testInherits           = []management.TypedRole{
 		{
 			ResourceType: "Organization",
@@ -65,7 +65,7 @@ resource "singlestoredb_role" "example" {
   description   = "An updated custom role description"
 
   permissions = [
-    "View Organization",
+    "View Virtual Workspaces",
   ]
 
   inherits = [
@@ -155,7 +155,7 @@ func TestCreateReadUpdateDeleteCustomRole(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "created_at", util.MaybeTimeValue(testRoleDefinition.CreatedAt).ValueString()),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "updated_at", util.MaybeTimeValue(testRoleDefinition.UpdatedAt).ValueString()),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "View Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "VView Virtual Workspaces"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.resource_type", "Organization"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.role", "Reader"),
@@ -169,7 +169,7 @@ func TestCreateReadUpdateDeleteCustomRole(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "description", testUpdatedDescription),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "is_custom", "true"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.#", "1"),
-					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "View Organization"),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "permissions.0", "View Virtual Workspaces"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.resource_type", "Organization"),
 					resource.TestCheckResourceAttr("singlestoredb_role.example", "inherits.0.role", "Reader"),
@@ -283,7 +283,7 @@ resource "singlestoredb_role" "example" {
   description   = "A custom role with read-only permissions"
 
   permissions = [
-    "View Organization",
+    "View Virtual Workspaces",
   ]
 
   inherits = [
