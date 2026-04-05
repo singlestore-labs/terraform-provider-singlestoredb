@@ -85,7 +85,7 @@ func setOptionalRoleFields(role *management.RoleDefinition) (types.String, types
 	createdAt := types.StringNull()
 	updatedAt := types.StringNull()
 
-	if role.Description != nil {
+	if role.Description != nil && *role.Description != "" {
 		description = types.StringValue(*role.Description)
 	}
 
