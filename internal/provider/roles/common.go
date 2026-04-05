@@ -81,7 +81,7 @@ func inheritsToTypedRoles(inherits []RoleInheritModel) []management.TypedRole {
 }
 
 func setOptionalRoleFields(role *management.RoleDefinition) (types.String, types.String, types.String) {
-	description := types.StringNull()
+	description := types.StringValue("")
 	createdAt := types.StringNull()
 	updatedAt := types.StringNull()
 

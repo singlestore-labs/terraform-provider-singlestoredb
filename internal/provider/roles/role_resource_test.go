@@ -308,6 +308,154 @@ resource "singlestoredb_role" "example" {
 	})
 }
 
+func TestCustomRoleWithEmptyDescription(t *testing.T) {
+	emptyDescription := ""
+	roleWithEmptyDescription := management.RoleDefinition{
+		Role:         testRoleName,
+		ResourceType: testResourceType,
+		Description:  &emptyDescription,
+		Permissions:  testPermissions,
+		Inherits:     testInherits,
+		IsCustom:     true,
+		CreatedAt:    &testCreatedAt,
+		UpdatedAt:    &testUpdatedAt,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/roles/"):
+			_, err := w.Write(testutil.MustJSON(roleWithEmptyDescription))
+			require.NoError(t, err)
+
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, testRoleName):
+			_, err := w.Write(testutil.MustJSON(roleWithEmptyDescription))
+			require.NoError(t, err)
+
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, testRoleName):
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`true`))
+			require.NoError(t, err)
+
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	configWithEmptyDescription := `provider "singlestoredb" {
+}
+
+resource "singlestoredb_role" "example" {
+  name          = "custom-reader"
+  resource_type = "Organization"
+  description   = ""
+
+  permissions = [
+    "View Virtual Workspaces",
+  ]
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    }
+  ]
+}
+`
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithEmptyDescription,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "name", testRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "resource_type", testResourceType),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "description", ""),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "is_custom", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestCustomRoleWithOmittedDescription(t *testing.T) {
+	roleWithNilDescription := management.RoleDefinition{
+		Role:         testRoleName,
+		ResourceType: testResourceType,
+		Description:  nil,
+		Permissions:  testPermissions,
+		Inherits:     testInherits,
+		IsCustom:     true,
+		CreatedAt:    &testCreatedAt,
+		UpdatedAt:    &testUpdatedAt,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/roles/"):
+			_, err := w.Write(testutil.MustJSON(roleWithNilDescription))
+			require.NoError(t, err)
+
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, testRoleName):
+			_, err := w.Write(testutil.MustJSON(roleWithNilDescription))
+			require.NoError(t, err)
+
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, testRoleName):
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`true`))
+			require.NoError(t, err)
+
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	configWithoutDescription := `provider "singlestoredb" {
+}
+
+resource "singlestoredb_role" "example" {
+  name          = "custom-reader"
+  resource_type = "Organization"
+
+  permissions = [
+    "View Virtual Workspaces",
+  ]
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    }
+  ]
+}
+`
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithoutDescription,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "name", testRoleName),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "resource_type", testResourceType),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "description", ""),
+					resource.TestCheckResourceAttr("singlestoredb_role.example", "is_custom", "true"),
+				),
+			},
+		},
+	})
+}
+
 func TestCustomRoleIntegration(t *testing.T) {
 	uniqueRoleName := testutil.GenerateUniqueResourceName("custom-role")
 
