@@ -301,7 +301,7 @@ func (r *userResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRe
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *userResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
 func toUserModel(userInvitation *management.UserInvitation, userID *openapi_types.UUID) UserModel {

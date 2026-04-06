@@ -11,6 +11,7 @@ var f embed.FS
 var (
 	Regions                          = mustRead("data-sources/singlestoredb_regions/data-source.tf")
 	RegionsV2                        = mustRead("data-sources/singlestoredb_regions_v2/data-source.tf")
+	ProjectsListDataSource           = mustRead("data-sources/singlestoredb_projects/data-source.tf")
 	PrivateConnectionsGetDataSource  = mustRead("data-sources/singlestoredb_private_connection/data-source.tf")
 	PrivateConnectionsResource       = mustRead("resources/singlestoredb_private_connection/resource.tf")
 	PrivateConnectionsListDataSource = mustRead("data-sources/singlestoredb_private_connections/data-source.tf")
@@ -39,6 +40,8 @@ var (
 	TeamRoleResourceIntegration      = mustRead("resources/singlestoredb_team_role_integration/resource.tf")
 	TeamRolesResource                = mustRead("resources/singlestoredb_team_roles/resource.tf")
 	TeamRolesResourceIntegration     = mustRead("resources/singlestoredb_team_roles_integration/resource.tf")
+	RoleResource                     = mustRead("resources/singlestoredb_role/resource.tf")
+	RolePermissionsDataSource        = mustRead("data-sources/singlestoredb_role_permissions/data-source.tf")
 	FlowGetDataSource                = mustRead("data-sources/singlestoredb_flow/data-source.tf")
 	FlowListDataSource               = mustRead("data-sources/singlestoredb_flows/data-source.tf")
 	FlowResource                     = mustRead("resources/singlestoredb_flow/resource.tf")

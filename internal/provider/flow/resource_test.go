@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -60,12 +61,14 @@ func newTestWorkspace() management.Workspace {
 
 func newTestFlowInstance() management.Flow {
 	return management.Flow{
-		FlowID:      testFlowInstanceID,
-		Name:        testFlowInstanceName,
-		WorkspaceID: util.Ptr(testWorkspaceID),
-		CreatedAt:   time.Now().UTC(),
-		Endpoint:    util.Ptr(testFlowEndpoint),
-		Size:        util.Ptr("F1"),
+		FlowID:       testFlowInstanceID,
+		Name:         testFlowInstanceName,
+		WorkspaceID:  util.Ptr(testWorkspaceID),
+		CreatedAt:    time.Now().UTC(),
+		Endpoint:     util.Ptr(testFlowEndpoint),
+		Size:         util.Ptr("F1"),
+		UserName:     util.Ptr("admin"),
+		DatabaseName: util.Ptr("my_database"),
 	}
 }
 
@@ -201,6 +204,43 @@ func TestCRUDFlowInstance(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "database_name", "my_database"),
 				),
+			},
+			{
+				ResourceName:      "singlestoredb_flow.this",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestFlowInstanceImmutableName(t *testing.T) {
+	server := setupCRUDServer(t)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "name", testFlowInstanceName),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal("different-name")).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				ExpectError: regexp.MustCompile(`Cannot update name`),
 			},
 		},
 	})

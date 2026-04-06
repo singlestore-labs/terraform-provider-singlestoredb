@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -95,6 +94,9 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 				MarkdownDescription: "The timestamp when the Flow instance was created.",
 			},
 			"endpoint": schema.StringAttribute{
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the Flow instance.",
 			},
@@ -145,7 +147,7 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	result := toFlowInstanceResourceModel(flow, plan)
+	result := toFlowInstanceResourceModel(flow)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -177,7 +179,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	result := toFlowInstanceResourceModel(*flow.JSON200, state)
+	result := toFlowInstanceResourceModel(*flow.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -237,23 +239,36 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
-	if !plan.Name.Equal(state.Name) ||
-		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
-		!plan.UserName.Equal(state.UserName) ||
-		!plan.DatabaseName.Equal(state.DatabaseName) ||
-		!plan.Size.Equal(state.Size) {
-		resp.Diagnostics.AddError("Cannot update fields",
-			"To prevent accidental deletion of data, updating fields for Flow instances is not allowed. "+
-				"Please explicitly delete the Flow instance before updating fields.")
+	immutableFields := []struct {
+		name     string
+		planVal  types.String
+		stateVal types.String
+	}{
+		{"name", plan.Name, state.Name},
+		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
+		{"user_name", plan.UserName, state.UserName},
+		{"database_name", plan.DatabaseName, state.DatabaseName},
+		{"size", plan.Size, state.Size},
+	}
+
+	for _, f := range immutableFields {
+		if !f.planVal.Equal(f.stateVal) {
+			resp.Diagnostics.AddError(
+				"Cannot update "+f.name,
+				"To prevent accidental deletion of data, updating the \""+f.name+"\" field for Flow instances is not allowed. "+
+					"Current value: \""+f.stateVal.ValueString()+"\", configured value: \""+f.planVal.ValueString()+"\". "+
+					"Please explicitly delete the Flow instance before updating this field.",
+			)
+		}
 	}
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
+	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourceModel) flowInstanceResourceModel {
+func toFlowInstanceResourceModel(flow management.Flow) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
 		ID:           util.UUIDStringValue(flow.FlowID),
 		Name:         types.StringValue(flow.Name),
@@ -261,8 +276,8 @@ func toFlowInstanceResourceModel(flow management.Flow, state flowInstanceResourc
 		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
 		Endpoint:     util.MaybeStringValue(flow.Endpoint),
 		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     state.UserName,
-		DatabaseName: state.DatabaseName,
+		UserName:     util.MaybeStringValue(flow.UserName),
+		DatabaseName: util.MaybeStringValue(flow.DatabaseName),
 	}
 
 	return model

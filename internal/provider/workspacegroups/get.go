@@ -29,6 +29,7 @@ type workspaceGroupsDataSourceGet struct {
 type workspaceGroupDataSourceModel struct {
 	ID                       types.String                 `tfsdk:"id"`
 	Name                     types.String                 `tfsdk:"name"`
+	ProjectName              types.String                 `tfsdk:"project_name"`
 	State                    types.String                 `tfsdk:"state"`
 	FirewallRanges           []types.String               `tfsdk:"firewall_ranges"`
 	AllowAllTraffic          types.Bool                   `tfsdk:"allow_all_traffic"`
@@ -86,8 +87,8 @@ func (d *workspaceGroupsDataSourceGet) Read(ctx context.Context, req datasource.
 	}
 
 	// Validate that exactly one of id or name is provided
-	idProvided := !data.ID.IsNull() && !data.ID.IsUnknown()
-	nameProvided := !data.Name.IsNull() && !data.Name.IsUnknown()
+	idProvided := util.IsConfiguredString(data.ID)
+	nameProvided := util.IsConfiguredString(data.Name)
 
 	if !idProvided && !nameProvided {
 		resp.Diagnostics.AddError(
@@ -137,6 +138,10 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 			Computed:            conf.computeName,
 			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the workspace group.",
+		},
+		"project_name": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The name of the project to which the workspace group is assigned.",
 		},
 		"state": schema.StringAttribute{
 			Computed:            true,

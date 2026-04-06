@@ -16,6 +16,124 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
+// RoleResourceName is the Terraform resource type name for the role resource.
+const RoleResourceName = "role"
+
+// RoleInheritModel represents a role inheritance relationship.
+type RoleInheritModel struct {
+	ResourceType types.String `tfsdk:"resource_type"`
+	Role         types.String `tfsdk:"role"`
+}
+
+// RoleDefinitionModel represents the common fields for a role definition.
+// Used by both the data source (singlestoredb_roles) and the resource (singlestoredb_role).
+type RoleDefinitionModel struct {
+	Name         types.String       `tfsdk:"name"`
+	ResourceType types.String       `tfsdk:"resource_type"`
+	Description  types.String       `tfsdk:"description"`
+	Permissions  []types.String     `tfsdk:"permissions"`
+	Inherits     []RoleInheritModel `tfsdk:"inherits"`
+	IsCustom     types.Bool         `tfsdk:"is_custom"`
+	CreatedAt    types.String       `tfsdk:"created_at"`
+	UpdatedAt    types.String       `tfsdk:"updated_at"`
+}
+
+func convertPermissions(permissions []string) []types.String {
+	result := make([]types.String, 0, len(permissions))
+	for _, perm := range permissions {
+		result = append(result, types.StringValue(perm))
+	}
+
+	return result
+}
+
+func permissionsToStrings(permissions []types.String) []string {
+	result := make([]string, 0, len(permissions))
+	for _, perm := range permissions {
+		result = append(result, perm.ValueString())
+	}
+
+	return result
+}
+
+func convertInherits(inherits []management.TypedRole) []RoleInheritModel {
+	result := make([]RoleInheritModel, 0, len(inherits))
+	for _, inherit := range inherits {
+		result = append(result, RoleInheritModel{
+			ResourceType: types.StringValue(inherit.ResourceType),
+			Role:         types.StringValue(inherit.Role),
+		})
+	}
+
+	return result
+}
+
+func inheritsToTypedRoles(inherits []RoleInheritModel) []management.TypedRole {
+	result := make([]management.TypedRole, 0, len(inherits))
+	for _, inherit := range inherits {
+		result = append(result, management.TypedRole{
+			ResourceType: inherit.ResourceType.ValueString(),
+			Role:         inherit.Role.ValueString(),
+		})
+	}
+
+	return result
+}
+
+func setOptionalRoleFields(role *management.RoleDefinition) (types.String, types.String, types.String) {
+	description := types.StringValue("")
+	createdAt := types.StringNull()
+	updatedAt := types.StringNull()
+
+	if role.Description != nil && *role.Description != "" {
+		description = types.StringValue(*role.Description)
+	}
+
+	if role.CreatedAt != nil {
+		createdAt = util.MaybeTimeValue(role.CreatedAt)
+	}
+
+	if role.UpdatedAt != nil {
+		updatedAt = util.MaybeTimeValue(role.UpdatedAt)
+	}
+
+	return description, createdAt, updatedAt
+}
+
+// toRoleDefinitionModel converts a management.RoleDefinition to RoleDefinitionModel.
+// This is the single source of truth for mapping API role definitions to Terraform models.
+func toRoleDefinitionModel(role *management.RoleDefinition) RoleDefinitionModel {
+	if role == nil {
+		return RoleDefinitionModel{}
+	}
+
+	description, createdAt, updatedAt := setOptionalRoleFields(role)
+
+	return RoleDefinitionModel{
+		Name:         types.StringValue(role.Role),
+		ResourceType: types.StringValue(role.ResourceType),
+		Description:  description,
+		Permissions:  convertPermissions(role.Permissions),
+		Inherits:     convertInherits(role.Inherits),
+		IsCustom:     types.BoolValue(role.IsCustom),
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
+	}
+}
+
+func resourceTypeNames() string {
+	names := make([]string, 0, len(ResourceTypeList))
+	for _, rt := range ResourceTypeList {
+		names = append(names, string(rt))
+	}
+
+	return strings.Join(names, ", ")
+}
+
+func formatResourceTypeList() string {
+	return fmt.Sprintf("Valid resource types are: %s", resourceTypeNames())
+}
+
 // RoleNotFoundError indicates that expected roles were not found.
 type RoleNotFoundError struct {
 	MissedRoles  []RoleAttributesModel

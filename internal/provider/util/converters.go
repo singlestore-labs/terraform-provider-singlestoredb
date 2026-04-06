@@ -23,6 +23,10 @@ func ToString(s types.String) string {
 	return s.ValueString()
 }
 
+func IsConfiguredString(value types.String) bool {
+	return !value.IsNull() && !value.IsUnknown()
+}
+
 func MaybeStringValue(s *string) types.String {
 	return maybeElse(s, types.StringValue, types.StringNull)
 }
@@ -134,8 +138,8 @@ func MaybeFloat32(f types.Float32) *float32 {
 	return Ptr(f.ValueFloat32())
 }
 
-func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.WorkspaceUpdateAutoScaleSensitivity {
-	for _, s := range []management.WorkspaceUpdateAutoScaleSensitivity{
+func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.AutoScaleSensitivity {
+	for _, s := range []management.AutoScaleSensitivity{
 		management.LOW,
 		management.NORMAL,
 		management.HIGH,

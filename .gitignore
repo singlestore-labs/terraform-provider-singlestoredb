@@ -4,3 +4,4 @@ terraform-provider-singlestoredb
 .terraformrc
 *.out
 .env
+**/.vscode/

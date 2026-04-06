@@ -1,12 +1,12 @@
 package util_test
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -49,13 +49,6 @@ func TestFirstNotEmpty(t *testing.T) {
 	require.Equal(t, util.FirstNotEmpty("a"), "a")
 	require.Equal(t, util.FirstNotEmpty("", "a"), "a")
 	require.Equal(t, util.FirstNotEmpty("a", "b"), "a")
-}
-
-func TestFirstSetStringValue(t *testing.T) {
-	require.Equal(t, util.FirstSetStringValue(), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringNull()), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringUnknown(), types.StringNull()), types.StringNull())
-	require.Equal(t, util.FirstSetStringValue(types.StringUnknown(), types.StringValue("foo"), types.StringNull()).ValueString(), "foo")
 }
 
 func TestMapWithError(t *testing.T) {
@@ -145,4 +138,22 @@ func TestFilter(t *testing.T) {
 	})
 
 	require.Equal(t, []int{2, 4, 6}, evenNums)
+}
+
+func TestImportStatePassthroughID(t *testing.T) {
+	t.Run("empty string", func(t *testing.T) {
+		req := resource.ImportStateRequest{ID: ""}
+		resp := resource.ImportStateResponse{}
+		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		require.True(t, resp.Diagnostics.HasError())
+		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"\"")
+	})
+
+	t.Run("not a UUID", func(t *testing.T) {
+		req := resource.ImportStateRequest{ID: "not-a-uuid"}
+		resp := resource.ImportStateResponse{}
+		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		require.True(t, resp.Diagnostics.HasError())
+		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"not-a-uuid\"")
+	})
 }
