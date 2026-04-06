@@ -39,7 +39,7 @@ func TestCRUDProject(t *testing.T) {
 		var input management.ProjectCreate
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, project.Name, input.Name)
-		require.Equal(t, management.ProjectEdition(project.Edition), input.Edition)
+		require.Equal(t, project.Edition, input.Edition)
 
 		w.Header().Add("Content-Type", "application/json")
 		_, err = w.Write(testutil.MustJSON(management.ProjectIDResponse{

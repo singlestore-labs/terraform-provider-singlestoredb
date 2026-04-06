@@ -88,12 +88,14 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 	})
 	if serr := util.StatusOK(createResp, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
 
 	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, createResp.JSON200.ProjectID)
 	if serr := util.StatusOK(project, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
 
@@ -113,10 +115,13 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(project, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
+
 	if project.StatusCode() == http.StatusNotFound {
 		resp.State.RemoveResource(ctx)
+
 		return
 	}
 
@@ -139,12 +144,14 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	})
 	if serr := util.StatusOK(patchResp, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
 
 	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, id)
 	if serr := util.StatusOK(project, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
 
@@ -164,6 +171,7 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 	deleteResp, err := r.DeleteV1ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(deleteResp, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
 		return
 	}
 }
