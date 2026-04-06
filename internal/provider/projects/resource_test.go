@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const projectsPath = "/v1/projects"
+
 var testProject = management.Project{
 	ProjectID: uuid.MustParse("ad2eb3f8-ef7c-4eb5-b530-6f0930db9ff8"),
 	Name:      "project",
@@ -31,7 +33,7 @@ func TestCRUDProject(t *testing.T) {
 	project := testProject
 
 	projectPostHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/projects", r.URL.Path)
+		require.Equal(t, projectsPath, r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 
 		body, err := io.ReadAll(r.Body)
@@ -48,7 +50,7 @@ func TestCRUDProject(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	projectGetPath := strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/")
+	projectGetPath := strings.Join([]string{projectsPath, project.ProjectID.String()}, "/")
 
 	projectGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
 		if r.URL.Path != projectGetPath || r.Method != http.MethodGet {
@@ -63,7 +65,7 @@ func TestCRUDProject(t *testing.T) {
 	}
 
 	projectPatchHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{projectsPath, project.ProjectID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodPatch, r.Method)
 
 		body, err := io.ReadAll(r.Body)
@@ -81,7 +83,7 @@ func TestCRUDProject(t *testing.T) {
 	}
 
 	projectDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{projectsPath, project.ProjectID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
@@ -93,7 +95,7 @@ func TestCRUDProject(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/v1/projects" && r.Method == http.MethodPost:
+		case r.URL.Path == projectsPath && r.Method == http.MethodPost:
 			projectPostHandler(w, r)
 		case projectGetHandler(w, r):
 			// handled
@@ -163,11 +165,11 @@ func TestCreateProjectError(t *testing.T) {
 func TestImportProject(t *testing.T) {
 	project := testProject
 
-	projectGetPath := strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/")
+	projectGetPath := strings.Join([]string{projectsPath, project.ProjectID.String()}, "/")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/v1/projects" && r.Method == http.MethodPost:
+		case r.URL.Path == projectsPath && r.Method == http.MethodPost:
 			w.Header().Add("Content-Type", "application/json")
 			_, err := w.Write(testutil.MustJSON(management.ProjectIDResponse{
 				ProjectID: project.ProjectID,
@@ -205,11 +207,11 @@ func TestImportProject(t *testing.T) {
 func TestUpdateEditionNotAllowed(t *testing.T) {
 	project := testProject
 
-	projectGetPath := strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/")
+	projectGetPath := strings.Join([]string{projectsPath, project.ProjectID.String()}, "/")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/v1/projects" && r.Method == http.MethodPost:
+		case r.URL.Path == projectsPath && r.Method == http.MethodPost:
 			w.Header().Add("Content-Type", "application/json")
 			_, err := w.Write(testutil.MustJSON(management.ProjectIDResponse{
 				ProjectID: project.ProjectID,
