@@ -57,7 +57,7 @@ func TestReadRolePermissions(t *testing.T) {
 			{
 				Config: testRolePermissionsConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", config.IDAttribute, "permissions-Organization"),
 					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", "resource_type", "Organization"),
 					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", "permissions.#", "4"),
 					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", "permissions.0", permissionsRolesList[0].Permissions[0]),
@@ -111,7 +111,7 @@ func TestReadRolePermissionsIntegration(t *testing.T) {
 			{
 				Config: testRolePermissionsConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", config.IDAttribute, "permissions-Organization"),
 					resource.TestCheckResourceAttr("data.singlestoredb_role_permissions.org", "resource_type", "Organization"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_role_permissions.org", "permissions.#"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_role_permissions.org", "permissions.0"),
