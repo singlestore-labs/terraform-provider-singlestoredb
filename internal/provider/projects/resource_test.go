@@ -22,7 +22,7 @@ import (
 
 var testProject = management.Project{
 	ProjectID: uuid.MustParse("ad2eb3f8-ef7c-4eb5-b530-6f0930db9ff8"),
-	Name:      "my-project",
+	Name:      "project",
 	Edition:   management.STANDARD,
 	CreatedAt: time.Date(2024, time.January, 15, 9, 10, 11, 0, time.UTC),
 }
@@ -211,7 +211,7 @@ func TestCRUDProjectIntegration(t *testing.T) {
 				Config: examples.ProjectResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_project.this", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_project.this", "name", "my-project"),
+					resource.TestCheckResourceAttr("singlestoredb_project.this", "name", "project"),
 					resource.TestCheckResourceAttr("singlestoredb_project.this", "edition", "STANDARD"),
 					resource.TestCheckResourceAttrSet("singlestoredb_project.this", "created_at"),
 				),
