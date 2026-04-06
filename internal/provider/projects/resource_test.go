@@ -202,6 +202,59 @@ func TestImportProject(t *testing.T) {
 	})
 }
 
+func TestUpdateEditionNotAllowed(t *testing.T) {
+	project := testProject
+
+	projectGetPath := strings.Join([]string{"/v1/projects", project.ProjectID.String()}, "/")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/projects" && r.Method == http.MethodPost:
+			w.Header().Add("Content-Type", "application/json")
+			_, err := w.Write(testutil.MustJSON(management.ProjectIDResponse{
+				ProjectID: project.ProjectID,
+			}))
+			require.NoError(t, err)
+		case r.URL.Path == projectGetPath && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "application/json")
+			_, err := w.Write(testutil.MustJSON(project))
+			require.NoError(t, err)
+		case r.Method == http.MethodDelete:
+			w.Header().Add("Content-Type", "application/json")
+			_, err := w.Write(testutil.MustJSON(management.ProjectIDResponse{
+				ProjectID: project.ProjectID,
+			}))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: examples.ProjectResource,
+			},
+			{
+				Config: `
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_project" "this" {
+  name    = "project"
+  edition = "ENTERPRISE"
+}
+`,
+				ExpectError: regexp.MustCompile("Cannot update edition"),
+			},
+		},
+	})
+}
+
 func TestCRUDProjectIntegration(t *testing.T) {
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
