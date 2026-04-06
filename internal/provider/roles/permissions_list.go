@@ -99,7 +99,7 @@ func (d *permissionsDataSourceList) Read(ctx context.Context, req datasource.Rea
 	}
 
 	result := PermissionsModel{
-		ID:           types.StringValue(config.TestIDValue),
+		ID:           types.StringValue(fmt.Sprintf("permissions-%s", resourceType)),
 		ResourceType: data.ResourceType,
 		Permissions:  convertPermissions(permissions),
 	}

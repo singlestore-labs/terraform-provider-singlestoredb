@@ -3,12 +3,12 @@
 page_title: "singlestoredb_roles Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides information about roles available in a given organization. When resource_id is specified, it returns the list of role names available for that specific resource object. When only resource_type is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
+  This data source provides information about roles available for a particular resource type in an organization which API key belongs to. When resource_id is specified, it returns the list of role names available for that specific resource object. When only resource_type is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
 ---
 
 # singlestoredb_roles (Data Source)
 
-This data source provides information about roles available in a given organization. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
+This data source provides information about roles available for a particular resource type in an organization which API key belongs to. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.
 
 ## Example Usage
 

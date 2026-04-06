@@ -47,7 +47,7 @@ func (d *rolesDataSourceList) Metadata(_ context.Context, req datasource.Metadat
 // Schema defines the schema for the data source.
 func (d *rolesDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides information about roles available in a given organization. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.",
+		MarkdownDescription: "This data source provides information about roles available for a particular resource type in an organization which API key belongs to. When `resource_id` is specified, it returns the list of role names available for that specific resource object. When only `resource_type` is specified, it returns detailed role definitions including both built-in and custom roles with their permissions, inheritance, and metadata.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed:            true,

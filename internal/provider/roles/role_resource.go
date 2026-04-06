@@ -54,8 +54,8 @@ func (r *customRoleResource) Metadata(_ context.Context, req resource.MetadataRe
 }
 
 func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	emptyPermissionsList, _ := types.ListValue(types.StringType, []attr.Value{})
-	emptyInheritsList, _ := types.ListValue(types.ObjectType{
+	emptyPermissionsList := types.ListValueMust(types.StringType, []attr.Value{})
+	emptyInheritsList := types.ListValueMust(types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"resource_type": types.StringType,
 			"role":          types.StringType,
@@ -81,7 +81,7 @@ func (r *customRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"resource_type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The type of resource this role applies to. Must be one of: Organization, Cluster, Team, or Secret.",
+				MarkdownDescription: "The type of resource this role applies to. Must be one of: Organization, Cluster, Team, or Secret. Use Cluster type for Workspace Group roles.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(
 						string(ResourceTypeOrganization),
@@ -164,10 +164,9 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	resourceType := plan.ResourceType.ValueString()
-	roleName := plan.Name.ValueString()
 
 	createReq := management.RoleCreate{
-		Role:        roleName,
+		Role:        plan.Name.ValueString(),
 		Description: util.MaybeString(plan.Description),
 		Permissions: permissionsToStrings(plan.Permissions),
 		Inherits:    inheritsToTypedRoles(plan.Inherits),
@@ -180,14 +179,7 @@ func (r *customRoleResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
-	if serr := util.StatusOK(getResp, err); serr != nil {
-		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
-
-		return
-	}
-
-	result := toCustomRoleResourceModel(getResp.JSON200)
+	result := toCustomRoleResourceModel(createResp.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -251,14 +243,7 @@ func (r *customRoleResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	getResp, err := r.GetV1RolesResourceTypeRoleWithResponse(ctx, resourceType, roleName)
-	if serr := util.StatusOK(getResp, err); serr != nil {
-		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
-
-		return
-	}
-
-	result := toCustomRoleResourceModel(getResp.JSON200)
+	result := toCustomRoleResourceModel(updateResp.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }

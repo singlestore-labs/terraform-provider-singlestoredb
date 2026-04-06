@@ -112,7 +112,7 @@ resource "singlestoredb_team_role" "team_with_custom_role" {
 ### Required
 
 - `name` (String) The name of the custom role. This must be unique within the resource type.
-- `resource_type` (String) The type of resource this role applies to. Must be one of: Organization, Cluster, Team, or Secret.
+- `resource_type` (String) The type of resource this role applies to. Must be one of: Organization, Cluster, Team, or Secret. Use Cluster type for Workspace Group roles.
 
 ### Optional
 
