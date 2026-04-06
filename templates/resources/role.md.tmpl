@@ -1,0 +1,94 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/resources/singlestoredb_role/resource.tf" }}
+
+### Assigning a Role to a User
+
+After creating a role, you can assign it to users using the `singlestoredb_user_role` resource:
+
+```terraform
+resource "singlestoredb_role" "example" {
+  name          = "custom-reader"
+  resource_type = "Organization"
+  description   = "A custom role with read permissions and inherited roles"
+
+  permissions = ["View Audit Log", "View Virtual Workspaces"]
+
+  inherits = [
+    {
+      resource_type = "Organization"
+      role          = "Reader"
+    },
+    {
+      resource_type = "Cluster"
+      role          = "Restricted Operator"
+    }
+  ]
+}
+
+# Assign the role to a user
+resource "singlestoredb_user_role" "user_with_custom_role" {
+  user_id = "17290909-3016-4f63-b601-e30410f1b05f"
+  role = {
+    role_name     = singlestoredb_role.example.name
+    resource_type = "Organization"
+    resource_id   = "your-organization-id"
+  }
+}
+```
+
+### Assigning a Role to a Team
+
+Similarly, you can assign roles to teams using `singlestoredb_team_role`:
+
+```terraform
+resource "singlestoredb_role" "team_role" {
+  name          = "custom-team-manager"
+  resource_type = "Team"
+  description   = "Custom team management role"
+
+  permissions = []
+
+  inherits = [
+    {
+      resource_type = "Team"
+      role          = "Owner"
+    }
+  ]
+}
+
+# Assign the role to a team
+resource "singlestoredb_team_role" "team_with_custom_role" {
+  team_id = singlestoredb_team.my_team.id
+  role = {
+    role_name     = singlestoredb_role.team_role.name
+    resource_type = "Team"
+    resource_id   = singlestoredb_team.target_team.id
+  }
+}
+```
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+{{ tffile "examples/resources/singlestoredb_role/import-by-string-id.tf" }}
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+{{ codefile "shell" "examples/resources/singlestoredb_role/import.sh" }}

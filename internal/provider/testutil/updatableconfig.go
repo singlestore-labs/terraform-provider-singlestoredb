@@ -117,6 +117,10 @@ func (uc UpdatableConfig) WithFlowInstanceResource(flowInstanceName string) Attr
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(flow.ResourceName), flowInstanceName})
 }
 
+func (uc UpdatableConfig) WithRoleResource(roleName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.RoleResourceName), roleName})
+}
+
 // WithAPIKey extends the config with the API key if the key is not empty.
 func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
 	if apiKey == "" || uc == "" {
