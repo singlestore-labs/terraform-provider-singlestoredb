@@ -5,7 +5,7 @@ provider "singlestoredb" {
 }
 
 resource "singlestoredb_project" "this" {
-  name    = "my-project"
+  name    = "project"
   edition = "STANDARD"
 }
 
