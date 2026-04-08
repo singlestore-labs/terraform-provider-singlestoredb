@@ -198,6 +198,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		roles.NewTeamRolesGrantResource,
 		roles.NewRoleResource,
 		flow.NewResource,
+		projects.NewResource,
 	}
 }
 
