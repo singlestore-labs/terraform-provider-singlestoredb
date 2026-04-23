@@ -230,32 +230,13 @@ func StringValueOrNull[T ~string](value *T) types.String {
 	return types.StringValue(string(*value))
 }
 
-func ParseUUIDList(list []types.String) (*[]otypes.UUID, error) {
-	var uuids *[]otypes.UUID
-	if len(list) > 0 {
-		values := make([]otypes.UUID, 0, len(list))
-		uuids = &values
-		for _, id := range list {
-			teamID, err := uuid.Parse(id.ValueString())
-			if err != nil {
-				return nil, fmt.Errorf("invalid UUID: %w", err)
-			}
-			*uuids = append(*uuids, teamID)
-		}
-	}
-
-	return uuids, nil
-}
-
 // ParseUUIDSets computes the set difference (a - b) of UUID string sets and
-// parses each resulting value into a UUID. It returns a pointer to the parsed
-// UUIDs, or nil if the difference is empty (matching ParseUUIDList semantics).
-// This avoids materializing an intermediate list between the set-difference
-// and UUID-parsing steps.
+// parses each resulting value into a UUID. Returns a pointer to the parsed
+// UUIDs, or pointer to an empty slice if the difference is empty.
 func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) (*[]otypes.UUID, error) {
-	var uuids *[]otypes.UUID
+	uuids := make([]otypes.UUID, 0, len(a.Elements()))
 	if a.IsNull() || a.IsUnknown() {
-		return uuids, nil
+		return &uuids, nil
 	}
 
 	bSet := make(map[string]struct{}, len(b.Elements()))
@@ -276,14 +257,10 @@ func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics)
 		if err != nil {
 			return nil, fmt.Errorf("invalid UUID: %w", err)
 		}
-		if uuids == nil {
-			values := make([]otypes.UUID, 0, len(a.Elements()))
-			uuids = &values
-		}
-		*uuids = append(*uuids, teamID)
+		uuids = append(uuids, teamID)
 	}
 
-	return uuids, nil
+	return &uuids, nil
 }
 
 // ValidateAndMapUserEmails computes the set difference (a - b) of email

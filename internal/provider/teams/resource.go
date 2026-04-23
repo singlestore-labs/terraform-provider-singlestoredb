@@ -166,7 +166,7 @@ func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagno
 		return false
 	}
 
-	if (memberEmails == nil || len(*memberEmails) == 0) && teamIDs == nil {
+	if (memberEmails == nil || len(*memberEmails) == 0) && (teamIDs == nil || len(*teamIDs) == 0) {
 		return true
 	}
 

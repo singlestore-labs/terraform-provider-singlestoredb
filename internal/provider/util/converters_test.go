@@ -145,7 +145,7 @@ func TestParseUUIDSets_DifferenceFiltersOverlap(t *testing.T) {
 	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(id1), uuid.MustParse(id3)}, *got)
 }
 
-func TestParseUUIDSets_FullOverlapReturnsNil(t *testing.T) {
+func TestParseUUIDSets_FullOverlapReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -158,10 +158,11 @@ func TestParseUUIDSets_FullOverlapReturnsNil(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.Nil(t, got, "expected nil to match ParseUUIDList semantics for empty difference")
+	require.NotNil(t, got)
+	require.Empty(t, *got)
 }
 
-func TestParseUUIDSets_EmptyAReturnsNil(t *testing.T) {
+func TestParseUUIDSets_EmptyAReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -173,10 +174,11 @@ func TestParseUUIDSets_EmptyAReturnsNil(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.Nil(t, got)
+	require.NotNil(t, got)
+	require.Empty(t, *got)
 }
 
-func TestParseUUIDSets_ANullReturnsNil(t *testing.T) {
+func TestParseUUIDSets_ANullReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -186,10 +188,11 @@ func TestParseUUIDSets_ANullReturnsNil(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.Nil(t, got)
+	require.NotNil(t, got)
+	require.Empty(t, *got)
 }
 
-func TestParseUUIDSets_AUnknownReturnsNil(t *testing.T) {
+func TestParseUUIDSets_AUnknownReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -199,7 +202,8 @@ func TestParseUUIDSets_AUnknownReturnsNil(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.Nil(t, got)
+	require.NotNil(t, got)
+	require.Empty(t, *got)
 }
 
 func TestParseUUIDSets_BNullTreatedAsEmpty(t *testing.T) {
