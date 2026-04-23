@@ -233,10 +233,10 @@ func StringValueOrNull[T ~string](value *T) types.String {
 // ParseUUIDSets computes the set difference (a - b) of UUID string sets and
 // parses each resulting value into a UUID. Returns a pointer to the parsed
 // UUIDs, or pointer to an empty slice if the difference is empty.
-func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) (*[]otypes.UUID, error) {
+func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]otypes.UUID, error) {
 	uuids := make([]otypes.UUID, 0, len(a.Elements()))
 	if a.IsNull() || a.IsUnknown() {
-		return &uuids, nil
+		return uuids, nil
 	}
 
 	bSet := make(map[string]struct{}, len(b.Elements()))
@@ -255,21 +255,21 @@ func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics)
 		}
 		teamID, err := uuid.Parse(id)
 		if err != nil {
-			return nil, fmt.Errorf("invalid UUID: %w", err)
+			return []otypes.UUID{}, fmt.Errorf("invalid UUID: %w", err)
 		}
 		uuids = append(uuids, teamID)
 	}
 
-	return &uuids, nil
+	return uuids, nil
 }
 
 // ValidateAndMapUserEmails computes the set difference (a - b) of email
 // sets and validates each resulting email, returning the validated emails or an
 // error if any email is invalid.
-func ValidateAndMapUserEmails(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) (*[]string, error) {
+func ValidateAndMapUserEmails(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]string, error) {
 	validEmails := make([]string, 0, len(a.Elements()))
 	if a.IsNull() || a.IsUnknown() {
-		return &validEmails, nil
+		return validEmails, nil
 	}
 	bSet := make(map[string]struct{}, len(b.Elements()))
 	if !b.IsNull() && !b.IsUnknown() {
@@ -286,10 +286,10 @@ func ValidateAndMapUserEmails(ctx context.Context, a, b types.Set, diags *diag.D
 			continue
 		}
 		if !IsValidEmail(email) {
-			return nil, fmt.Errorf("invalid email address: %s", email)
+			return []string{}, fmt.Errorf("invalid email address: %s", email)
 		}
 		validEmails = append(validEmails, email)
 	}
 
-	return &validEmails, nil
+	return validEmails, nil
 }

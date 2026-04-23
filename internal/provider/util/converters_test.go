@@ -14,6 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testUUID1    = "9966fccf-5116-437e-a34f-008ee32e8d94"
+	testUUID2    = "458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"
+	testUUID3    = "283d4b0d-b0d6-485a-bc2d-a763c523c68a"
+	testEmail1   = "alice@example.com"
+	testEmail2   = "bob@example.com"
+	testEmail3   = "carol@example.com"
+	invalidUUID  = "not-a-uuid"
+	invalidEmail = "not-an-email"
+)
+
 func TestMaybeString(t *testing.T) {
 	require.Nil(t, util.MaybeString(types.StringNull()))
 	require.Nil(t, util.MaybeString(types.StringUnknown()))
@@ -46,8 +57,7 @@ func TestMaybeBoolValue(t *testing.T) {
 }
 
 func TestUUIDStringValue(t *testing.T) {
-	id := "9966fccf-5116-437e-a34f-008ee32e8d94" //nolint:goconst // test ID
-	require.Equal(t, types.StringValue(id), util.UUIDStringValue(uuid.MustParse(id)))
+	require.Equal(t, types.StringValue(testUUID1), util.UUIDStringValue(uuid.MustParse(testUUID1)))
 }
 
 func TestStringFirewallRanges(t *testing.T) {
@@ -91,7 +101,7 @@ func mustUUIDSet(t *testing.T, ids ...string) types.Set {
 	}
 
 	set, diags := types.SetValue(types.StringType, elems)
-	require.False(t, diags.HasError(), "failed to build UUID set: %s", diags)
+	require.False(t, diags.HasError(), "failed to build UUID set: %v", diags)
 
 	return set
 }
@@ -105,7 +115,7 @@ func mustEmailSet(t *testing.T, emails ...string) types.Set {
 	}
 
 	set, diags := types.SetValue(types.StringType, elems)
-	require.False(t, diags.HasError(), "failed to build email set: %s", diags)
+	require.False(t, diags.HasError(), "failed to build email set: %v", diags)
 
 	return set
 }
@@ -114,68 +124,52 @@ func TestParseUUIDSets_AllNew(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-	id2 := "458d14e6-fcc4-4985-a2a6-f1f1f15cef2f" //nolint:goconst
-
-	a := mustUUIDSet(t, id1, id2)
+	a := mustUUIDSet(t, testUUID1, testUUID2)
 	b := mustUUIDSet(t)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(id1), uuid.MustParse(id2)}, *got)
+	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID2)}, got)
 }
 
 func TestParseUUIDSets_DifferenceFiltersOverlap(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-	id2 := "458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"
-	id3 := "283d4b0d-b0d6-485a-bc2d-a763c523c68a"
-
-	a := mustUUIDSet(t, id1, id2, id3)
-	b := mustUUIDSet(t, id2)
+	a := mustUUIDSet(t, testUUID1, testUUID2, testUUID3)
+	b := mustUUIDSet(t, testUUID2)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(id1), uuid.MustParse(id3)}, *got)
+	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID3)}, got)
 }
 
 func TestParseUUIDSets_FullOverlapReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-	id2 := "458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"
-
-	a := mustUUIDSet(t, id1, id2)
-	b := mustUUIDSet(t, id1, id2)
+	a := mustUUIDSet(t, testUUID1, testUUID2)
+	b := mustUUIDSet(t, testUUID1, testUUID2)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestParseUUIDSets_EmptyAReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-
 	a := mustUUIDSet(t)
-	b := mustUUIDSet(t, id1)
+	b := mustUUIDSet(t, testUUID1)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestParseUUIDSets_ANullReturnsEmpty(t *testing.T) {
@@ -188,8 +182,7 @@ func TestParseUUIDSets_ANullReturnsEmpty(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestParseUUIDSets_AUnknownReturnsEmpty(t *testing.T) {
@@ -202,54 +195,45 @@ func TestParseUUIDSets_AUnknownReturnsEmpty(t *testing.T) {
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestParseUUIDSets_BNullTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-
-	a := mustUUIDSet(t, id1)
+	a := mustUUIDSet(t, testUUID1)
 	b := types.SetNull(types.StringType)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []otypes.UUID{uuid.MustParse(id1)}, *got)
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
 func TestParseUUIDSets_BUnknownTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-
-	a := mustUUIDSet(t, id1)
+	a := mustUUIDSet(t, testUUID1)
 	b := types.SetUnknown(types.StringType)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []otypes.UUID{uuid.MustParse(id1)}, *got)
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
 func TestParseUUIDSets_InvalidUUIDReturnsError(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-
-	a := mustUUIDSet(t, id1, "not-a-uuid")
+	a := mustUUIDSet(t, testUUID1, invalidUUID)
 	b := mustUUIDSet(t)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.Error(t, err)
-	require.Nil(t, got)
+	require.Empty(t, got)
 	require.Contains(t, err.Error(), "invalid UUID")
 }
 
@@ -257,60 +241,54 @@ func TestParseUUIDSets_InvalidUUIDIgnoredWhenInB(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	id1 := "9966fccf-5116-437e-a34f-008ee32e8d94"
-
 	// Malformed UUIDs in a should be skipped (not parsed) when present in b,
 	// because they are being filtered out of the set difference.
-	a := mustUUIDSet(t, "not-a-uuid", id1)
-	b := mustUUIDSet(t, "not-a-uuid")
+	a := mustUUIDSet(t, invalidUUID, testUUID1)
+	b := mustUUIDSet(t, invalidUUID)
 
 	got, err := util.ParseUUIDSets(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []otypes.UUID{uuid.MustParse(id1)}, *got)
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
 func TestValidateAndMapUserEmails_AllNew(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com", "bob@example.com")
+	a := mustEmailSet(t, testEmail1, testEmail2)
 	b := mustEmailSet(t)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.ElementsMatch(t, []string{"alice@example.com", "bob@example.com"}, *got)
+	require.ElementsMatch(t, []string{testEmail1, testEmail2}, got)
 }
 
 func TestValidateAndMapUserEmails_DifferenceFiltersOverlap(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com", "bob@example.com", "carol@example.com")
-	b := mustEmailSet(t, "bob@example.com")
+	a := mustEmailSet(t, testEmail1, testEmail2, testEmail3)
+	b := mustEmailSet(t, testEmail2)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.ElementsMatch(t, []string{"alice@example.com", "carol@example.com"}, *got)
+	require.ElementsMatch(t, []string{testEmail1, testEmail3}, got)
 }
 
 func TestValidateAndMapUserEmails_FullOverlapReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com", "bob@example.com")
-	b := mustEmailSet(t, "alice@example.com", "bob@example.com")
+	a := mustEmailSet(t, testEmail1, testEmail2)
+	b := mustEmailSet(t, testEmail1, testEmail2)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestValidateAndMapUserEmails_EmptyAReturnsEmpty(t *testing.T) {
@@ -318,55 +296,52 @@ func TestValidateAndMapUserEmails_EmptyAReturnsEmpty(t *testing.T) {
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t)
-	b := mustEmailSet(t, "bob@example.com")
+	b := mustEmailSet(t, testEmail2)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Empty(t, *got)
+	require.Empty(t, got)
 }
 
 func TestValidateAndMapUserEmails_BNullTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com")
+	a := mustEmailSet(t, testEmail1)
 	b := types.SetNull(types.StringType)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []string{"alice@example.com"}, *got)
+	require.Equal(t, []string{testEmail1}, got)
 }
 
 func TestValidateAndMapUserEmails_BUnknownTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com")
+	a := mustEmailSet(t, testEmail1)
 	b := types.SetUnknown(types.StringType)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []string{"alice@example.com"}, *got)
+	require.Equal(t, []string{testEmail1}, got)
 }
 
 func TestValidateAndMapUserEmails_InvalidEmailReturnsError(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
-	a := mustEmailSet(t, "alice@example.com", "not-an-email")
+	a := mustEmailSet(t, testEmail1, invalidEmail)
 	b := mustEmailSet(t)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.Error(t, err)
-	require.Nil(t, got)
+	require.Empty(t, got)
 	require.Contains(t, err.Error(), "invalid email address")
-	require.Contains(t, err.Error(), "not-an-email")
+	require.Contains(t, err.Error(), invalidEmail)
 }
 
 func TestValidateAndMapUserEmails_InvalidEmailIgnoredWhenInB(t *testing.T) {
@@ -375,12 +350,11 @@ func TestValidateAndMapUserEmails_InvalidEmailIgnoredWhenInB(t *testing.T) {
 
 	// Even if the email is malformed, it should be skipped (not validated)
 	// when present in b, because it is being filtered out of the difference.
-	a := mustEmailSet(t, "not-an-email", "alice@example.com")
-	b := mustEmailSet(t, "not-an-email")
+	a := mustEmailSet(t, invalidEmail, testEmail1)
+	b := mustEmailSet(t, invalidEmail)
 
 	got, err := util.ValidateAndMapUserEmails(ctx, a, b, &diags)
 	require.NoError(t, err)
 	require.False(t, diags.HasError())
-	require.NotNil(t, got)
-	require.Equal(t, []string{"alice@example.com"}, *got)
+	require.Equal(t, []string{testEmail1}, got)
 }

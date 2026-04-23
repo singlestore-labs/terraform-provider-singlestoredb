@@ -166,13 +166,13 @@ func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagno
 		return false
 	}
 
-	if (memberEmails == nil || len(*memberEmails) == 0) && (teamIDs == nil || len(*teamIDs) == 0) {
+	if len(memberEmails) == 0 && len(teamIDs) == 0 {
 		return true
 	}
 
 	teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
-		AddMemberUserEmails: memberEmails,
-		AddMemberTeamIDs:    teamIDs,
+		AddMemberUserEmails: &memberEmails,
+		AddMemberTeamIDs:    &teamIDs,
 	})
 	if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
 		diags.AddError(serr.Summary, serr.Detail)
@@ -245,10 +245,10 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
 			Name:                   util.MaybeString(plan.Name),
 			Description:            util.MaybeString(plan.Description),
-			AddMemberUserEmails:    addedUsers,
-			RemoveMemberUserEmails: removedUsers,
-			AddMemberTeamIDs:       addedTeams,
-			RemoveMemberTeamIDs:    removedTeams,
+			AddMemberUserEmails:    &addedUsers,
+			RemoveMemberUserEmails: &removedUsers,
+			AddMemberTeamIDs:       &addedTeams,
+			RemoveMemberTeamIDs:    &removedTeams,
 		})
 		if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
 			resp.Diagnostics.AddError(
@@ -272,7 +272,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]string, *[]string, *[]otypes.UUID, *[]otypes.UUID) {
+func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) ([]string, []string, []otypes.UUID, []otypes.UUID) {
 	addedUsers, err := util.ValidateAndMapUserEmails(ctx, plan.MemberUsers, state.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
@@ -296,8 +296,8 @@ func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.U
 	return addedUsers, removedUsers, addedTeams, removedTeams
 }
 
-func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers *[]string, addedTeams, removedTeams *[]otypes.UUID) bool {
-	return addedUsers != nil || removedUsers != nil || addedTeams != nil || removedTeams != nil || plan.Name != state.Name || plan.Description != state.Description
+func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers []string, addedTeams, removedTeams []otypes.UUID) bool {
+	return len(addedUsers) > 0 || len(removedUsers) > 0 || len(addedTeams) > 0 || len(removedTeams) > 0 || plan.Name != state.Name || plan.Description != state.Description
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
