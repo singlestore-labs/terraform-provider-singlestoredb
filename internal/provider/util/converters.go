@@ -1,12 +1,14 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 )
@@ -243,4 +245,74 @@ func ParseUUIDList(list []types.String) (*[]otypes.UUID, error) {
 	}
 
 	return uuids, nil
+}
+
+// ParseUUIDSets computes the set difference (a - b) of UUID string sets and
+// parses each resulting value into a UUID. It returns a pointer to the parsed
+// UUIDs, or nil if the difference is empty (matching ParseUUIDList semantics).
+// This avoids materializing an intermediate list between the set-difference
+// and UUID-parsing steps.
+func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) (*[]otypes.UUID, error) {
+	var uuids *[]otypes.UUID
+	if a.IsNull() || a.IsUnknown() {
+		return uuids, nil
+	}
+
+	bSet := make(map[string]struct{}, len(b.Elements()))
+	if !b.IsNull() && !b.IsUnknown() {
+		bElems := make([]types.String, 0, len(b.Elements()))
+		diags.Append(b.ElementsAs(ctx, &bElems, false)...)
+		for _, v := range bElems {
+			bSet[v.ValueString()] = struct{}{}
+		}
+	}
+
+	for _, v := range a.Elements() {
+		id := v.(types.String).ValueString()
+		if _, exists := bSet[id]; exists {
+			continue
+		}
+		teamID, err := uuid.Parse(id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UUID: %w", err)
+		}
+		if uuids == nil {
+			values := make([]otypes.UUID, 0, len(a.Elements()))
+			uuids = &values
+		}
+		*uuids = append(*uuids, teamID)
+	}
+
+	return uuids, nil
+}
+
+// ValidateAndMapUserEmails computes the set difference (a - b) of email
+// sets and validates each resulting email, returning the validated emails or an
+// error if any email is invalid.
+func ValidateAndMapUserEmails(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) (*[]string, error) {
+	validEmails := make([]string, 0, len(a.Elements()))
+	if a.IsNull() || a.IsUnknown() {
+		return &validEmails, nil
+	}
+	bSet := make(map[string]struct{}, len(b.Elements()))
+	if !b.IsNull() && !b.IsUnknown() {
+		bElems := make([]types.String, 0, len(b.Elements()))
+		diags.Append(b.ElementsAs(ctx, &bElems, false)...)
+		for _, v := range bElems {
+			bSet[v.ValueString()] = struct{}{}
+		}
+	}
+
+	for _, v := range a.Elements() {
+		email := v.(types.String).ValueString()
+		if _, exists := bSet[email]; exists {
+			continue
+		}
+		if !IsValidEmail(email) {
+			return nil, fmt.Errorf("invalid email address: %s", email)
+		}
+		validEmails = append(validEmails, email)
+	}
+
+	return &validEmails, nil
 }

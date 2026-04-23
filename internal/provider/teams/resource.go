@@ -2,7 +2,6 @@ package teams
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
@@ -147,23 +146,23 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 // addInitialMembers adds the members specified in the plan to a newly created team.
 // Returns false if the caller should return due to an error.
 func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagnostics, id otypes.UUID, plan TeamResourceModel) bool {
-	planMemberUsers := setToStringSlice(ctx, plan.MemberUsers, diags)
-	planMemberTeams := setToStringSlice(ctx, plan.MemberTeams, diags)
-	if diags.HasError() {
-		return false
-	}
+	emptyStrings := types.SetNull(types.StringType)
 
-	memberEmails, err := validateAndMapUserEmails(planMemberUsers)
+	memberEmails, err := util.ValidateAndMapUserEmails(ctx, plan.MemberUsers, emptyStrings, diags)
 	if err != nil {
 		diags.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 
 		return false
 	}
 
-	teamIDs, err := util.ParseUUIDList(planMemberTeams)
+	teamIDs, err := util.ParseUUIDSets(ctx, plan.MemberTeams, emptyStrings, diags)
 	if err != nil {
 		diags.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 
+		return false
+	}
+
+	if diags.HasError() {
 		return false
 	}
 
@@ -274,58 +273,27 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]string, *[]string, *[]otypes.UUID, *[]otypes.UUID) {
-	planUsers := setToStringSlice(ctx, plan.MemberUsers, &resp.Diagnostics)
-	stateUsers := setToStringSlice(ctx, state.MemberUsers, &resp.Diagnostics)
-	planTeams := setToStringSlice(ctx, plan.MemberTeams, &resp.Diagnostics)
-	stateTeams := setToStringSlice(ctx, state.MemberTeams, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return nil, nil, nil, nil
-	}
-
-	addedUsers, err := validateAndMapUserEmails(util.SubtractListValues(planUsers, stateUsers))
+	addedUsers, err := util.ValidateAndMapUserEmails(ctx, plan.MemberUsers, state.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	removedUsers, err := validateAndMapUserEmails(util.SubtractListValues(stateUsers, planUsers))
+	removedUsers, err := util.ValidateAndMapUserEmails(ctx, state.MemberUsers, plan.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	addedTeams, err := util.ParseUUIDList(util.SubtractListValues(planTeams, stateTeams))
+	addedTeams, err := util.ParseUUIDSets(ctx, plan.MemberTeams, state.MemberTeams, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}
 
-	removedTeams, err := util.ParseUUIDList(util.SubtractListValues(stateTeams, planTeams))
+	removedTeams, err := util.ParseUUIDSets(ctx, state.MemberTeams, plan.MemberTeams, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}
 
 	return addedUsers, removedUsers, addedTeams, removedTeams
-}
-
-func setToStringSlice(ctx context.Context, s types.Set, diags *diag.Diagnostics) []types.String {
-	if s.IsNull() || s.IsUnknown() {
-		return nil
-	}
-
-	result := make([]types.String, 0, len(s.Elements()))
-	diags.Append(s.ElementsAs(ctx, &result, false)...)
-
-	return result
-}
-
-func validateAndMapUserEmails(emails []types.String) (*[]string, error) {
-	validEmails := make([]string, 0, len(emails))
-	for _, email := range emails {
-		if !util.IsValidEmail(email.ValueString()) {
-			return nil, fmt.Errorf("invalid email address: %s", email.ValueString())
-		}
-		validEmails = append(validEmails, email.ValueString())
-	}
-
-	return &validEmails, nil
 }
 
 func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers *[]string, addedTeams, removedTeams *[]otypes.UUID) bool {
