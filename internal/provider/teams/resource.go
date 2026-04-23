@@ -8,11 +8,12 @@ import (
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
@@ -31,12 +32,12 @@ var (
 )
 
 type TeamResourceModel struct {
-	ID          types.String   `tfsdk:"id"`
-	Name        types.String   `tfsdk:"name"`
-	Description types.String   `tfsdk:"description"`
-	MemberUsers []types.String `tfsdk:"member_users"`
-	MemberTeams []types.String `tfsdk:"member_teams"`
-	CreatedAt   types.String   `tfsdk:"created_at"`
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	MemberUsers types.Set    `tfsdk:"member_users"`
+	MemberTeams types.Set    `tfsdk:"member_teams"`
+	CreatedAt   types.String `tfsdk:"created_at"`
 }
 
 // teamResource is the resource implementation.
@@ -56,9 +57,9 @@ func (r *teamResource) Metadata(_ context.Context, req resource.MetadataRequest,
 
 // Schema defines the schema for the resource.
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	emptyList, _ := types.ListValue(types.StringType, []attr.Value{})
+	emptySet, _ := types.SetValue(types.StringType, []attr.Value{})
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB teams with this resource. The 'apply' action creates a new team or updates an existing one. You can add/remove users to/from the team by specifying their email addresses in the 'member_users' list. You can also add/remove other teams to/from this team by specifying their IDs in the 'member_teams' list. The 'destroy' action deletes the team. Updating the 'member_users' or 'member_teams' lists will add or remove the corresponding users or teams from the team.",
+		MarkdownDescription: "Manage SingleStoreDB teams with this resource. The 'apply' action creates a new team or updates an existing one. You can add/remove users to/from the team by specifying their email addresses in the 'member_users' set. You can also add/remove other teams to/from this team by specifying their IDs in the 'member_teams' set. The 'destroy' action deletes the team. Updating the 'member_users' or 'member_teams' sets will add or remove the corresponding users or teams from the team.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -75,19 +76,19 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Optional:            true,
 				MarkdownDescription: "The description of the team.",
 			},
-			"member_users": schema.ListAttribute{
+			"member_users": schema.SetAttribute{
 				Optional:            true,
 				Computed:            true,
 				ElementType:         types.StringType,
-				Default:             listdefault.StaticValue(emptyList),
-				MarkdownDescription: "List of user emails that are members of this team.",
+				Default:             setdefault.StaticValue(emptySet),
+				MarkdownDescription: "Set of user emails that are members of this team.",
 			},
-			"member_teams": schema.ListAttribute{
+			"member_teams": schema.SetAttribute{
 				Optional:            true,
 				Computed:            true,
 				ElementType:         types.StringType,
-				Default:             listdefault.StaticValue(emptyList),
-				MarkdownDescription: "List of team UUIDs that are members of this team.",
+				Default:             setdefault.StaticValue(emptySet),
+				MarkdownDescription: "Set of team UUIDs that are members of this team.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
@@ -122,45 +123,8 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	id := teamCreateResponse.JSON200.TeamID
 
-	memberEmails, err := validateAndMapUserEmails(plan.MemberUsers)
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("member_users"),
-			"Invalid user email",
-			err.Error(),
-		)
-
+	if !r.addInitialMembers(ctx, &resp.Diagnostics, id, plan) {
 		return
-	}
-
-	teamIDs, err := util.ParseUUIDList(plan.MemberTeams)
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("member_teams"),
-			"Invalid team ID",
-			err.Error(),
-		)
-
-		return
-	}
-
-	if (memberEmails != nil && len(*memberEmails) > 0) || teamIDs != nil {
-		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx,
-			id,
-			management.PatchV1TeamsTeamIDJSONRequestBody{
-				AddMemberUserEmails: memberEmails,
-				AddMemberTeamIDs:    teamIDs,
-			},
-		)
-
-		if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
-			resp.Diagnostics.AddError(
-				serr.Summary,
-				serr.Detail,
-			)
-
-			return
-		}
 	}
 
 	team, err := r.GetV1TeamsTeamIDWithResponse(ctx, id)
@@ -178,6 +142,46 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+// addInitialMembers adds the members specified in the plan to a newly created team.
+// Returns false if the caller should return due to an error.
+func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagnostics, id otypes.UUID, plan TeamResourceModel) bool {
+	planMemberUsers := setToStringSlice(ctx, plan.MemberUsers, diags)
+	planMemberTeams := setToStringSlice(ctx, plan.MemberTeams, diags)
+	if diags.HasError() {
+		return false
+	}
+
+	memberEmails, err := validateAndMapUserEmails(planMemberUsers)
+	if err != nil {
+		diags.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
+
+		return false
+	}
+
+	teamIDs, err := util.ParseUUIDList(planMemberTeams)
+	if err != nil {
+		diags.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
+
+		return false
+	}
+
+	if (memberEmails == nil || len(*memberEmails) == 0) && teamIDs == nil {
+		return true
+	}
+
+	teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
+		AddMemberUserEmails: memberEmails,
+		AddMemberTeamIDs:    teamIDs,
+	})
+	if serr := util.StatusOK(teamPatchResponse, err); serr != nil {
+		diags.AddError(serr.Summary, serr.Detail)
+
+		return false
+	}
+
+	return true
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -233,7 +237,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	addedUsers, removedUsers, addedTeams, removedTeams := r.parseUserAndTeamIds(resp, state, plan)
+	addedUsers, removedUsers, addedTeams, removedTeams := r.parseUserAndTeamIds(ctx, resp, state, plan)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -269,28 +273,47 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *teamResource) parseUserAndTeamIds(resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]string, *[]string, *[]otypes.UUID, *[]otypes.UUID) {
-	addedUsers, err := validateAndMapUserEmails(util.SubtractListValues(plan.MemberUsers, state.MemberUsers))
+func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) (*[]string, *[]string, *[]otypes.UUID, *[]otypes.UUID) {
+	planUsers := setToStringSlice(ctx, plan.MemberUsers, &resp.Diagnostics)
+	stateUsers := setToStringSlice(ctx, state.MemberUsers, &resp.Diagnostics)
+	planTeams := setToStringSlice(ctx, plan.MemberTeams, &resp.Diagnostics)
+	stateTeams := setToStringSlice(ctx, state.MemberTeams, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return nil, nil, nil, nil
+	}
+
+	addedUsers, err := validateAndMapUserEmails(util.SubtractListValues(planUsers, stateUsers))
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	removedUsers, err := validateAndMapUserEmails(util.SubtractListValues(state.MemberUsers, plan.MemberUsers))
+	removedUsers, err := validateAndMapUserEmails(util.SubtractListValues(stateUsers, planUsers))
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	addedTeams, err := util.ParseUUIDList(util.SubtractListValues(plan.MemberTeams, state.MemberTeams))
+	addedTeams, err := util.ParseUUIDList(util.SubtractListValues(planTeams, stateTeams))
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}
 
-	removedTeams, err := util.ParseUUIDList(util.SubtractListValues(state.MemberTeams, plan.MemberTeams))
+	removedTeams, err := util.ParseUUIDList(util.SubtractListValues(stateTeams, planTeams))
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}
 
 	return addedUsers, removedUsers, addedTeams, removedTeams
+}
+
+func setToStringSlice(ctx context.Context, s types.Set, diags *diag.Diagnostics) []types.String {
+	if s.IsNull() || s.IsUnknown() {
+		return nil
+	}
+
+	result := make([]types.String, 0, len(s.Elements()))
+	diags.Append(s.ElementsAs(ctx, &result, false)...)
+
+	return result
 }
 
 func validateAndMapUserEmails(emails []types.String) (*[]string, error) {
@@ -368,33 +391,41 @@ func toTeamResourceModel(team management.Team) TeamResourceModel {
 		Name:        types.StringValue(team.Name),
 		Description: types.StringValue(team.Description),
 		CreatedAt:   util.MaybeStringValue(team.CreatedAt),
-		MemberUsers: toUsersEmailList(team.MemberUsers),
-		MemberTeams: toTeamsUUIDList(team.MemberTeams),
+		MemberUsers: toUsersEmailSet(team.MemberUsers),
+		MemberTeams: toTeamsUUIDSet(team.MemberTeams),
 	}
 }
 
-func toUsersEmailList(userList *[]management.UserInfo) []types.String {
+func toUsersEmailSet(userList *[]management.UserInfo) types.Set {
 	if userList == nil {
-		return []types.String{}
+		set, _ := types.SetValue(types.StringType, []attr.Value{})
+
+		return set
 	}
 
-	users := make([]types.String, len(*userList))
+	elems := make([]attr.Value, len(*userList))
 	for i, user := range *userList {
-		users[i] = types.StringValue(user.Email)
+		elems[i] = types.StringValue(user.Email)
 	}
 
-	return users
+	set, _ := types.SetValue(types.StringType, elems)
+
+	return set
 }
 
-func toTeamsUUIDList(userList *[]management.TeamInfo) []types.String {
-	if userList == nil {
-		return []types.String{}
+func toTeamsUUIDSet(teamList *[]management.TeamInfo) types.Set {
+	if teamList == nil {
+		set, _ := types.SetValue(types.StringType, []attr.Value{})
+
+		return set
 	}
 
-	users := make([]types.String, len(*userList))
-	for i, user := range *userList {
-		users[i] = util.UUIDStringValue(user.TeamID)
+	elems := make([]attr.Value, len(*teamList))
+	for i, t := range *teamList {
+		elems[i] = util.UUIDStringValue(t.TeamID)
 	}
 
-	return users
+	set, _ := types.SetValue(types.StringType, elems)
+
+	return set
 }
