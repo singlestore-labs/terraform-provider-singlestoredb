@@ -31,7 +31,7 @@ This document provides information on how to develop `terraform-provider-singles
     make install
     ```
 
-4. (Optional) Install git hooks for automated pre-commit checks.
+4. Install git hooks for automated pre-commit checks.
     ```shell
     make install-hooks
     ```
