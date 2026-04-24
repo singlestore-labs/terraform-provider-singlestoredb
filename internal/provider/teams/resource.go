@@ -148,14 +148,14 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagnostics, id otypes.UUID, plan TeamResourceModel) bool {
 	emptyStrings := types.SetNull(types.StringType)
 
-	memberEmails, err := util.ValidateAndMapUserEmails(ctx, plan.MemberUsers, emptyStrings, diags)
+	memberEmails, err := util.ValidateUserEmailDiff(ctx, plan.MemberUsers, emptyStrings, diags)
 	if err != nil {
 		diags.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 
 		return false
 	}
 
-	teamIDs, err := util.ParseUUIDSets(ctx, plan.MemberTeams, emptyStrings, diags)
+	teamIDs, err := util.ValidateUUIDDiff(ctx, plan.MemberTeams, emptyStrings, diags)
 	if err != nil {
 		diags.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 
@@ -273,22 +273,22 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) ([]string, []string, []otypes.UUID, []otypes.UUID) {
-	addedUsers, err := util.ValidateAndMapUserEmails(ctx, plan.MemberUsers, state.MemberUsers, &resp.Diagnostics)
+	addedUsers, err := util.ValidateUserEmailDiff(ctx, plan.MemberUsers, state.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	removedUsers, err := util.ValidateAndMapUserEmails(ctx, state.MemberUsers, plan.MemberUsers, &resp.Diagnostics)
+	removedUsers, err := util.ValidateUserEmailDiff(ctx, state.MemberUsers, plan.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
 	}
 
-	addedTeams, err := util.ParseUUIDSets(ctx, plan.MemberTeams, state.MemberTeams, &resp.Diagnostics)
+	addedTeams, err := util.ValidateUUIDDiff(ctx, plan.MemberTeams, state.MemberTeams, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}
 
-	removedTeams, err := util.ParseUUIDSets(ctx, state.MemberTeams, plan.MemberTeams, &resp.Diagnostics)
+	removedTeams, err := util.ValidateUUIDDiff(ctx, state.MemberTeams, plan.MemberTeams, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_teams"), "Invalid team ID", err.Error())
 	}

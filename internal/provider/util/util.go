@@ -167,10 +167,12 @@ func ReadNotEmptyFileTrimmed(path string) (string, error) {
 	return result, nil
 }
 
-func IsValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
+func IsValidEmail(email string) (string, error) {
+	if _, err := mail.ParseAddress(email); err != nil {
+		return "", fmt.Errorf("invalid email address: %s", email)
+	}
 
-	return err == nil
+	return email, nil
 }
 
 // ImportStatePassthroughID validates the import ID is a valid UUID before passing it through.
@@ -185,14 +187,4 @@ func ImportStatePassthroughID(ctx context.Context, req resource.ImportStateReque
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
-}
-
-func ValidateEmails(emails []string) error {
-	for _, email := range emails {
-		if !IsValidEmail(email) {
-			return fmt.Errorf("invalid email address: %s", email)
-		}
-	}
-
-	return nil
 }

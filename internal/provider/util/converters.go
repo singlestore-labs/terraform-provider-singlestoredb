@@ -230,66 +230,62 @@ func StringValueOrNull[T ~string](value *T) types.String {
 	return types.StringValue(string(*value))
 }
 
-// ParseUUIDSets computes the set difference (a - b) of UUID string sets and
-// parses each resulting value into a UUID. Returns a pointer to the parsed
-// UUIDs, or pointer to an empty slice if the difference is empty.
-func ParseUUIDSets(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]otypes.UUID, error) {
-	uuids := make([]otypes.UUID, 0, len(a.Elements()))
+// SetDifference computes the set difference (a - b) of two string sets.
+// Null or unknown a yields an empty result; null or unknown b is treated as empty.
+func SetDifference(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) []string {
 	if a.IsNull() || a.IsUnknown() {
-		return uuids, nil
+		return []string{}
 	}
 
 	bSet := make(map[string]struct{}, len(b.Elements()))
 	if !b.IsNull() && !b.IsUnknown() {
 		bElems := make([]types.String, 0, len(b.Elements()))
 		diags.Append(b.ElementsAs(ctx, &bElems, false)...)
-		for _, v := range bElems {
-			bSet[v.ValueString()] = struct{}{}
+		for _, bElem := range bElems {
+			bSet[bElem.ValueString()] = struct{}{}
 		}
 	}
 
-	for _, v := range a.Elements() {
-		id := v.(types.String).ValueString()
-		if _, exists := bSet[id]; exists {
+	result := make([]string, 0, len(a.Elements()))
+	for _, aElem := range a.Elements() {
+		s := aElem.(types.String).ValueString()
+		if _, exists := bSet[s]; exists {
 			continue
 		}
-		teamID, err := uuid.Parse(id)
-		if err != nil {
-			return []otypes.UUID{}, fmt.Errorf("invalid UUID: %w", err)
-		}
-		uuids = append(uuids, teamID)
+		result = append(result, s)
 	}
 
-	return uuids, nil
+	return result
 }
 
-// ValidateAndMapUserEmails computes the set difference (a - b) of email
-// sets and validates each resulting email, returning the validated emails or an
-// error if any email is invalid.
-func ValidateAndMapUserEmails(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]string, error) {
-	validEmails := make([]string, 0, len(a.Elements()))
-	if a.IsNull() || a.IsUnknown() {
-		return validEmails, nil
-	}
-	bSet := make(map[string]struct{}, len(b.Elements()))
-	if !b.IsNull() && !b.IsUnknown() {
-		bElems := make([]types.String, 0, len(b.Elements()))
-		diags.Append(b.ElementsAs(ctx, &bElems, false)...)
-		for _, v := range bElems {
-			bSet[v.ValueString()] = struct{}{}
+// ValidateSet applies convert to each element in a, returning the mapped values or the first
+// conversion error encountered.
+func ValidateSet[T any](ctx context.Context, a []string, diags *diag.Diagnostics, convert func(string) (T, error)) ([]T, error) {
+	result := make([]T, 0, len(a))
+	for _, elem := range a {
+		v, err := convert(elem)
+		if err != nil {
+			return []T{}, err
 		}
+		result = append(result, v)
 	}
 
-	for _, v := range a.Elements() {
-		email := v.(types.String).ValueString()
-		if _, exists := bSet[email]; exists {
-			continue
-		}
-		if !IsValidEmail(email) {
-			return []string{}, fmt.Errorf("invalid email address: %s", email)
-		}
-		validEmails = append(validEmails, email)
-	}
+	return result, nil
+}
 
-	return validEmails, nil
+// ValidateUUIDDiff computes the set difference (a - b) of UUID string sets and
+// parses each resulting value into a UUID, returning the parsed UUIDs or the first parsing error encountered.
+func ValidateUUIDDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]otypes.UUID, error) {
+	diff := SetDifference(ctx, a, b, diags)
+
+	return ValidateSet(ctx, diff, diags, uuid.Parse)
+}
+
+// ValidateUserEmailDiff computes the set difference (a - b) of email sets and
+// validates each resulting email, returning the validated emails or the first
+// validation error encountered.
+func ValidateUserEmailDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]string, error) {
+	diff := SetDifference(ctx, a, b, diags)
+
+	return ValidateSet(ctx, diff, diags, IsValidEmail)
 }
