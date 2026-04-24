@@ -366,34 +366,36 @@ func toTeamResourceModel(team management.Team) TeamResourceModel {
 
 func toUsersEmailSet(userList *[]management.UserInfo) types.Set {
 	if userList == nil {
-		set, _ := types.SetValue(types.StringType, []attr.Value{})
-
-		return set
+		return types.SetValueMust(types.StringType, []attr.Value{})
 	}
 
-	elems := make([]attr.Value, len(*userList))
-	for i, user := range *userList {
-		elems[i] = types.StringValue(user.Email)
+	seen := make(map[string]struct{}, len(*userList))
+	elems := make([]attr.Value, 0, len(*userList))
+	for _, user := range *userList {
+		if _, ok := seen[user.Email]; ok {
+			continue
+		}
+		seen[user.Email] = struct{}{}
+		elems = append(elems, types.StringValue(user.Email))
 	}
 
-	set, _ := types.SetValue(types.StringType, elems)
-
-	return set
+	return types.SetValueMust(types.StringType, elems)
 }
 
 func toTeamsUUIDSet(teamList *[]management.TeamInfo) types.Set {
 	if teamList == nil {
-		set, _ := types.SetValue(types.StringType, []attr.Value{})
-
-		return set
+		return types.SetValueMust(types.StringType, []attr.Value{})
 	}
 
-	elems := make([]attr.Value, len(*teamList))
-	for i, t := range *teamList {
-		elems[i] = util.UUIDStringValue(t.TeamID)
+	seen := make(map[otypes.UUID]struct{}, len(*teamList))
+	elems := make([]attr.Value, 0, len(*teamList))
+	for _, t := range *teamList {
+		if _, ok := seen[t.TeamID]; ok {
+			continue
+		}
+		seen[t.TeamID] = struct{}{}
+		elems = append(elems, util.UUIDStringValue(t.TeamID))
 	}
 
-	set, _ := types.SetValue(types.StringType, elems)
-
-	return set
+	return types.SetValueMust(types.StringType, elems)
 }
