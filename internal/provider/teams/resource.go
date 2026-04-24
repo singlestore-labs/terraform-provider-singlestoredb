@@ -236,12 +236,12 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	addedUsers, removedUsers, addedTeams, removedTeams := r.parseUserAndTeamIds(ctx, resp, state, plan)
+	addedUsers, removedUsers, addedTeams, removedTeams := parseUserAndTeamIds(ctx, resp, state, plan)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if r.shouldUpdate(state, plan, addedUsers, removedUsers, addedTeams, removedTeams) {
+	if shouldUpdate(state, plan, addedUsers, removedUsers, addedTeams, removedTeams) {
 		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
 			Name:                   util.MaybeString(plan.Name),
 			Description:            util.MaybeString(plan.Description),
@@ -272,7 +272,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) ([]string, []string, []otypes.UUID, []otypes.UUID) {
+func parseUserAndTeamIds(ctx context.Context, resp *resource.UpdateResponse, state, plan TeamResourceModel) ([]string, []string, []otypes.UUID, []otypes.UUID) {
 	addedUsers, err := util.ValidateUserEmailDiff(ctx, plan.MemberUsers, state.MemberUsers, &resp.Diagnostics)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("member_users"), "Invalid user email", err.Error())
@@ -296,7 +296,7 @@ func (r *teamResource) parseUserAndTeamIds(ctx context.Context, resp *resource.U
 	return addedUsers, removedUsers, addedTeams, removedTeams
 }
 
-func (r *teamResource) shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers []string, addedTeams, removedTeams []otypes.UUID) bool {
+func shouldUpdate(state, plan TeamResourceModel, addedUsers, removedUsers []string, addedTeams, removedTeams []otypes.UUID) bool {
 	return len(addedUsers) > 0 || len(removedUsers) > 0 || len(addedTeams) > 0 || len(removedTeams) > 0 || plan.Name != state.Name || plan.Description != state.Description
 }
 

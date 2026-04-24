@@ -120,7 +120,7 @@ func mustEmailSet(t *testing.T, emails ...string) types.Set {
 	return set
 }
 
-func TestParseUUIDSets_AllNew(t *testing.T) {
+func TestValidateUUIDDiff_AllNew(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -133,7 +133,7 @@ func TestParseUUIDSets_AllNew(t *testing.T) {
 	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID2)}, got)
 }
 
-func TestParseUUIDSets_DifferenceFiltersOverlap(t *testing.T) {
+func TestValidateUUIDDiff_DifferenceFiltersOverlap(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -146,7 +146,7 @@ func TestParseUUIDSets_DifferenceFiltersOverlap(t *testing.T) {
 	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID3)}, got)
 }
 
-func TestParseUUIDSets_FullOverlapReturnsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_FullOverlapReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -159,7 +159,7 @@ func TestParseUUIDSets_FullOverlapReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestParseUUIDSets_EmptyAReturnsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_EmptyAReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -172,7 +172,7 @@ func TestParseUUIDSets_EmptyAReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestParseUUIDSets_ANullReturnsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_ANullReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -185,7 +185,7 @@ func TestParseUUIDSets_ANullReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestParseUUIDSets_AUnknownReturnsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_AUnknownReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -198,7 +198,7 @@ func TestParseUUIDSets_AUnknownReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestParseUUIDSets_BNullTreatedAsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_BNullTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -211,7 +211,7 @@ func TestParseUUIDSets_BNullTreatedAsEmpty(t *testing.T) {
 	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
-func TestParseUUIDSets_BUnknownTreatedAsEmpty(t *testing.T) {
+func TestValidateUUIDDiff_BUnknownTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -224,7 +224,7 @@ func TestParseUUIDSets_BUnknownTreatedAsEmpty(t *testing.T) {
 	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
-func TestParseUUIDSets_InvalidUUIDReturnsError(t *testing.T) {
+func TestValidateUUIDDiff_InvalidUUIDReturnsError(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -237,7 +237,7 @@ func TestParseUUIDSets_InvalidUUIDReturnsError(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid UUID")
 }
 
-func TestParseUUIDSets_InvalidUUIDIgnoredWhenInB(t *testing.T) {
+func TestValidateUUIDDiff_InvalidUUIDIgnoredWhenInB(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -252,7 +252,7 @@ func TestParseUUIDSets_InvalidUUIDIgnoredWhenInB(t *testing.T) {
 	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
 }
 
-func TestValidateAndMapUserEmails_AllNew(t *testing.T) {
+func TestValidateUserEmailDiff_AllNew(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -265,7 +265,7 @@ func TestValidateAndMapUserEmails_AllNew(t *testing.T) {
 	require.ElementsMatch(t, []string{testEmail1, testEmail2}, got)
 }
 
-func TestValidateAndMapUserEmails_DifferenceFiltersOverlap(t *testing.T) {
+func TestValidateUserEmailDiff_DifferenceFiltersOverlap(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -278,7 +278,7 @@ func TestValidateAndMapUserEmails_DifferenceFiltersOverlap(t *testing.T) {
 	require.ElementsMatch(t, []string{testEmail1, testEmail3}, got)
 }
 
-func TestValidateAndMapUserEmails_FullOverlapReturnsEmpty(t *testing.T) {
+func TestValidateUserEmailDiff_FullOverlapReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -291,7 +291,7 @@ func TestValidateAndMapUserEmails_FullOverlapReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestValidateAndMapUserEmails_EmptyAReturnsEmpty(t *testing.T) {
+func TestValidateUserEmailDiff_EmptyAReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -304,7 +304,7 @@ func TestValidateAndMapUserEmails_EmptyAReturnsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
-func TestValidateAndMapUserEmails_BNullTreatedAsEmpty(t *testing.T) {
+func TestValidateUserEmailDiff_BNullTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -317,7 +317,7 @@ func TestValidateAndMapUserEmails_BNullTreatedAsEmpty(t *testing.T) {
 	require.Equal(t, []string{testEmail1}, got)
 }
 
-func TestValidateAndMapUserEmails_BUnknownTreatedAsEmpty(t *testing.T) {
+func TestValidateUserEmailDiff_BUnknownTreatedAsEmpty(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -330,7 +330,7 @@ func TestValidateAndMapUserEmails_BUnknownTreatedAsEmpty(t *testing.T) {
 	require.Equal(t, []string{testEmail1}, got)
 }
 
-func TestValidateAndMapUserEmails_InvalidEmailReturnsError(t *testing.T) {
+func TestValidateUserEmailDiff_InvalidEmailReturnsError(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 
@@ -344,7 +344,7 @@ func TestValidateAndMapUserEmails_InvalidEmailReturnsError(t *testing.T) {
 	require.Contains(t, err.Error(), invalidEmail)
 }
 
-func TestValidateAndMapUserEmails_InvalidEmailIgnoredWhenInB(t *testing.T) {
+func TestValidateUserEmailDiff_InvalidEmailIgnoredWhenInB(t *testing.T) {
 	ctx := context.Background()
 	diags := diag.Diagnostics{}
 

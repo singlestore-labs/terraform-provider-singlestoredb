@@ -260,7 +260,7 @@ func SetDifference(ctx context.Context, a, b types.Set, diags *diag.Diagnostics)
 
 // ValidateSet applies convert to each element in a, returning the mapped values or the first
 // conversion error encountered.
-func ValidateSet[T any](ctx context.Context, a []string, diags *diag.Diagnostics, convert func(string) (T, error)) ([]T, error) {
+func ValidateSet[T any](a []string, convert func(string) (T, error)) ([]T, error) {
 	result := make([]T, 0, len(a))
 	for _, elem := range a {
 		v, err := convert(elem)
@@ -278,7 +278,7 @@ func ValidateSet[T any](ctx context.Context, a []string, diags *diag.Diagnostics
 func ValidateUUIDDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]otypes.UUID, error) {
 	diff := SetDifference(ctx, a, b, diags)
 
-	return ValidateSet(ctx, diff, diags, uuid.Parse)
+	return ValidateSet(diff, uuid.Parse)
 }
 
 // ValidateUserEmailDiff computes the set difference (a - b) of email sets and
@@ -287,5 +287,5 @@ func ValidateUUIDDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnosti
 func ValidateUserEmailDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]string, error) {
 	diff := SetDifference(ctx, a, b, diags)
 
-	return ValidateSet(ctx, diff, diags, IsValidEmail)
+	return ValidateSet(diff, IsValidEmail)
 }
