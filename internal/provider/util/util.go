@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 )
 
@@ -168,26 +167,12 @@ func ReadNotEmptyFileTrimmed(path string) (string, error) {
 	return result, nil
 }
 
-func SubtractListValues(a, b []types.String) []types.String {
-	bSet := make(map[string]struct{})
-	for _, v := range b {
-		bSet[v.ValueString()] = struct{}{}
+func IsValidEmail(email string) (string, error) {
+	if _, err := mail.ParseAddress(email); err != nil {
+		return "", fmt.Errorf("invalid email address: %s", email)
 	}
 
-	var result []types.String
-	for _, v := range a {
-		if _, exists := bSet[v.ValueString()]; !exists {
-			result = append(result, v)
-		}
-	}
-
-	return result
-}
-
-func IsValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
-
-	return err == nil
+	return email, nil
 }
 
 // ImportStatePassthroughID validates the import ID is a valid UUID before passing it through.
@@ -202,14 +187,4 @@ func ImportStatePassthroughID(ctx context.Context, req resource.ImportStateReque
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root(config.IDAttribute), req, resp)
-}
-
-func ValidateEmails(emails []string) error {
-	for _, email := range emails {
-		if !IsValidEmail(email) {
-			return fmt.Errorf("invalid email address: %s", email)
-		}
-	}
-
-	return nil
 }

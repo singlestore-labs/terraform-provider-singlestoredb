@@ -1,13 +1,28 @@
 package util_test
 
 import (
+	"context"
 	"testing"
 
+	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	testUUID1    = "9966fccf-5116-437e-a34f-008ee32e8d94"
+	testUUID2    = "458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"
+	testUUID3    = "283d4b0d-b0d6-485a-bc2d-a763c523c68a"
+	testEmail1   = "alice@example.com"
+	testEmail2   = "bob@example.com"
+	testEmail3   = "carol@example.com"
+	invalidUUID  = "not-a-uuid"
+	invalidEmail = "not-an-email"
 )
 
 func TestMaybeString(t *testing.T) {
@@ -42,8 +57,7 @@ func TestMaybeBoolValue(t *testing.T) {
 }
 
 func TestUUIDStringValue(t *testing.T) {
-	id := "9966fccf-5116-437e-a34f-008ee32e8d94"
-	require.Equal(t, types.StringValue(id), util.UUIDStringValue(uuid.MustParse(id)))
+	require.Equal(t, types.StringValue(testUUID1), util.UUIDStringValue(uuid.MustParse(testUUID1)))
 }
 
 func TestStringFirewallRanges(t *testing.T) {
@@ -76,4 +90,271 @@ func TestWorkspaceStateString(t *testing.T) {
 func TestWorkspaceStateStringValue(t *testing.T) {
 	state := management.WorkspaceStateACTIVE
 	require.Equal(t, string(state), util.WorkspaceStateStringValue(state).ValueString())
+}
+
+func mustUUIDSet(t *testing.T, ids ...string) types.Set {
+	t.Helper()
+
+	elems := make([]attr.Value, len(ids))
+	for i, id := range ids {
+		elems[i] = types.StringValue(id)
+	}
+
+	set, diags := types.SetValue(types.StringType, elems)
+	require.False(t, diags.HasError(), "failed to build UUID set: %v", diags)
+
+	return set
+}
+
+func mustEmailSet(t *testing.T, emails ...string) types.Set {
+	t.Helper()
+
+	elems := make([]attr.Value, len(emails))
+	for i, e := range emails {
+		elems[i] = types.StringValue(e)
+	}
+
+	set, diags := types.SetValue(types.StringType, elems)
+	require.False(t, diags.HasError(), "failed to build email set: %v", diags)
+
+	return set
+}
+
+func TestValidateUUIDDiff_AllNew(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1, testUUID2)
+	b := mustUUIDSet(t)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID2)}, got)
+}
+
+func TestValidateUUIDDiff_DifferenceFiltersOverlap(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1, testUUID2, testUUID3)
+	b := mustUUIDSet(t, testUUID2)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.ElementsMatch(t, []otypes.UUID{uuid.MustParse(testUUID1), uuid.MustParse(testUUID3)}, got)
+}
+
+func TestValidateUUIDDiff_FullOverlapReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1, testUUID2)
+	b := mustUUIDSet(t, testUUID1, testUUID2)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUUIDDiff_EmptyAReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t)
+	b := mustUUIDSet(t, testUUID1)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUUIDDiff_ANullReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := types.SetNull(types.StringType)
+	b := mustUUIDSet(t)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUUIDDiff_AUnknownReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := types.SetUnknown(types.StringType)
+	b := mustUUIDSet(t)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUUIDDiff_BNullTreatedAsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1)
+	b := types.SetNull(types.StringType)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
+}
+
+func TestValidateUUIDDiff_BUnknownTreatedAsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1)
+	b := types.SetUnknown(types.StringType)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
+}
+
+func TestValidateUUIDDiff_InvalidUUIDReturnsError(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustUUIDSet(t, testUUID1, invalidUUID)
+	b := mustUUIDSet(t)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.Error(t, err)
+	require.Empty(t, got)
+	require.Contains(t, err.Error(), "invalid UUID")
+}
+
+func TestValidateUUIDDiff_InvalidUUIDIgnoredWhenInB(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	// Malformed UUIDs in a should be skipped (not parsed) when present in b,
+	// because they are being filtered out of the set difference.
+	a := mustUUIDSet(t, invalidUUID, testUUID1)
+	b := mustUUIDSet(t, invalidUUID)
+
+	got, err := util.ValidateUUIDDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []otypes.UUID{uuid.MustParse(testUUID1)}, got)
+}
+
+func TestValidateUserEmailDiff_AllNew(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1, testEmail2)
+	b := mustEmailSet(t)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.ElementsMatch(t, []string{testEmail1, testEmail2}, got)
+}
+
+func TestValidateUserEmailDiff_DifferenceFiltersOverlap(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1, testEmail2, testEmail3)
+	b := mustEmailSet(t, testEmail2)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.ElementsMatch(t, []string{testEmail1, testEmail3}, got)
+}
+
+func TestValidateUserEmailDiff_FullOverlapReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1, testEmail2)
+	b := mustEmailSet(t, testEmail1, testEmail2)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUserEmailDiff_EmptyAReturnsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t)
+	b := mustEmailSet(t, testEmail2)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Empty(t, got)
+}
+
+func TestValidateUserEmailDiff_BNullTreatedAsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1)
+	b := types.SetNull(types.StringType)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []string{testEmail1}, got)
+}
+
+func TestValidateUserEmailDiff_BUnknownTreatedAsEmpty(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1)
+	b := types.SetUnknown(types.StringType)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []string{testEmail1}, got)
+}
+
+func TestValidateUserEmailDiff_InvalidEmailReturnsError(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	a := mustEmailSet(t, testEmail1, invalidEmail)
+	b := mustEmailSet(t)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.Error(t, err)
+	require.Empty(t, got)
+	require.Contains(t, err.Error(), "invalid email address")
+	require.Contains(t, err.Error(), invalidEmail)
+}
+
+func TestValidateUserEmailDiff_InvalidEmailIgnoredWhenInB(t *testing.T) {
+	ctx := context.Background()
+	diags := diag.Diagnostics{}
+
+	// Even if the email is malformed, it should be skipped (not validated)
+	// when present in b, because it is being filtered out of the difference.
+	a := mustEmailSet(t, invalidEmail, testEmail1)
+	b := mustEmailSet(t, invalidEmail)
+
+	got, err := util.ValidateUserEmailDiff(ctx, a, b, &diags)
+	require.NoError(t, err)
+	require.False(t, diags.HasError())
+	require.Equal(t, []string{testEmail1}, got)
 }
