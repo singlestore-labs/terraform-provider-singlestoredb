@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestTimeValidator(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	v := util.NewTimeValidator()
 	defaultMessage := v.Description(ctx)

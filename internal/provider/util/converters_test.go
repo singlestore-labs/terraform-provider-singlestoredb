@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"context"
 	"testing"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
@@ -121,7 +120,7 @@ func mustEmailSet(t *testing.T, emails ...string) types.Set {
 }
 
 func TestValidateUUIDDiff_AllNew(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1, testUUID2)
@@ -134,7 +133,7 @@ func TestValidateUUIDDiff_AllNew(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_DifferenceFiltersOverlap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1, testUUID2, testUUID3)
@@ -147,7 +146,7 @@ func TestValidateUUIDDiff_DifferenceFiltersOverlap(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_FullOverlapReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1, testUUID2)
@@ -160,7 +159,7 @@ func TestValidateUUIDDiff_FullOverlapReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_EmptyAReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t)
@@ -173,7 +172,7 @@ func TestValidateUUIDDiff_EmptyAReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_ANullReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := types.SetNull(types.StringType)
@@ -186,7 +185,7 @@ func TestValidateUUIDDiff_ANullReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_AUnknownReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := types.SetUnknown(types.StringType)
@@ -199,7 +198,7 @@ func TestValidateUUIDDiff_AUnknownReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_BNullTreatedAsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1)
@@ -212,7 +211,7 @@ func TestValidateUUIDDiff_BNullTreatedAsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_BUnknownTreatedAsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1)
@@ -225,7 +224,7 @@ func TestValidateUUIDDiff_BUnknownTreatedAsEmpty(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_InvalidUUIDReturnsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustUUIDSet(t, testUUID1, invalidUUID)
@@ -238,7 +237,7 @@ func TestValidateUUIDDiff_InvalidUUIDReturnsError(t *testing.T) {
 }
 
 func TestValidateUUIDDiff_InvalidUUIDIgnoredWhenInB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	// Malformed UUIDs in a should be skipped (not parsed) when present in b,
@@ -253,7 +252,7 @@ func TestValidateUUIDDiff_InvalidUUIDIgnoredWhenInB(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_AllNew(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1, testEmail2)
@@ -266,7 +265,7 @@ func TestValidateUserEmailDiff_AllNew(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_DifferenceFiltersOverlap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1, testEmail2, testEmail3)
@@ -279,7 +278,7 @@ func TestValidateUserEmailDiff_DifferenceFiltersOverlap(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_FullOverlapReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1, testEmail2)
@@ -292,7 +291,7 @@ func TestValidateUserEmailDiff_FullOverlapReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_EmptyAReturnsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t)
@@ -305,7 +304,7 @@ func TestValidateUserEmailDiff_EmptyAReturnsEmpty(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_BNullTreatedAsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1)
@@ -318,7 +317,7 @@ func TestValidateUserEmailDiff_BNullTreatedAsEmpty(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_BUnknownTreatedAsEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1)
@@ -331,7 +330,7 @@ func TestValidateUserEmailDiff_BUnknownTreatedAsEmpty(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_InvalidEmailReturnsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	a := mustEmailSet(t, testEmail1, invalidEmail)
@@ -345,7 +344,7 @@ func TestValidateUserEmailDiff_InvalidEmailReturnsError(t *testing.T) {
 }
 
 func TestValidateUserEmailDiff_InvalidEmailIgnoredWhenInB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	diags := diag.Diagnostics{}
 
 	// Even if the email is malformed, it should be skipped (not validated)
