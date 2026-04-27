@@ -1,6 +1,6 @@
 module github.com/singlestore-labs/terraform-provider-singlestoredb
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/deepmap/oapi-codegen v1.13.0
@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework-validators v0.16.0
 	github.com/hashicorp/terraform-plugin-go v0.25.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.35.0
-	github.com/singlestore-labs/singlestore-go/management v1.2.147
+	github.com/singlestore-labs/singlestore-go/management v1.2.149
 	github.com/stretchr/testify v1.8.4
 )
 

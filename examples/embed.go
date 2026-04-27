@@ -45,6 +45,7 @@ var (
 	FlowGetDataSource                = mustRead("data-sources/singlestoredb_flow/data-source.tf")
 	FlowListDataSource               = mustRead("data-sources/singlestoredb_flows/data-source.tf")
 	FlowResource                     = mustRead("resources/singlestoredb_flow/resource.tf")
+	ProjectResource                  = mustRead("resources/singlestoredb_project/resource.tf")
 )
 
 func mustRead(path string) string {

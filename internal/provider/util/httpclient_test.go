@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -25,7 +24,7 @@ func TestHTTPClientStatusOK(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := util.NewHTTPClient()
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -48,7 +47,7 @@ func TestHTTPClientStatusInternalServerError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := util.NewHTTPClient()
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	_, err = client.Do(req) //nolint: bodyclose
 	require.ErrorContains(t, err, string(body), "returns an error on 500s")
@@ -66,7 +65,7 @@ func TestHTTPClientStatusConflict(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := util.NewHTTPClient()
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err, "returns no error and a body on not 500s")
@@ -97,7 +96,7 @@ func TestTimeout(t *testing.T) {
 	t.Cleanup(func() { wg.Done() }) // Letting the server terminate.
 
 	client := util.NewClientWithTimeout(time.Second)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.ErrorContains(t, err, "Client.Timeout exceeded")
