@@ -1,7 +1,6 @@
 package workspacegroups
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -13,7 +12,7 @@ import (
 
 func TestToManagementUpdateWindow(t *testing.T) {
 	t.Run("null object returns nil", func(t *testing.T) {
-		result := toManagementUpdateWindow(context.Background(), types.ObjectNull(map[string]attr.Type{
+		result := toManagementUpdateWindow(t.Context(), types.ObjectNull(map[string]attr.Type{
 			"hour": types.Int64Type,
 			"day":  types.Int64Type,
 		}))
@@ -21,7 +20,7 @@ func TestToManagementUpdateWindow(t *testing.T) {
 	})
 
 	t.Run("unknown object returns nil", func(t *testing.T) {
-		result := toManagementUpdateWindow(context.Background(), types.ObjectUnknown(map[string]attr.Type{
+		result := toManagementUpdateWindow(t.Context(), types.ObjectUnknown(map[string]attr.Type{
 			"hour": types.Int64Type,
 			"day":  types.Int64Type,
 		}))
@@ -41,7 +40,7 @@ func TestToManagementUpdateWindow(t *testing.T) {
 		)
 		require.False(t, diags.HasError())
 
-		result := toManagementUpdateWindow(context.Background(), obj)
+		result := toManagementUpdateWindow(t.Context(), obj)
 		require.NotNil(t, result)
 		require.Equal(t, float32(12), result.Hour)
 		require.Equal(t, float32(3), result.Day)
@@ -60,7 +59,7 @@ func TestToManagementUpdateWindow(t *testing.T) {
 		)
 		require.False(t, diags.HasError())
 
-		result := toManagementUpdateWindow(context.Background(), obj)
+		result := toManagementUpdateWindow(t.Context(), obj)
 		require.NotNil(t, result)
 		require.Equal(t, float32(0), result.Hour)
 		require.Equal(t, float32(6), result.Day)
@@ -83,7 +82,7 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel
-		diags := result.As(context.Background(), &model, basetypes.ObjectAsOptions{})
+		diags := result.As(t.Context(), &model, basetypes.ObjectAsOptions{})
 		require.False(t, diags.HasError())
 
 		require.Equal(t, int64(15), model.Hour.ValueInt64())
@@ -100,7 +99,7 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel
-		diags := result.As(context.Background(), &model, basetypes.ObjectAsOptions{})
+		diags := result.As(t.Context(), &model, basetypes.ObjectAsOptions{})
 		require.False(t, diags.HasError())
 
 		require.Equal(t, int64(23), model.Hour.ValueInt64())
@@ -117,7 +116,7 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel
-		diags := result.As(context.Background(), &model, basetypes.ObjectAsOptions{})
+		diags := result.As(t.Context(), &model, basetypes.ObjectAsOptions{})
 		require.False(t, diags.HasError())
 
 		require.Equal(t, int64(10), model.Hour.ValueInt64())
