@@ -1,12 +1,14 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 )
@@ -228,19 +230,62 @@ func StringValueOrNull[T ~string](value *T) types.String {
 	return types.StringValue(string(*value))
 }
 
-func ParseUUIDList(list []types.String) (*[]otypes.UUID, error) {
-	var uuids *[]otypes.UUID
-	if len(list) > 0 {
-		values := make([]otypes.UUID, 0, len(list))
-		uuids = &values
-		for _, id := range list {
-			teamID, err := uuid.Parse(id.ValueString())
-			if err != nil {
-				return nil, fmt.Errorf("invalid UUID: %w", err)
-			}
-			*uuids = append(*uuids, teamID)
+// SetDifference computes the set difference (a - b) of two string sets.
+// Null or unknown a yields an empty result; null or unknown b is treated as empty.
+func SetDifference(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) []string {
+	if a.IsNull() || a.IsUnknown() {
+		return []string{}
+	}
+
+	bSet := make(map[string]struct{}, len(b.Elements()))
+	if !b.IsNull() && !b.IsUnknown() {
+		bElems := make([]types.String, 0, len(b.Elements()))
+		diags.Append(b.ElementsAs(ctx, &bElems, false)...)
+		for _, bElem := range bElems {
+			bSet[bElem.ValueString()] = struct{}{}
 		}
 	}
 
-	return uuids, nil
+	result := make([]string, 0, len(a.Elements()))
+	for _, aElem := range a.Elements() {
+		s := aElem.(types.String).ValueString()
+		if _, exists := bSet[s]; exists {
+			continue
+		}
+		result = append(result, s)
+	}
+
+	return result
+}
+
+// ValidateSet applies convert to each element in a, returning the mapped values or the first
+// conversion error encountered.
+func ValidateSet[T any](a []string, convert func(string) (T, error)) ([]T, error) {
+	result := make([]T, 0, len(a))
+	for _, elem := range a {
+		v, err := convert(elem)
+		if err != nil {
+			return []T{}, err
+		}
+		result = append(result, v)
+	}
+
+	return result, nil
+}
+
+// ValidateUUIDDiff computes the set difference (a - b) of UUID string sets and
+// parses each resulting value into a UUID, returning the parsed UUIDs or the first parsing error encountered.
+func ValidateUUIDDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]otypes.UUID, error) {
+	diff := SetDifference(ctx, a, b, diags)
+
+	return ValidateSet(diff, uuid.Parse)
+}
+
+// ValidateUserEmailDiff computes the set difference (a - b) of email sets and
+// validates each resulting email, returning the validated emails or the first
+// validation error encountered.
+func ValidateUserEmailDiff(ctx context.Context, a, b types.Set, diags *diag.Diagnostics) ([]string, error) {
+	diff := SetDifference(ctx, a, b, diags)
+
+	return ValidateSet(diff, IsValidEmail)
 }

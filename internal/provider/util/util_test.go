@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -144,7 +143,7 @@ func TestImportStatePassthroughID(t *testing.T) {
 	t.Run("empty string", func(t *testing.T) {
 		req := resource.ImportStateRequest{ID: ""}
 		resp := resource.ImportStateResponse{}
-		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		util.ImportStatePassthroughID(t.Context(), req, &resp)
 		require.True(t, resp.Diagnostics.HasError())
 		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"\"")
 	})
@@ -152,7 +151,7 @@ func TestImportStatePassthroughID(t *testing.T) {
 	t.Run("not a UUID", func(t *testing.T) {
 		req := resource.ImportStateRequest{ID: "not-a-uuid"}
 		resp := resource.ImportStateResponse{}
-		util.ImportStatePassthroughID(context.Background(), req, &resp)
+		util.ImportStatePassthroughID(t.Context(), req, &resp)
 		require.True(t, resp.Diagnostics.HasError())
 		require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "\"not-a-uuid\"")
 	})

@@ -40,8 +40,12 @@ format:
 	go fmt ./...
 
 gencheck:
-	git diff --compact-summary --exit-code || \
-            (echo; echo "Unexpected difference in directories after code generation. Run 'make generate && make format' command and commit."; exit 1)
+	@git diff --compact-summary --exit-code || \
+		(echo; echo "Unexpected unstaged changes after code generation. Run 'make generate && make format' and stage (git add) the results."; \
+		git diff --compact-summary; exit 1)
+	@test -z "$$(git ls-files --others --exclude-standard)" || \
+		(echo; echo "Unexpected untracked files after code generation. Run 'make generate && make format' and stage (git add) the results."; \
+		git ls-files --others --exclude-standard; exit 1)
 	tfplugindocs validate
 	./.validate_readme
 
