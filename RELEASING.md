@@ -6,7 +6,7 @@ Releases are triggered automatically when a new Git tag is pushed.
 
 ## ✅ Steps to Release
 
-### 1. Review Changes
+### 1. Review Changes and update the change log
 
 List version tags (newest first):
 
@@ -20,6 +20,10 @@ Show commits since the last release (example for v0.3.2):
 ```bash
 git log v0.3.2..HEAD --oneline
 ```
+
+Make sure that `CHANGELOG.md` "Unreleased" section has been updated with new features and bug fixes and security updates, optionally with other changes. If some commits are missing - update `CHANGELOG.md` accordingly.
+
+Select a new version, add a new section under "Unreleased", e.g. "## v0.1.15 - 2026-04-28"
 
 ### 2. Tag and Push
 
