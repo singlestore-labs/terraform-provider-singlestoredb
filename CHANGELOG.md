@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.15 - 2026-04-28
+
 ### Added
 
 - New `singlestoredb_project` resource with generated documentation (#100, #102).
