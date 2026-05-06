@@ -181,6 +181,10 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
+		workspaces.NewDataSourceIdentity,
+		workspaces.NewDataSourcePrivateConnections,
+		workspaces.NewDataSourcePrivateConnectionsKai,
+		workspaces.NewDataSourcePrivateConnectionsOutboundAllowList,
 	}
 }
 
