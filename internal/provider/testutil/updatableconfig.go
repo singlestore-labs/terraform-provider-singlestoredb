@@ -10,6 +10,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/projects"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
@@ -51,6 +52,10 @@ func (uc UpdatableConfig) WithWorkspaceGetDataSource(workspaceName string) Attri
 
 func (uc UpdatableConfig) WithWorkspaceListDataSource(workspaceListName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourceListName), workspaceListName})
+}
+
+func (uc UpdatableConfig) WithProjectGetDataSource(projectName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(projects.DataSourceGetName), projectName})
 }
 
 func (uc UpdatableConfig) WithWorkspaceResource(workspaceName string) AttributeSetter {
