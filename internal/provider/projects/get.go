@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -20,13 +19,6 @@ const (
 
 type projectDataSourceGet struct {
 	management.ClientWithResponsesInterface
-}
-
-type projectDataSourceModel struct {
-	ID        types.String `tfsdk:"id"`
-	Name      types.String `tfsdk:"name"`
-	Edition   types.String `tfsdk:"edition"`
-	CreatedAt types.String `tfsdk:"created_at"`
 }
 
 var _ datasource.DataSourceWithConfigure = &projectDataSourceGet{}
@@ -65,7 +57,7 @@ func (d *projectDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequ
 }
 
 func (d *projectDataSourceGet) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var data projectDataSourceModel
+	var data projectListItem
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -90,7 +82,7 @@ func (d *projectDataSourceGet) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	result := toProjectDataSourceModel(*projectResp.JSON200)
+	result := toProjectListItem(*projectResp.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -101,13 +93,4 @@ func (d *projectDataSourceGet) Configure(_ context.Context, req datasource.Confi
 	}
 
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func toProjectDataSourceModel(project management.Project) projectDataSourceModel {
-	return projectDataSourceModel{
-		ID:        util.UUIDStringValue(project.ProjectID),
-		Name:      types.StringValue(project.Name),
-		Edition:   types.StringValue(string(project.Edition)),
-		CreatedAt: types.StringValue(project.CreatedAt.String()),
-	}
 }
