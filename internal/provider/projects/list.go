@@ -26,13 +26,6 @@ type projectsListDataSourceModel struct {
 	Projects []projectListItem `tfsdk:"projects"`
 }
 
-type projectListItem struct {
-	ID        types.String `tfsdk:"id"`
-	Name      types.String `tfsdk:"name"`
-	Edition   types.String `tfsdk:"edition"`
-	CreatedAt types.String `tfsdk:"created_at"`
-}
-
 var _ datasource.DataSourceWithConfigure = &projectsDataSourceList{}
 
 // NewDataSourceList is a helper function to simplify the provider implementation.
@@ -57,24 +50,9 @@ func (d *projectsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRe
 				Computed:            true,
 				MarkdownDescription: "List of projects available to the user.",
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						config.IDAttribute: schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "The unique identifier of the project.",
-						},
-						"name": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "The name of the project.",
-						},
-						"edition": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "The edition of the project.",
-						},
-						"created_at": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "The timestamp when the project was created.",
-						},
-					},
+					Attributes: newProjectItemSchemaAttributes(projectItemSchemaConfig{
+						computeProjectID: true,
+					}),
 				},
 			},
 		},
@@ -109,13 +87,4 @@ func (d *projectsDataSourceList) Configure(_ context.Context, req datasource.Con
 	}
 
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func toProjectListItem(project management.Project) projectListItem {
-	return projectListItem{
-		ID:        util.UUIDStringValue(project.ProjectID),
-		Name:      types.StringValue(project.Name),
-		Edition:   types.StringValue(string(project.Edition)),
-		CreatedAt: types.StringValue(project.CreatedAt.String()),
-	}
 }

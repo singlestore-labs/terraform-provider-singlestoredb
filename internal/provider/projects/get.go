@@ -34,25 +34,10 @@ func (d *projectDataSourceGet) Metadata(_ context.Context, req datasource.Metada
 func (d *projectDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Retrieve a specific project using its ID with this data source.",
-		Attributes: map[string]schema.Attribute{
-			config.IDAttribute: schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The unique identifier of the project.",
-				Validators:          []validator.String{util.NewUUIDValidator()},
-			},
-			"name": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The name of the project.",
-			},
-			"edition": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The edition of the project.",
-			},
-			"created_at": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The timestamp when the project was created.",
-			},
-		},
+		Attributes: newProjectItemSchemaAttributes(projectItemSchemaConfig{
+			requiredProjectID:   true,
+			projectIDValidators: []validator.String{util.NewUUIDValidator()},
+		}),
 	}
 }
 
