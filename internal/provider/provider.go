@@ -181,6 +181,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
+		projects.NewDataSourceGet,
 	}
 }
 
