@@ -49,6 +49,22 @@ func (uc UpdatableConfig) WithWorkspaceGetDataSource(workspaceName string) Attri
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourceGetName), workspaceName})
 }
 
+func (uc UpdatableConfig) WithWorkspaceIdentityDataSource(workspaceName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourceIdentityName), workspaceName})
+}
+
+func (uc UpdatableConfig) WithWorkspacePrivateConnectionsDataSource(workspaceName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourcePrivateConnectionsName), workspaceName})
+}
+
+func (uc UpdatableConfig) WithWorkspacePrivateConnectionsKaiDataSource(workspaceName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourcePrivateConnectionsKaiName), workspaceName})
+}
+
+func (uc UpdatableConfig) WithWorkspacePrivateConnectionsOutboundAllowListDataSource(workspaceName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourceOutboundAllowListName), workspaceName})
+}
+
 func (uc UpdatableConfig) WithWorkspaceListDataSource(workspaceListName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(workspaces.DataSourceListName), workspaceListName})
 }
