@@ -25,7 +25,8 @@ var (
 	testWorkspaceID      = uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
 	testFlowInstanceID   = uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc")
 	testFlowInstanceName = "my-flow-instance"
-	testFlowEndpoint     = "flow-svc-94a328d2-8c3d-412d-91a0-c32a750673cb.aws-oregon-3.svc.singlestore.com"
+	// Resolvable hostname so waitConditionEndpointReady DNS checks pass in unit tests (mock API).
+	testFlowEndpoint = "example.com"
 )
 
 func newTestWorkspaceGroup() management.WorkspaceGroup {
