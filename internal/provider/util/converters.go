@@ -21,6 +21,22 @@ func MaybeString(s types.String) *string {
 	return Ptr(s.ValueString())
 }
 
+// MaybeNonEmptyString is like MaybeString but treats an empty string as unset (nil).
+// Use for API fields where an empty string is invalid or should mean "omit / server default",
+// e.g. optional admin passwords on create or update.
+func MaybeNonEmptyString(s types.String) *string {
+	if s.IsNull() || s.IsUnknown() {
+		return nil
+	}
+
+	v := s.ValueString()
+	if v == "" {
+		return nil
+	}
+
+	return Ptr(v)
+}
+
 func ToString(s types.String) string {
 	return s.ValueString()
 }

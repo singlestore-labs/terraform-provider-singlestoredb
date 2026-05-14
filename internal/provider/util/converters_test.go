@@ -29,6 +29,15 @@ func TestMaybeString(t *testing.T) {
 	require.Nil(t, util.MaybeString(types.StringUnknown()))
 	s := "bar"
 	require.Equal(t, &s, util.MaybeString(types.StringValue(s)))
+	require.Equal(t, util.Ptr(""), util.MaybeString(types.StringValue("")))
+}
+
+func TestMaybeNonEmptyString(t *testing.T) {
+	require.Nil(t, util.MaybeNonEmptyString(types.StringNull()))
+	require.Nil(t, util.MaybeNonEmptyString(types.StringUnknown()))
+	require.Nil(t, util.MaybeNonEmptyString(types.StringValue("")))
+	s := "bar"
+	require.Equal(t, &s, util.MaybeNonEmptyString(types.StringValue(s)))
 }
 
 func TestToString(t *testing.T) {
