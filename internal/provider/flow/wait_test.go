@@ -1,3 +1,4 @@
+//nolint:testpackage // This test verifies unexported readiness history behavior.
 package flow
 
 import (
@@ -43,7 +44,7 @@ func TestWaitConditionEndpointReadyRequiresConsecutiveSuccessfulReadinessChecks(
 	}
 
 	resolver := &fakeHostResolver{results: results}
-	condition := waitConditionEndpointReadyWithResolver(context.Background(), resolver)
+	condition := waitConditionEndpointReadyWithResolver(t.Context(), resolver)
 	flow := management.Flow{
 		FlowID:   uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc"),
 		Endpoint: ptr(endpoint),

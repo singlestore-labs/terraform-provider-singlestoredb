@@ -17,7 +17,7 @@ import (
 const flowEndpointDNSLookupTimeout = 10 * time.Second
 
 type hostResolver interface {
-	LookupHost(context.Context, string) ([]string, error)
+	LookupHost(ctx context.Context, host string) ([]string, error)
 }
 
 // waitCondition returns nil if it is satisfied.
