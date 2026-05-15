@@ -16,10 +16,6 @@ import (
 // flowEndpointDNSLookupTimeout bounds a single DNS resolution attempt during Flow readiness checks.
 const flowEndpointDNSLookupTimeout = 10 * time.Second
 
-type hostResolver interface {
-	LookupHost(ctx context.Context, host string) ([]string, error)
-}
-
 // waitCondition returns nil if it is satisfied.
 type waitCondition func(management.Flow) error
 
@@ -62,20 +58,14 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 }
 
 func waitConditionEndpointReady(ctx context.Context) waitCondition {
-	return waitConditionEndpointReadyWithResolver(ctx, net.DefaultResolver)
-}
-
-func waitConditionEndpointReadyWithResolver(ctx context.Context, resolver hostResolver) waitCondition {
 	endpointHistory := make([]bool, 0, config.FlowInstanceConsistencyThreshold)
+	resolver := net.DefaultResolver
 
 	return func(f management.Flow) error {
 		hasEndpoint := f.Endpoint != nil && *f.Endpoint != ""
-		recordEndpointReady := func(ready bool) {
-			endpointHistory = append(endpointHistory, ready)
-		}
 
 		if !hasEndpoint {
-			recordEndpointReady(false)
+			endpointHistory = append(endpointHistory, hasEndpoint)
 
 			return fmt.Errorf("flow instance %s endpoint is not yet available", f.FlowID)
 		}
@@ -85,18 +75,18 @@ func waitConditionEndpointReadyWithResolver(ctx context.Context, resolver hostRe
 
 		addrs, err := resolver.LookupHost(lookupCtx, *f.Endpoint)
 		if err != nil {
-			recordEndpointReady(false)
+			endpointHistory = append(endpointHistory, false)
 
 			return fmt.Errorf("flow instance %s endpoint hostname %s does not resolve in DNS yet: %w", f.FlowID, *f.Endpoint, err)
 		}
 
 		if len(addrs) == 0 {
-			recordEndpointReady(false)
+			endpointHistory = append(endpointHistory, false)
 
 			return fmt.Errorf("flow instance %s endpoint hostname %s resolved to no addresses", f.FlowID, *f.Endpoint)
 		}
 
-		recordEndpointReady(true)
+		endpointHistory = append(endpointHistory, hasEndpoint)
 		if !util.CheckLastN(endpointHistory, config.FlowInstanceConsistencyThreshold, true) {
 			return fmt.Errorf("flow instance %s endpoint is available but the readiness check did not pass consistently for %d iterations yet",
 				f.FlowID, config.FlowInstanceConsistencyThreshold,
