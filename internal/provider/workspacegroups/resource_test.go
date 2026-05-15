@@ -1067,7 +1067,7 @@ resource "singlestoredb_workspace_group" "this" {
 	// Ensure cleanup runs even if Terraform doesn't (e.g., the test fails before destroy).
 	// Use a fresh context so cleanup is not canceled with the test context.
 	t.Cleanup(func() {
-		_, _ = apiClient.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(t.Context(), workspaceGroupID,
+		_, _ = apiClient.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(context.Background(), workspaceGroupID, //nolint:usetesting
 			&management.DeleteV1WorkspaceGroupsWorkspaceGroupIDParams{Force: util.Ptr(true)})
 	})
 
