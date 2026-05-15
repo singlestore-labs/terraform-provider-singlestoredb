@@ -138,7 +138,10 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
+				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long. Please note that updates to the admin password might take a brief moment to become effective.`,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(config.AdminPasswordMinLength),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
