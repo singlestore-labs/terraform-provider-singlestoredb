@@ -25,7 +25,8 @@ var (
 	testWorkspaceID      = uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
 	testFlowInstanceID   = uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc")
 	testFlowInstanceName = "my-flow-instance"
-	// Resolvable hostname so waitConditionEndpointReady DNS checks pass in unit tests (mock API).
+	// Flow tests use the mock API but waitConditionEndpointReady still performs real DNS lookups,
+	// so the test runner must be able to resolve example.com.
 	testFlowEndpoint = "example.com"
 )
 
