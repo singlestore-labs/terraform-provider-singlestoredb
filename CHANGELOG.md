@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.1.16 - 2026-05-18
+
+### Fixed
+
+- Fixed a bug where workspace group update resulted in empty password being sent in a patch request, so users were getting the error "password must contain at least 14 characters" (#108).
+
+
 ## v0.1.15 - 2026-04-28
 
 ### Added
