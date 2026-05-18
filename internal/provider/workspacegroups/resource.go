@@ -138,7 +138,10 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Please note that updates to the admin password might take a brief moment to become effective.`,
+				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long. Please note that updates to the admin password might take a brief moment to become effective.`,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(config.AdminPasswordMinLength),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -239,7 +242,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
-		AdminPassword:            util.MaybeString(plan.AdminPassword),
+		AdminPassword:            util.MaybeNonEmptyString(plan.AdminPassword),
 		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
 		Name:                     plan.Name.ValueString(),
@@ -354,6 +357,18 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 }
 
+// workspaceGroupPatchAdminPassword returns a pointer only when the planned admin password
+// differs from the prior state and is non-empty. This avoids PATCH bodies that send an
+// empty adminPassword (JSON "adminPassword":"" is not omitted with omitempty on *string)
+// and avoids re-sending an unchanged password on every update.
+func workspaceGroupPatchAdminPassword(plan, state workspaceGroupResourceModel) *string {
+	if plan.AdminPassword.Equal(state.AdminPassword) {
+		return nil
+	}
+
+	return util.MaybeNonEmptyString(plan.AdminPassword)
+}
+
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *workspaceGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan workspaceGroupResourceModel
@@ -363,10 +378,17 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	var state workspaceGroupResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	id := uuid.MustParse(plan.ID.ValueString())
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
 		management.WorkspaceGroupUpdate{
-			AdminPassword:  util.MaybeString(plan.AdminPassword),
+			AdminPassword:  workspaceGroupPatchAdminPassword(plan, state),
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),

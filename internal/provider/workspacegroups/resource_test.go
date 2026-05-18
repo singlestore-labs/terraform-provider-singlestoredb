@@ -1,6 +1,7 @@
 package workspacegroups_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,9 +14,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -812,4 +816,325 @@ func TestWorkspaceGroupProjectNameMultipleProjectsFound(t *testing.T) {
 			},
 		},
 	})
+}
+
+// TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword reproduces the bug where a workspace
+// group created without an explicit admin_password (server-generated) fails on a subsequent
+// update because the PATCH request sends admin_password="", which the API rejects with
+// "password must contain at least 14 characters".
+func TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword(t *testing.T) {
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	workspaceGroupID := uuid.New()
+	projectID := uuid.New()
+	projectName := config.TestInitialProjectName
+	initialExpiresAt := config.TestInitialWorkspaceGroupExpiresAt
+	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 24).Format(time.RFC3339)
+
+	currentExpiresAt := initialExpiresAt
+	makeWorkspaceGroup := func() management.WorkspaceGroup {
+		return management.WorkspaceGroup{
+			ExpiresAt:         &currentExpiresAt,
+			FirewallRanges:    util.Ptr([]string{config.TestInitialFirewallRange}),
+			Name:              config.TestInitialWorkspaceGroupName,
+			ProjectName:       &projectName,
+			RegionName:        regionsv2[0].RegionName,
+			Provider:          management.CloudProviderAWS,
+			State:             management.WorkspaceGroupStateACTIVE,
+			UpdateWindow:      &management.UpdateWindow{Day: config.TestInitialUpdateWindowDay, Hour: config.TestInitialUpdateWindowHour},
+			WorkspaceGroupID:  workspaceGroupID,
+			DeploymentType:    &defaultDeploymentType,
+			OutboundAllowList: &testOutboundAllowList,
+		}
+	}
+
+	server := newWorkspaceGroupUpdateWithoutAdminPasswordTestServer(t,
+		regionsv2,
+		projectName,
+		projectID,
+		workspaceGroupID,
+		makeWorkspaceGroup,
+		updatedExpiresAt,
+		&currentExpiresAt,
+	)
+	t.Cleanup(server.Close)
+
+	// Build a config without admin_password (server generates one)
+	makeConfig := func(expiresAt string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "this" {
+  name            = %[1]q
+  project_name    = %[2]q
+  firewall_ranges = [%[3]q]
+  expires_at      = %[4]q
+  cloud_provider  = "AWS"
+  region_name     = %[5]q
+}
+`, config.TestInitialWorkspaceGroupName, projectName, config.TestInitialFirewallRange, expiresAt, regionsv2[0].RegionName)
+	}
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: makeConfig(initialExpiresAt),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", initialExpiresAt),
+				),
+			},
+			{
+				// Triggering an update by changing expires_at must not result in an empty
+				// admin_password being sent to the API.
+				Config: makeConfig(updatedExpiresAt),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
+				),
+			},
+		},
+	})
+}
+
+func newWorkspaceGroupUpdateWithoutAdminPasswordTestServer(
+	t *testing.T,
+	regionsv2 []management.RegionV2,
+	projectName string,
+	projectID uuid.UUID,
+	workspaceGroupID uuid.UUID,
+	makeWorkspaceGroup func() management.WorkspaceGroup,
+	updatedExpiresAt string,
+	currentExpiresAt *string,
+) *httptest.Server {
+	t.Helper()
+
+	workspaceGroupPath := fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID)
+	readOnlyHandlers := []func(http.ResponseWriter, *http.Request) bool{
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != pathV2Regions || r.Method != http.MethodGet {
+				return false
+			}
+
+			writeJSONResponse(t, w, regionsv2)
+
+			return true
+		},
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
+				return false
+			}
+
+			writeJSONResponse(t, w, []management.Project{{Name: projectName, ProjectID: projectID}})
+
+			return true
+		},
+		func(w http.ResponseWriter, r *http.Request) bool {
+			if r.URL.Path != workspaceGroupPath || r.Method != http.MethodGet {
+				return false
+			}
+
+			writeJSONResponse(t, w, makeWorkspaceGroup())
+
+			return true
+		},
+	}
+
+	writeHandlers := []func(http.ResponseWriter, *http.Request){
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
+			require.Equal(t, http.MethodPost, r.Method)
+
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+
+			var input management.WorkspaceGroupCreate
+			require.NoError(t, json.Unmarshal(body, &input))
+			require.Nil(t, input.AdminPassword, "Create must not send an empty admin_password when omitted from config")
+
+			writeJSONResponse(t, w, struct {
+				WorkspaceGroupID uuid.UUID
+			}{WorkspaceGroupID: workspaceGroupID})
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, workspaceGroupPath, r.URL.Path)
+			require.Equal(t, http.MethodPatch, r.Method)
+
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+
+			var input management.WorkspaceGroupUpdate
+			require.NoError(t, json.Unmarshal(body, &input))
+			if input.AdminPassword != nil {
+				w.Header().Add("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`password must contain at least 14 characters`))
+
+				return
+			}
+
+			*currentExpiresAt = updatedExpiresAt
+			writeJSONResponse(t, w, struct {
+				WorkspaceGroupID uuid.UUID
+			}{WorkspaceGroupID: workspaceGroupID})
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, workspaceGroupPath, r.URL.Path)
+			require.Equal(t, http.MethodDelete, r.Method)
+
+			writeJSONResponse(t, w, struct {
+				WorkspaceGroupID uuid.UUID
+			}{WorkspaceGroupID: workspaceGroupID})
+		},
+	}
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, h := range readOnlyHandlers {
+			if h(w, r) {
+				return
+			}
+		}
+
+		require.NotEmpty(t, writeHandlers, "unexpected request: %s %s", r.Method, r.URL.Path)
+
+		h := writeHandlers[0]
+		h(w, r)
+		writeHandlers = writeHandlers[1:]
+	}))
+}
+
+func writeJSONResponse(t *testing.T, w http.ResponseWriter, body interface{}) {
+	t.Helper()
+
+	w.Header().Add("Content-Type", "json")
+	_, err := w.Write(testutil.MustJSON(body))
+	require.NoError(t, err)
+}
+
+// TestWorkspaceGroupUpdateWithoutAdminPasswordIntegration is the integration variant of
+// TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword: it creates a workspace group without
+// admin_password, then changes expires_at to force an update, asserting that the real API does
+// not reject the PATCH because of an empty admin_password.
+func TestWorkspaceGroupUpdateWithoutAdminPasswordIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test because go test is run with the flag -short")
+	}
+
+	apiKey := os.Getenv(config.EnvTestAPIKey)
+	require.NotEmpty(t, apiKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
+
+	uniqueName := testutil.GenerateUniqueResourceName("tf-no-admin-pw")
+	initialExpiresAt := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
+	updatedExpiresAt := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration + time.Hour).Format(time.RFC3339)
+
+	makeConfig := func(expiresAt string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "this" {
+  name            = %[1]q
+  project_name    = %[2]q
+  firewall_ranges = [%[3]q]
+  expires_at      = %[4]q
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+}
+`, uniqueName, config.TestInitialProjectName, config.TestInitialFirewallRange, expiresAt)
+	}
+
+	// 1. Create the workspace group directly via the management API, outside Terraform.
+	// Importantly, we do NOT specify admin_password — the server generates one — to mirror
+	// the user-reported scenario where the password is unknown to the Terraform config.
+	apiClient := newWorkspaceGroupAPIClient(t, apiKey)
+	createResp, err := apiClient.PostV1WorkspaceGroupsWithResponse(t.Context(), management.PostV1WorkspaceGroupsJSONRequestBody{
+		Name:           uniqueName,
+		FirewallRanges: []string{config.TestInitialFirewallRange},
+		ExpiresAt:      &initialExpiresAt,
+		Provider:       util.Ptr(management.CloudProviderAWS),
+		RegionName:     util.Ptr("us-east-1"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, createResp.StatusCode(), "create workspace group failed: %s", string(createResp.Body))
+	workspaceGroupID := createResp.JSON200.WorkspaceGroupID
+
+	// Ensure cleanup runs even if Terraform doesn't (e.g., the test fails before destroy).
+	// Use a fresh context so cleanup is not canceled with the test context.
+	t.Cleanup(func() {
+		_, _ = apiClient.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(context.Background(), workspaceGroupID, //nolint:usetesting
+			&management.DeleteV1WorkspaceGroupsWorkspaceGroupIDParams{Force: util.Ptr(true)})
+	})
+
+	// Wait until the API reports the workspace group as ACTIVE before letting Terraform import it.
+	waitWorkspaceGroupActive(t, apiClient, workspaceGroupID)
+
+	t.Setenv("TF_ACC", "on")
+	t.Setenv(config.EnvAPIKey, apiKey)
+
+	f := provider.New("dev")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			config.ProviderName: providerserver.NewProtocol6WithError(f()),
+		},
+		Steps: []resource.TestStep{
+			{
+				// 2. Import the API-created workspace group into Terraform state.
+				// ImportStateVerify is omitted because there's no prior TF apply to compare
+				// against (the resource was created via the management API, not by Terraform).
+				Config:             makeConfig(initialExpiresAt),
+				ResourceName:       "singlestoredb_workspace_group.this",
+				ImportState:        true,
+				ImportStateId:      workspaceGroupID.String(),
+				ImportStatePersist: true,
+			},
+			{
+				// 3. Update the imported workspace group. Triggers a PATCH which, prior to the
+				// fix, sent admin_password="" and was rejected by the API with
+				// "password must contain at least 14 characters".
+				Config: makeConfig(updatedExpiresAt),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
+				),
+			},
+		},
+	})
+}
+
+func newWorkspaceGroupAPIClient(t *testing.T, apiKey string) *management.ClientWithResponses {
+	t.Helper()
+
+	c, err := management.NewClientWithResponses(config.APIServiceURL,
+		management.WithHTTPClient(util.NewHTTPClient()),
+		management.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+
+			return nil
+		}),
+	)
+	require.NoError(t, err)
+
+	return c
+}
+
+func waitWorkspaceGroupActive(t *testing.T, c *management.ClientWithResponses, id management.WorkspaceGroupID) {
+	t.Helper()
+
+	deadline := time.Now().Add(config.WorkspaceGroupCreationTimeout)
+	for time.Now().Before(deadline) {
+		resp, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(t.Context(), id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode(), "get workspace group failed: %s", string(resp.Body))
+		if resp.JSON200.State == management.WorkspaceGroupStateACTIVE {
+			return
+		}
+		time.Sleep(10 * time.Second)
+	}
+	t.Fatalf("workspace group %s did not reach ACTIVE state within timeout", id)
 }

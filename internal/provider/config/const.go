@@ -51,7 +51,8 @@ const (
 	FlowInstanceCreationTimeout = 20 * time.Minute
 	// FlowInstanceConsistencyThreshold is the count of polling iterations where the endpoint should be consistently available.
 	FlowInstanceConsistencyThreshold = 5
-
+	// AdminPasswordMinLength is the minimum length for the admin password.
+	AdminPasswordMinLength = 14
 	// TestIDValue indicates the value of the test only ID field.
 	TestIDValue = "internal"
 	// EnvTestAPIKey is the environmental variable for API key for integration tests.
