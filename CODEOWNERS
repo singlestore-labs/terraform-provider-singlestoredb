@@ -1,0 +1,13 @@
+# Active maintainers: @pmishchenko-ua @noprysk-ua @filipelsilva @tiagoacastro
+
+# Default owners — fall-through for anything not matched below.
+*                                               @pmishchenko-ua @noprysk-ua
+
+/internal/provider/flow/                        @filipelsilva
+/examples/resources/singlestoredb_flow/         @filipelsilva
+/examples/data-sources/singlestoredb_flow/      @filipelsilva
+/examples/data-sources/singlestoredb_flows/     @filipelsilva
+
+/internal/provider/projects/                    @tiagoacastro
+/examples/resources/singlestoredb_project/      @tiagoacastro
+/examples/data-sources/singlestoredb_projects/  @tiagoacastro
