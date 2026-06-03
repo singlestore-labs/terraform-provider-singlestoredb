@@ -14,6 +14,7 @@ import (
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
@@ -369,6 +370,96 @@ func TestFlowInstanceUnknownPlaceholderPreservedOnRead(t *testing.T) {
 				),
 			},
 		},
+	})
+}
+
+func TestFlowFieldAvailable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value *string
+		want  bool
+	}{
+		{name: "nil", value: nil, want: false},
+		{name: "empty", value: util.Ptr(""), want: false},
+		{name: "unknown lowercase", value: util.Ptr("unknown"), want: false},
+		{name: "unknown capitalized", value: util.Ptr("Unknown"), want: false},
+		{name: "unknown uppercase", value: util.Ptr("UNKNOWN"), want: false},
+		{name: "valid", value: util.Ptr("adam_ss_flow_rw"), want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, flow.FlowFieldAvailableForTest(tt.value))
+		})
+	}
+}
+
+func TestToFlowInstanceResourceModel(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.New()
+	priorUserName := "admin"
+	priorDatabaseName := "my_database"
+
+	t.Run("uses API values when available", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			Endpoint:     util.Ptr("new.example.com"),
+			Size:         util.Ptr("F1"),
+			UserName:     util.Ptr("api_user"),
+			DatabaseName: util.Ptr("api_db"),
+		}, &priorUserName, &priorDatabaseName)
+
+		require.Equal(t, "new.example.com", model.Endpoint)
+		require.True(t, model.UserNameSet)
+		require.Equal(t, "api_user", model.UserName)
+		require.True(t, model.DatabaseSet)
+		require.Equal(t, "api_db", model.DatabaseName)
+	})
+
+	t.Run("preserves prior user fields when API returns placeholder", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			Endpoint:     util.Ptr("example.com"),
+			Size:         util.Ptr("F1"),
+			UserName:     util.Ptr("Unknown"),
+			DatabaseName: util.Ptr("unknown"),
+		}, &priorUserName, &priorDatabaseName)
+
+		require.True(t, model.UserNameSet)
+		require.Equal(t, "admin", model.UserName)
+		require.True(t, model.DatabaseSet)
+		require.Equal(t, "my_database", model.DatabaseName)
+	})
+
+	t.Run("leaves user fields unset without prior state", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			UserName:     util.Ptr("Unknown"),
+			DatabaseName: util.Ptr("Unknown"),
+		}, nil, nil)
+
+		require.False(t, model.UserNameSet)
+		require.False(t, model.DatabaseSet)
 	})
 }
 
