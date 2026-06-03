@@ -241,6 +241,19 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
+	appendFlowImmutableFieldPlanErrors(resp, plan, state)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if flowInstanceReplacePlanned(plan, state) {
+		return
+	}
+
+	adoptFlowCreateOnlyPlanFields(ctx, resp, plan, state)
+}
+
+func appendFlowImmutableFieldPlanErrors(resp *resource.ModifyPlanResponse, plan, state *flowInstanceResourceModel) {
 	immutableFields := []struct {
 		name     string
 		planVal  types.String
@@ -261,22 +274,19 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 			)
 		}
 	}
+}
 
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	replacePlanned := !plan.Name.Equal(state.Name) ||
+func flowInstanceReplacePlanned(plan, state *flowInstanceResourceModel) bool {
+	return !plan.Name.Equal(state.Name) ||
 		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
 		!plan.Size.Equal(state.Size)
-	if replacePlanned {
-		return
-	}
+}
 
+func adoptFlowCreateOnlyPlanFields(ctx context.Context, resp *resource.ModifyPlanResponse, plan, state *flowInstanceResourceModel) {
 	// user_name and database_name are set only at create; post-create config changes do not affect the API resource.
 	plan.UserName = state.UserName
 	plan.DatabaseName = state.DatabaseName
-	diags = resp.Plan.Set(ctx, plan)
+	diags := resp.Plan.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
 
