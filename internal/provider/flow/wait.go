@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
@@ -100,5 +101,5 @@ func waitConditionReady() waitCondition {
 func flowFieldAvailable(s *string) bool {
 	value := util.Deref(s)
 
-	return value != "" && value != flowFieldUnknown
+	return value != "" && !strings.EqualFold(value, flowFieldUnknown)
 }
