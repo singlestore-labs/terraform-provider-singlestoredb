@@ -136,7 +136,7 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 	flowID := flowCreateResponse.JSON200.FlowID
 
 	flow, werr := wait(ctx, r.ClientWithResponsesInterface, flowID, config.FlowInstanceCreationTimeout,
-		waitConditionEndpointReady(ctx),
+		waitConditionReady(),
 	)
 	if werr != nil {
 		resp.Diagnostics.AddError(

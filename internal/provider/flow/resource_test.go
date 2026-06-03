@@ -24,10 +24,9 @@ var (
 	testWorkspaceGroupID = uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	testWorkspaceID      = uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
 	testFlowInstanceID   = uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc")
-	testFlowInstanceName = "my-flow-instance"
-	// Flow tests use the mock API but waitConditionEndpointReady still performs real DNS lookups,
-	// so the test runner must be able to resolve example.com.
-	testFlowEndpoint = "example.com"
+	testFlowInstanceName  = "my-flow-instance"
+	testFlowStatusRunning = "Running"
+	testFlowEndpoint      = "example.com"
 )
 
 func newTestWorkspaceGroup() management.WorkspaceGroup {
@@ -69,6 +68,7 @@ func newTestFlowInstance() management.Flow {
 		CreatedAt:    time.Now().UTC(),
 		Endpoint:     util.Ptr(testFlowEndpoint),
 		Size:         util.Ptr("F1"),
+		Status:       util.Ptr(testFlowStatusRunning),
 		UserName:     util.Ptr("admin"),
 		DatabaseName: util.Ptr("my_database"),
 	}
