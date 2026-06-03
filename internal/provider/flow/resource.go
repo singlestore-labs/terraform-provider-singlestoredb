@@ -147,7 +147,9 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	result := toFlowInstanceResourceModel(flow)
+	result := toFlowInstanceResourceModel(flow, nil)
+	result.UserName = plan.UserName
+	result.DatabaseName = plan.DatabaseName
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -179,7 +181,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	result := toFlowInstanceResourceModel(*flow.JSON200)
+	result := toFlowInstanceResourceModel(*flow.JSON200, &state)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -246,8 +248,6 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 	}{
 		{"name", plan.Name, state.Name},
 		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
-		{"user_name", plan.UserName, state.UserName},
-		{"database_name", plan.DatabaseName, state.DatabaseName},
 		{"size", plan.Size, state.Size},
 	}
 
@@ -261,6 +261,23 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 			)
 		}
 	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	replacePlanned := !plan.Name.Equal(state.Name) ||
+		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
+		!plan.Size.Equal(state.Size)
+	if replacePlanned {
+		return
+	}
+
+	// user_name and database_name are set only at create; post-create config changes do not affect the API resource.
+	plan.UserName = state.UserName
+	plan.DatabaseName = state.DatabaseName
+	diags = resp.Plan.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
@@ -268,16 +285,26 @@ func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.Imp
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toFlowInstanceResourceModel(flow management.Flow) flowInstanceResourceModel {
+func toFlowInstanceResourceModel(flow management.Flow, prior *flowInstanceResourceModel) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
-		ID:           util.UUIDStringValue(flow.FlowID),
-		Name:         types.StringValue(flow.Name),
-		WorkspaceID:  util.MaybeUUIDStringValue(flow.WorkspaceID),
-		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
-		Endpoint:     util.MaybeStringValue(flow.Endpoint),
-		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     util.MaybeStringValue(flow.UserName),
-		DatabaseName: util.MaybeStringValue(flow.DatabaseName),
+		ID:          util.UUIDStringValue(flow.FlowID),
+		Name:        types.StringValue(flow.Name),
+		WorkspaceID: util.MaybeUUIDStringValue(flow.WorkspaceID),
+		CreatedAt:   types.StringValue(flow.CreatedAt.String()),
+		Endpoint:    util.MaybeStringValue(flow.Endpoint),
+		Size:        util.MaybeStringValue(flow.Size),
+	}
+
+	if flowFieldAvailable(flow.UserName) {
+		model.UserName = util.MaybeStringValue(flow.UserName)
+	} else if prior != nil && util.IsConfiguredString(prior.UserName) {
+		model.UserName = prior.UserName
+	}
+
+	if flowFieldAvailable(flow.DatabaseName) {
+		model.DatabaseName = util.MaybeStringValue(flow.DatabaseName)
+	} else if prior != nil && util.IsConfiguredString(prior.DatabaseName) {
+		model.DatabaseName = prior.DatabaseName
 	}
 
 	return model
