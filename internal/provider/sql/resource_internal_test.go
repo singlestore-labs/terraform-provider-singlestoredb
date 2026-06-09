@@ -19,12 +19,14 @@ type mockSQLExecutor struct {
 
 func (m *mockSQLExecutor) Exec(_ context.Context, query string) error {
 	m.execStatements = append(m.execStatements, query)
+
 	return m.execErr
 }
 
 func (m *mockSQLExecutor) Query(_ context.Context, query string) ([]map[string]string, error) {
 	m.queryStatement = query
 	if m.queryErr != nil {
+
 		return nil, m.queryErr
 	}
 
@@ -32,6 +34,7 @@ func (m *mockSQLExecutor) Query(_ context.Context, query string) ([]map[string]s
 }
 
 func (m *mockSQLExecutor) Close() error {
+
 	return nil
 }
 
@@ -53,7 +56,7 @@ func TestReadQueryResultsSuccess(t *testing.T) {
 		queryResults: []map[string]string{{"database_name": "my_app_db"}},
 	}
 
-	results, diags := r.readQueryResults(context.Background(), mock, types.StringValue("SHOW DATABASES LIKE 'my_app_db'"))
+	results, diags := r.readQueryResults(t.Context(), mock, types.StringValue("SHOW DATABASES LIKE 'my_app_db'"))
 	require.False(t, diags.HasError())
 	require.Equal(t, "SHOW DATABASES LIKE 'my_app_db'", mock.queryStatement)
 	require.Equal(t, 1, len(results.Elements()))
@@ -65,7 +68,7 @@ func TestReadQueryResultsWarningOnFailure(t *testing.T) {
 	r := &sqlResource{}
 	mock := &mockSQLExecutor{queryErr: errors.New("syntax error")}
 
-	_, diags := r.readQueryResults(context.Background(), mock, types.StringValue("INVALID"))
+	_, diags := r.readQueryResults(t.Context(), mock, types.StringValue("INVALID"))
 	require.Positive(t, diags.WarningsCount())
 	require.False(t, diags.HasError())
 }
@@ -76,7 +79,7 @@ func TestReadQueryResultsEmptyQuery(t *testing.T) {
 	r := &sqlResource{}
 	mock := &mockSQLExecutor{}
 
-	results, diags := r.readQueryResults(context.Background(), mock, types.StringNull())
+	results, diags := r.readQueryResults(t.Context(), mock, types.StringNull())
 	require.False(t, diags.HasError())
 	require.True(t, results.IsNull())
 	require.Empty(t, mock.queryStatement)
