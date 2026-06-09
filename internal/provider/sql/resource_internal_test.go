@@ -26,7 +26,6 @@ func (m *mockSQLExecutor) Exec(_ context.Context, query string) error {
 func (m *mockSQLExecutor) Query(_ context.Context, query string) ([]map[string]string, error) {
 	m.queryStatement = query
 	if m.queryErr != nil {
-
 		return nil, m.queryErr
 	}
 
@@ -34,7 +33,6 @@ func (m *mockSQLExecutor) Query(_ context.Context, query string) ([]map[string]s
 }
 
 func (m *mockSQLExecutor) Close() error {
-
 	return nil
 }
 
