@@ -20,6 +20,13 @@ resource "singlestoredb_workspace" "this" {
   suspended          = false
 }
 
+resource "singlestoredb_sql" "schema" {
+  endpoint = singlestoredb_workspace.this.endpoint
+  password = singlestoredb_workspace_group.example.admin_password
+  execute  = file("${path.module}/schema.sql")
+  revert   = "DROP DATABASE IF EXISTS my_app_db"
+}
+
 output "endpoint" {
   value = singlestoredb_workspace.this.endpoint
 }
@@ -27,21 +34,4 @@ output "endpoint" {
 output "admin_password" {
   value     = singlestoredb_workspace_group.example.admin_password
   sensitive = true
-}
-
-// Note: The 'mysql' client must be installed locally for the following provisioner to work.
-resource "null_resource" "create_table" {
-  triggers = {
-    schema_hash = filesha256("${path.module}/schema.sql")
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-      mysql -u admin \
-        -h ${singlestoredb_workspace.this.endpoint} \
-        -P 3306 --default-auth=mysql_native_password \
-        --password="${singlestoredb_workspace_group.example.admin_password}" \
-        < ${path.module}/schema.sql
-    EOT
-  }
 }
