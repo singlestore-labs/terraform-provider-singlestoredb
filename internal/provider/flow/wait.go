@@ -90,7 +90,7 @@ func waitConditionReady() waitCondition {
 				return fmt.Errorf("flow instance %s database name is not yet available", f.FlowID)
 			}
 
-			return fmt.Errorf("flow instance %s endpoint is not yet ready", f.FlowID)
+			return fmt.Errorf("flow instance %s endpoint is not yet available", f.FlowID)
 		}
 
 		if !util.CheckLastN(readinessHistory, config.FlowInstanceConsistencyThreshold, true) {
