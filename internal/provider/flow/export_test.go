@@ -47,3 +47,29 @@ func ToFlowInstanceResourceModelForTest(flow management.Flow, priorUserName, pri
 
 	return snap
 }
+
+type FlowCreateOnlyPlanFields struct {
+	UserName     types.String
+	DatabaseName types.String
+}
+
+func MergeFlowCreateOnlyPlanFieldsForTest(plan, state FlowCreateOnlyPlanFields) FlowCreateOnlyPlanFields {
+	planModel := flowInstanceResourceModel{
+		UserName:     plan.UserName,
+		DatabaseName: plan.DatabaseName,
+	}
+	stateModel := flowInstanceResourceModel{
+		UserName:     state.UserName,
+		DatabaseName: state.DatabaseName,
+	}
+	mergeFlowCreateOnlyPlanFields(&planModel, &stateModel)
+
+	return FlowCreateOnlyPlanFields{
+		UserName:     planModel.UserName,
+		DatabaseName: planModel.DatabaseName,
+	}
+}
+
+func WaitConditionReadyForTest() func(management.Flow) error {
+	return waitConditionReady()
+}
