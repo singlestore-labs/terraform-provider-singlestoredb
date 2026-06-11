@@ -175,7 +175,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	if flow.JSON200.DeletedAt != nil {
+	if flow.JSON200.DeletedAt != nil || util.Deref(flow.JSON200.Status) == flowStatusDeleted {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
@@ -284,10 +284,19 @@ func flowInstanceReplacePlanned(plan, state *flowInstanceResourceModel) bool {
 
 func adoptFlowCreateOnlyPlanFields(ctx context.Context, resp *resource.ModifyPlanResponse, plan, state *flowInstanceResourceModel) {
 	// user_name and database_name are set only at create; post-create config changes do not affect the API resource.
-	plan.UserName = state.UserName
-	plan.DatabaseName = state.DatabaseName
+	mergeFlowCreateOnlyPlanFields(plan, state)
 	diags := resp.Plan.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
+}
+
+func mergeFlowCreateOnlyPlanFields(plan, state *flowInstanceResourceModel) {
+	if util.IsConfiguredString(state.UserName) {
+		plan.UserName = state.UserName
+	}
+
+	if util.IsConfiguredString(state.DatabaseName) {
+		plan.DatabaseName = state.DatabaseName
+	}
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.

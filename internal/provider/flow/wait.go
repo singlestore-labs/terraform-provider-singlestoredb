@@ -72,7 +72,8 @@ func waitConditionReady() waitCondition {
 	return func(f management.Flow) error {
 		ready := util.Deref(f.Status) == flowStatusRunning &&
 			flowFieldAvailable(f.UserName) &&
-			flowFieldAvailable(f.DatabaseName)
+			flowFieldAvailable(f.DatabaseName) &&
+			util.Deref(f.Endpoint) != ""
 
 		readinessHistory = append(readinessHistory, ready)
 
@@ -85,7 +86,11 @@ func waitConditionReady() waitCondition {
 				return fmt.Errorf("flow instance %s user name is not yet available", f.FlowID)
 			}
 
-			return fmt.Errorf("flow instance %s database name is not yet available", f.FlowID)
+			if !flowFieldAvailable(f.DatabaseName) {
+				return fmt.Errorf("flow instance %s database name is not yet available", f.FlowID)
+			}
+
+			return fmt.Errorf("flow instance %s endpoint is not yet ready", f.FlowID)
 		}
 
 		if !util.CheckLastN(readinessHistory, config.FlowInstanceConsistencyThreshold, true) {
