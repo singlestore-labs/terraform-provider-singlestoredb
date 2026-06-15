@@ -41,10 +41,9 @@ func StatusOK(resp StatusCoder, ierr error,
 		case http.StatusUnauthorized:
 			detail += config.InvalidAPIKeyErrorDetail
 		case http.StatusForbidden:
-			detail += "\n" + config.CreditsErrorDetail + "\n"
-			detail += config.InvalidAPIKeyErrorDetail
+			detail += "\n" + config.CreditsErrorDetail
 		}
-		detail += config.CreateProviderIssueIfNotClearErrorDetail + "\n\nSingleStore client response body: " + MaybeBody(resp)
+		detail += "\n" + config.CreateProviderIssueIfNotClearErrorDetail + "\n\nSingleStore client response body: " + MaybeBody(resp)
 
 		return &SummaryWithDetailError{
 			Summary: fmt.Sprintf("SingleStore API client returned status code %s", http.StatusText(code)),

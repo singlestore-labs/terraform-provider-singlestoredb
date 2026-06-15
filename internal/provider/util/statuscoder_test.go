@@ -40,7 +40,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	}, nil)
 	require.NotNil(t, result)
 	require.Contains(t, result.Detail, config.CreditsErrorDetail)
-	require.Contains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
+	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 
 	result = util.StatusOK(management.GetV1RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
