@@ -37,7 +37,11 @@ func StatusOK(resp StatusCoder, ierr error,
 
 	if code != http.StatusOK {
 		detail := "An unsuccessful status code occurred when calling SingleStore API. "
-		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+		switch code {
+		case http.StatusUnauthorized:
+			detail += config.InvalidAPIKeyErrorDetail
+		case http.StatusForbidden:
+			detail += "\n" + config.CreditsErrorDetail + "\n"
 			detail += config.InvalidAPIKeyErrorDetail
 		}
 		detail += config.CreateProviderIssueIfNotClearErrorDetail + "\n\nSingleStore client response body: " + MaybeBody(resp)
