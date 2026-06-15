@@ -68,18 +68,9 @@ Overrides any global `go.testEnvFile` setting so debug sessions load credentials
 
 ### `.vscode/private.env`
 
-Copy from the example below and set your API key. This file is gitignored.
+Create `.vscode/private.env` (gitignored) and set your API key, for example:
 
-```shell
-cp .vscode/private.env.example .vscode/private.env
-```
-
-`.vscode/private.env.example`:
-
-```
-# Copy to private.env for the "Debug Terraform Provider" launch config.
-# SINGLESTOREDB_API_KEY=your-api-key
-```
+    echo 'SINGLESTOREDB_API_KEY=your-api-key' > .vscode/private.env
 
 ### `.vscode/launch.json`
 
