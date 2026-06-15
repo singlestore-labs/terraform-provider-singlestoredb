@@ -36,10 +36,10 @@ func StatusOK(resp StatusCoder, ierr error,
 	}
 
 	if code != http.StatusOK {
-		detail := "An unsuccessful status code occurred when calling SingleStore API. "
+		detail := "An unsuccessful status code occurred when calling SingleStore API."
 		switch code {
 		case http.StatusUnauthorized:
-			detail += config.InvalidAPIKeyErrorDetail
+			detail += "\n" + config.InvalidAPIKeyErrorDetail
 		case http.StatusForbidden:
 			detail += "\n" + config.CreditsErrorDetail
 		}
