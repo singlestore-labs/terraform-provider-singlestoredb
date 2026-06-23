@@ -23,6 +23,8 @@ To set up the provider, first export the generated API key to the `SINGLESTOREDB
 export SINGLESTOREDB_API_KEY="paste your generated SingleStoreDB API key here"
 ```
 
+SQL resources and data sources (`singlestoredb_sql_execute`, `singlestoredb_sql_query`) use separate workspace credentials. When the `password` attribute is unset, the provider reads from `SINGLESTORE_SQL_USER_PASSWORD` at apply/read/destroy time. This is independent of the Management API key.
+
 Then, to specify the SingleStoreDB provider for use in your Terraform configuration, you will need to add a `required_providers` block. The easiest way to get the correct `required_providers` block is to visit the [SingleStoreDB provider page on the Terraform Registry](https://registry.terraform.io/providers/singlestore-labs/singlestoredb/latest). Click the "USE PROVIDER" button to see and copy the `required_providers` block with the latest version of the provider. Paste this block into your Terraform configuration file.
 
 Here is a general template of how the `required_providers` block and provider block might look in your Terraform configuration:

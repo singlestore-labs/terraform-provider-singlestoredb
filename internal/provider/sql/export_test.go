@@ -17,6 +17,11 @@ func PasswordForStateForTest(attr types.String) types.String {
 	return passwordForState(attr)
 }
 
+// QueryDataSourceIDForTest exposes queryDataSourceID for external tests.
+func QueryDataSourceIDForTest(endpoint, query string, args []string) string {
+	return queryDataSourceID(endpoint, query, args)
+}
+
 // SetHTTPClientFactoryForTest overrides the HTTP client used by NewClient. Returns a restore func.
 func SetHTTPClientFactoryForTest(factory func() *http.Client) func() {
 	prev := httpClientFactory

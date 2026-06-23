@@ -21,7 +21,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-const testWorkspaceEndpoint = "workspace.example.com"
+const (
+	testWorkspaceEndpoint = "workspace.example.com"
+	testAdminPassword     = "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
+)
 
 func withMockDataAPIServer(t *testing.T, handler http.Handler) {
 	t.Helper()
@@ -259,7 +262,7 @@ func TestDataAPIRequestBodyShape(t *testing.T) {
 }
 
 func TestSQLExecuteResourceIntegration(t *testing.T) {
-	adminPassword := "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
+	adminPassword := testAdminPassword
 	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
 
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
@@ -276,6 +279,54 @@ func TestSQLExecuteResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+				),
+			},
+		},
+	})
+}
+
+func TestSQLExecuteDriftIntegration(t *testing.T) {
+	adminPassword := testAdminPassword
+	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
+
+	var workspaceEndpoint string
+
+	integrationConfig := testutil.UpdatableConfig(examples.SQLExecuteResource).
+		WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+		String()
+
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "example",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: integrationConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", func(endpoint string) error {
+						workspaceEndpoint = endpoint
+
+						return nil
+					}),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+				),
+			},
+			{
+				PreConfig: func() {
+					baseURL, err := sql.DataAPIURL(workspaceEndpoint)
+					require.NoError(t, err)
+
+					client := sql.NewClient(baseURL, "admin", adminPassword)
+					_, err = client.Exec(t.Context(), sql.ExecRequest{
+						SQL: "DROP DATABASE IF EXISTS my_app_db",
+					})
+					require.NoError(t, err)
+				},
+				Config:       integrationConfig,
+				RefreshState: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "0"),
 				),
 			},
 		},
