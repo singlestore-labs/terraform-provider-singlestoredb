@@ -3,8 +3,8 @@ package flow
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
@@ -13,8 +13,11 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
-// flowEndpointDNSLookupTimeout bounds a single DNS resolution attempt during Flow readiness checks.
-const flowEndpointDNSLookupTimeout = 10 * time.Second
+const (
+	flowStatusRunning = "Running"
+	flowStatusDeleted = "Deleted"
+	flowFieldUnknown  = "unknown"
+)
 
 // waitCondition returns nil if it is satisfied.
 type waitCondition func(management.Flow) error
@@ -38,6 +41,12 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 			return retry.RetryableError(err)
 		}
 
+		if util.Deref(flow.JSON200.Status) == flowStatusDeleted {
+			err := fmt.Errorf("flow instance %s was deleted; %s", id, config.ContactSupportErrorDetail)
+
+			return retry.NonRetryableError(err)
+		}
+
 		for _, c := range conditions {
 			if err := c(*flow.JSON200); err != nil {
 				return retry.RetryableError(err)
@@ -57,42 +66,45 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 	return result, nil
 }
 
-func waitConditionEndpointReady(ctx context.Context) waitCondition {
-	endpointHistory := make([]bool, 0, config.FlowInstanceConsistencyThreshold)
-	resolver := net.DefaultResolver
+func waitConditionReady() waitCondition {
+	readinessHistory := make([]bool, 0, config.FlowInstanceConsistencyThreshold)
 
 	return func(f management.Flow) error {
-		hasEndpoint := f.Endpoint != nil && *f.Endpoint != ""
+		ready := util.Deref(f.Status) == flowStatusRunning &&
+			flowFieldAvailable(f.UserName) &&
+			flowFieldAvailable(f.DatabaseName) &&
+			util.Deref(f.Endpoint) != ""
 
-		if !hasEndpoint {
-			endpointHistory = append(endpointHistory, hasEndpoint)
+		readinessHistory = append(readinessHistory, ready)
+
+		if !ready {
+			if util.Deref(f.Status) != flowStatusRunning {
+				return fmt.Errorf("flow instance %s status is %q, expected %q", f.FlowID, util.Deref(f.Status), flowStatusRunning)
+			}
+
+			if !flowFieldAvailable(f.UserName) {
+				return fmt.Errorf("flow instance %s user name is not yet available", f.FlowID)
+			}
+
+			if !flowFieldAvailable(f.DatabaseName) {
+				return fmt.Errorf("flow instance %s database name is not yet available", f.FlowID)
+			}
 
 			return fmt.Errorf("flow instance %s endpoint is not yet available", f.FlowID)
 		}
 
-		lookupCtx, cancel := context.WithTimeout(ctx, flowEndpointDNSLookupTimeout)
-		defer cancel()
-
-		addrs, err := resolver.LookupHost(lookupCtx, *f.Endpoint)
-		if err != nil {
-			endpointHistory = append(endpointHistory, false)
-
-			return fmt.Errorf("flow instance %s endpoint hostname %s does not resolve in DNS yet: %w", f.FlowID, *f.Endpoint, err)
-		}
-
-		if len(addrs) == 0 {
-			endpointHistory = append(endpointHistory, false)
-
-			return fmt.Errorf("flow instance %s endpoint hostname %s resolved to no addresses", f.FlowID, *f.Endpoint)
-		}
-
-		endpointHistory = append(endpointHistory, hasEndpoint)
-		if !util.CheckLastN(endpointHistory, config.FlowInstanceConsistencyThreshold, true) {
-			return fmt.Errorf("flow instance %s endpoint is available but the readiness check did not pass consistently for %d iterations yet",
+		if !util.CheckLastN(readinessHistory, config.FlowInstanceConsistencyThreshold, true) {
+			return fmt.Errorf("flow instance %s readiness check did not pass consistently for %d iterations yet",
 				f.FlowID, config.FlowInstanceConsistencyThreshold,
 			)
 		}
 
 		return nil
 	}
+}
+
+func flowFieldAvailable(s *string) bool {
+	value := util.Deref(s)
+
+	return value != "" && !strings.EqualFold(value, flowFieldUnknown)
 }

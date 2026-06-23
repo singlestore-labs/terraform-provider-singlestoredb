@@ -136,7 +136,7 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 	flowID := flowCreateResponse.JSON200.FlowID
 
 	flow, werr := wait(ctx, r.ClientWithResponsesInterface, flowID, config.FlowInstanceCreationTimeout,
-		waitConditionEndpointReady(ctx),
+		waitConditionReady(),
 	)
 	if werr != nil {
 		resp.Diagnostics.AddError(
@@ -147,7 +147,9 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	result := toFlowInstanceResourceModel(flow)
+	result := toFlowInstanceResourceModel(flow, nil)
+	result.UserName = plan.UserName
+	result.DatabaseName = plan.DatabaseName
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -173,13 +175,13 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	if flow.JSON200.DeletedAt != nil {
+	if flow.JSON200.DeletedAt != nil || util.Deref(flow.JSON200.Status) == flowStatusDeleted {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	result := toFlowInstanceResourceModel(*flow.JSON200)
+	result := toFlowInstanceResourceModel(*flow.JSON200, &state)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -239,6 +241,19 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 		return
 	}
 
+	appendFlowImmutableFieldPlanErrors(resp, plan, state)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if flowInstanceReplacePlanned(plan, state) {
+		return
+	}
+
+	adoptFlowCreateOnlyPlanFields(ctx, resp, plan, state)
+}
+
+func appendFlowImmutableFieldPlanErrors(resp *resource.ModifyPlanResponse, plan, state *flowInstanceResourceModel) {
 	immutableFields := []struct {
 		name     string
 		planVal  types.String
@@ -246,8 +261,6 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 	}{
 		{"name", plan.Name, state.Name},
 		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
-		{"user_name", plan.UserName, state.UserName},
-		{"database_name", plan.DatabaseName, state.DatabaseName},
 		{"size", plan.Size, state.Size},
 	}
 
@@ -263,21 +276,54 @@ func (r *flowInstanceResource) ModifyPlan(ctx context.Context, req resource.Modi
 	}
 }
 
+func flowInstanceReplacePlanned(plan, state *flowInstanceResourceModel) bool {
+	return !plan.Name.Equal(state.Name) ||
+		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
+		!plan.Size.Equal(state.Size)
+}
+
+func adoptFlowCreateOnlyPlanFields(ctx context.Context, resp *resource.ModifyPlanResponse, plan, state *flowInstanceResourceModel) {
+	// user_name and database_name are set only at create; post-create config changes do not affect the API resource.
+	mergeFlowCreateOnlyPlanFields(plan, state)
+	diags := resp.Plan.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+}
+
+func mergeFlowCreateOnlyPlanFields(plan, state *flowInstanceResourceModel) {
+	if util.IsConfiguredString(state.UserName) {
+		plan.UserName = state.UserName
+	}
+
+	if util.IsConfiguredString(state.DatabaseName) {
+		plan.DatabaseName = state.DatabaseName
+	}
+}
+
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toFlowInstanceResourceModel(flow management.Flow) flowInstanceResourceModel {
+func toFlowInstanceResourceModel(flow management.Flow, prior *flowInstanceResourceModel) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
-		ID:           util.UUIDStringValue(flow.FlowID),
-		Name:         types.StringValue(flow.Name),
-		WorkspaceID:  util.MaybeUUIDStringValue(flow.WorkspaceID),
-		CreatedAt:    types.StringValue(flow.CreatedAt.String()),
-		Endpoint:     util.MaybeStringValue(flow.Endpoint),
-		Size:         util.MaybeStringValue(flow.Size),
-		UserName:     util.MaybeStringValue(flow.UserName),
-		DatabaseName: util.MaybeStringValue(flow.DatabaseName),
+		ID:          util.UUIDStringValue(flow.FlowID),
+		Name:        types.StringValue(flow.Name),
+		WorkspaceID: util.MaybeUUIDStringValue(flow.WorkspaceID),
+		CreatedAt:   types.StringValue(flow.CreatedAt.String()),
+		Endpoint:    util.MaybeStringValue(flow.Endpoint),
+		Size:        util.MaybeStringValue(flow.Size),
+	}
+
+	if flowFieldAvailable(flow.UserName) {
+		model.UserName = util.MaybeStringValue(flow.UserName)
+	} else if prior != nil && util.IsConfiguredString(prior.UserName) {
+		model.UserName = prior.UserName
+	}
+
+	if flowFieldAvailable(flow.DatabaseName) {
+		model.DatabaseName = util.MaybeStringValue(flow.DatabaseName)
+	} else if prior != nil && util.IsConfiguredString(prior.DatabaseName) {
+		model.DatabaseName = prior.DatabaseName
 	}
 
 	return model

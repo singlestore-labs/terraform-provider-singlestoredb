@@ -48,8 +48,8 @@ const (
 	// PrivateConnectionConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	PrivateConnectionConsistencyThreshold = 5
 	// FlowInstanceCreationTimeout limits the Flow instance creation time.
-	FlowInstanceCreationTimeout = 20 * time.Minute
-	// FlowInstanceConsistencyThreshold is the count of polling iterations where the endpoint should be consistently available.
+	FlowInstanceCreationTimeout = time.Hour
+	// FlowInstanceConsistencyThreshold is the count of polling iterations where the status should consistently be Running.
 	FlowInstanceConsistencyThreshold = 5
 	// AdminPasswordMinLength is the minimum length for the admin password.
 	AdminPasswordMinLength = 14

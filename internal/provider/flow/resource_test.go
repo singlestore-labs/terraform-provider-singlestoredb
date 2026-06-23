@@ -14,6 +14,7 @@ import (
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
@@ -21,13 +22,12 @@ import (
 )
 
 var (
-	testWorkspaceGroupID = uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
-	testWorkspaceID      = uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
-	testFlowInstanceID   = uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc")
-	testFlowInstanceName = "my-flow-instance"
-	// Flow tests use the mock API but waitConditionEndpointReady still performs real DNS lookups,
-	// so the test runner must be able to resolve example.com.
-	testFlowEndpoint = "example.com"
+	testWorkspaceGroupID  = uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	testWorkspaceID       = uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
+	testFlowInstanceID    = uuid.MustParse("a1b2c3d4-5678-9abc-def0-123456789abc")
+	testFlowInstanceName  = "my-flow-instance"
+	testFlowStatusRunning = "Running"
+	testFlowEndpoint      = "example.com"
 )
 
 func newTestWorkspaceGroup() management.WorkspaceGroup {
@@ -69,6 +69,7 @@ func newTestFlowInstance() management.Flow {
 		CreatedAt:    time.Now().UTC(),
 		Endpoint:     util.Ptr(testFlowEndpoint),
 		Size:         util.Ptr("F1"),
+		Status:       util.Ptr(testFlowStatusRunning),
 		UserName:     util.Ptr("admin"),
 		DatabaseName: util.Ptr("my_database"),
 	}
@@ -114,6 +115,14 @@ func newFlowIDResponse() struct {
 func setupCRUDServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
+	server, _ := setupCRUDServerWithFlow(t)
+
+	return server
+}
+
+func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.Flow) {
+	t.Helper()
+
 	workspaceGroup := newTestWorkspaceGroup()
 	workspace := newTestWorkspace()
 	flowInstance := newTestFlowInstance()
@@ -121,7 +130,7 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		createGetHandler(t, strings.Join([]string{"/v1/workspaceGroups", testWorkspaceGroupID.String()}, "/"), workspaceGroup),
 		createGetHandler(t, strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), workspace),
-		createGetHandler(t, strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), flowInstance),
+		createGetHandler(t, strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), &flowInstance),
 	}
 
 	writeRoutes := map[routeKey]func(w http.ResponseWriter){
@@ -179,7 +188,7 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 
 	t.Cleanup(server.Close)
 
-	return server
+	return server, &flowInstance
 }
 
 func TestCRUDFlowInstance(t *testing.T) {
@@ -245,6 +254,212 @@ func TestFlowInstanceImmutableName(t *testing.T) {
 				ExpectError: regexp.MustCompile(`Cannot update name`),
 			},
 		},
+	})
+}
+
+func TestFlowInstanceUserNameConfigDriftDoesNotError(t *testing.T) {
+	server := setupCRUDServer(t)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
+				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("different-user")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
+				),
+			},
+		},
+	})
+}
+
+func TestFlowInstanceReadRefreshesFromAPI(t *testing.T) {
+	server, flowInstance := setupCRUDServerWithFlow(t)
+	const migratedEndpoint = "migrated.example.com"
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "endpoint", testFlowEndpoint),
+				),
+			},
+			{
+				PreConfig: func() {
+					flowInstance.Endpoint = util.Ptr(migratedEndpoint)
+					flowInstance.UserName = util.Ptr("migrated_user")
+					flowInstance.DatabaseName = util.Ptr("migrated_db")
+				},
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "endpoint", migratedEndpoint),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "migrated_user"),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "database_name", "migrated_db"),
+				),
+			},
+		},
+	})
+}
+
+func TestFlowInstanceUnknownPlaceholderPreservedOnRead(t *testing.T) {
+	server, flowInstance := setupCRUDServerWithFlow(t)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "database_name", "my_database"),
+				),
+			},
+			{
+				PreConfig: func() {
+					flowInstance.UserName = util.Ptr("Unknown")
+					flowInstance.DatabaseName = util.Ptr("Unknown")
+				},
+				Config: testutil.UpdatableConfig(examples.FlowResource).
+					WithFlowInstanceResource("this")("name", cty.StringVal(testFlowInstanceName)).
+					WithFlowInstanceResource("this")("user_name", cty.StringVal("admin")).
+					WithFlowInstanceResource("this")("database_name", cty.StringVal("my_database")).
+					WithFlowInstanceResource("this")("size", cty.StringVal("F1")).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "database_name", "my_database"),
+				),
+			},
+		},
+	})
+}
+
+func TestFlowFieldAvailable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value *string
+		want  bool
+	}{
+		{name: "nil", value: nil, want: false},
+		{name: "empty", value: util.Ptr(""), want: false},
+		{name: "unknown lowercase", value: util.Ptr("unknown"), want: false},
+		{name: "unknown capitalized", value: util.Ptr("Unknown"), want: false},
+		{name: "unknown uppercase", value: util.Ptr("UNKNOWN"), want: false},
+		{name: "valid", value: util.Ptr("adam_ss_flow_rw"), want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, flow.FlowFieldAvailableForTest(tt.value))
+		})
+	}
+}
+
+func TestToFlowInstanceResourceModel(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.New()
+	priorUserName := "admin"
+	priorDatabaseName := "my_database"
+
+	t.Run("uses API values when available", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			Endpoint:     util.Ptr("new.example.com"),
+			Size:         util.Ptr("F1"),
+			UserName:     util.Ptr("api_user"),
+			DatabaseName: util.Ptr("api_db"),
+		}, &priorUserName, &priorDatabaseName)
+
+		require.Equal(t, "new.example.com", model.Endpoint)
+		require.True(t, model.UserNameSet)
+		require.Equal(t, "api_user", model.UserName)
+		require.True(t, model.DatabaseSet)
+		require.Equal(t, "api_db", model.DatabaseName)
+	})
+
+	t.Run("preserves prior user fields when API returns placeholder", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			Endpoint:     util.Ptr("example.com"),
+			Size:         util.Ptr("F1"),
+			UserName:     util.Ptr("Unknown"),
+			DatabaseName: util.Ptr("unknown"),
+		}, &priorUserName, &priorDatabaseName)
+
+		require.True(t, model.UserNameSet)
+		require.Equal(t, "admin", model.UserName)
+		require.True(t, model.DatabaseSet)
+		require.Equal(t, "my_database", model.DatabaseName)
+	})
+
+	t.Run("leaves user fields unset without prior state", func(t *testing.T) {
+		t.Parallel()
+
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+			FlowID:       uuid.New(),
+			Name:         "flow",
+			WorkspaceID:  util.Ptr(workspaceID),
+			CreatedAt:    time.Now().UTC(),
+			UserName:     util.Ptr("Unknown"),
+			DatabaseName: util.Ptr("Unknown"),
+		}, nil, nil)
+
+		require.False(t, model.UserNameSet)
+		require.False(t, model.DatabaseSet)
 	})
 }
 
