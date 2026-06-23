@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
-func TestStatusOK(t *testing.T) {
+func TestStatusOK_StatusCodes(t *testing.T) {
 	input := management.GetV1RegionsResponse{
 		Body: []byte("foo-bar-buzz-yes"),
 	}
@@ -26,6 +27,20 @@ func TestStatusOK(t *testing.T) {
 	result = util.StatusOK(nil, ierr)
 	require.NotNil(t, result)
 	require.Contains(t, result.Detail, ierr.Error())
+
+	result = util.StatusOK(management.GetV1RegionsResponse{
+		HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
+	}, nil)
+	require.NotNil(t, result)
+	require.Contains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
+	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
+
+	result = util.StatusOK(management.GetV1RegionsResponse{
+		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
+	}, nil)
+	require.NotNil(t, result)
+	require.Contains(t, result.Detail, config.CreditsErrorDetail)
+	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 
 	result = util.StatusOK(management.GetV1RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
