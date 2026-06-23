@@ -126,6 +126,10 @@ func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) Attribut
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(sql.ResourceName), sqlExecuteName})
 }
 
+func (uc UpdatableConfig) WithSQLQueryDataSource(sqlQueryName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(sql.DataSourceName), sqlQueryName})
+}
+
 // WithAPIKey extends the config with the API key if the key is not empty.
 func (uc UpdatableConfig) WithAPIKey(apiKey string) UpdatableConfig {
 	if apiKey == "" || uc == "" {
