@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
@@ -15,23 +17,11 @@ const (
 	// MaxRequestBodyBytes is the Data API request body size limit.
 	MaxRequestBodyBytes = 1 << 20
 
-	execPath       = "/api/v2/exec"
-	queryRowsPath  = "/api/v2/query/rows"
-	defaultVersion = "dev"
+	execPath      = "/api/v2/exec"
+	queryRowsPath = "/api/v2/query/rows"
 )
 
-var providerVersion = defaultVersion
-
-// SetProviderVersion sets the User-Agent version segment for Data API requests.
-func SetProviderVersion(version string) {
-	if version == "" {
-		providerVersion = defaultVersion
-
-		return
-	}
-
-	providerVersion = version
-}
+var httpClientFactory = util.NewHTTPClient
 
 // Client calls the SingleStore Data API over HTTPS.
 type Client struct {
@@ -69,9 +59,9 @@ type QueryRowsResponse struct {
 // NewClient creates a Data API client for the given base URL and credentials.
 func NewClient(baseURL, username, password string) *Client {
 	return &Client{
-		httpClient: util.NewHTTPClient(),
+		httpClient: httpClientFactory(),
 		baseURL:    baseURL,
-		host:       HostFromDataAPIURL(baseURL),
+		host:       hostFromBaseURL(baseURL),
 		username:   username,
 		password:   password,
 	}
@@ -133,7 +123,6 @@ func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("User-Agent", util.TerraformProviderUserAgent(providerVersion))
 	httpReq.SetBasicAuth(c.username, c.password)
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -156,4 +145,13 @@ func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest)
 	}
 
 	return respBody, nil
+}
+
+func hostFromBaseURL(baseURL string) string {
+	host := strings.TrimPrefix(strings.TrimPrefix(baseURL, "https://"), "http://")
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+
+	return host
 }

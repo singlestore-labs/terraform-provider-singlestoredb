@@ -11,6 +11,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/workspacegroups"
@@ -119,6 +120,10 @@ func (uc UpdatableConfig) WithFlowInstanceResource(flowInstanceName string) Attr
 
 func (uc UpdatableConfig) WithRoleResource(roleName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(roles.RoleResourceName), roleName})
+}
+
+func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(sql.ResourceName), sqlExecuteName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.
