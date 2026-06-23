@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
-	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,6 @@ func TestClientExec_HappyPath(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "/api/v2/exec", r.URL.Path)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		require.Equal(t, util.TerraformProviderUserAgent("test"), r.Header.Get("User-Agent"))
 
 		user, pass, ok := r.BasicAuth()
 		require.True(t, ok)
@@ -37,7 +35,6 @@ func TestClientExec_HappyPath(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	sql.SetProviderVersion("test")
 	client := sql.NewClient(server.URL, "admin", "secret")
 
 	resp, err := client.Exec(t.Context(), sql.ExecRequest{

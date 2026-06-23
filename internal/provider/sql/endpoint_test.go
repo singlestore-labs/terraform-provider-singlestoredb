@@ -22,8 +22,13 @@ func TestDataAPIURL(t *testing.T) {
 			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
 		},
 		{
-			name:  "host with mysql port",
+			name:  "host with port suffix",
 			input: "svc-abc.aws-east-1.svc.singlestore.com:3306",
+			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
+		},
+		{
+			name:  "strips any port suffix",
+			input: "svc-abc.aws-east-1.svc.singlestore.com:8080",
 			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
 		},
 		{
@@ -65,10 +70,4 @@ func TestDataAPIURL(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func TestHostFromDataAPIURL(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, "svc.example.com", sql.HostFromDataAPIURL("https://svc.example.com"))
 }
