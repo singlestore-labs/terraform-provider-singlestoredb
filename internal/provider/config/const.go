@@ -92,6 +92,8 @@ const (
 	ProviderTypeName = "provider"
 	// TestInitialProjectName is the initial project name in the example.
 	TestInitialProjectName = "Standard Project"
+	// EnvSQLUserPassword is the env var for SQL user password / JWT on sql_execute and sql_query.
+	EnvSQLUserPassword = "SINGLESTORE_SQL_USER_PASSWORD" //nolint:gosec
 )
 
 var (

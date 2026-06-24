@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection.
+- New `singlestoredb_sql_query` data source for read-only SQL queries at plan/apply time.
+- `SINGLESTORE_SQL_USER_PASSWORD` environment variable for SQL user password / JWT fallback on SQL resources and data sources.
+
+### Changed
+
+- Rewrote `singlestoredb_workspace_with_sql` example to use `singlestoredb_sql_execute` resources instead of `null_resource` and the `mysql` CLI.
 ## v0.1.16 - 2026-05-18
 
 ### Fixed
