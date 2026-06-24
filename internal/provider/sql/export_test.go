@@ -17,6 +17,11 @@ func PasswordForStateForTest(attr types.String) types.String {
 	return passwordForState(attr)
 }
 
+// PasswordConfiguredInPlanForTest exposes passwordConfiguredInPlan for external tests.
+func PasswordConfiguredInPlanForTest(attr types.String) bool {
+	return passwordConfiguredInPlan(attr)
+}
+
 // QueryDataSourceIDForTest exposes queryDataSourceID for external tests.
 func QueryDataSourceIDForTest(endpoint, query string, args []string) string {
 	return queryDataSourceID(endpoint, query, args)

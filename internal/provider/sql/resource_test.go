@@ -24,6 +24,9 @@ import (
 const (
 	testWorkspaceEndpoint = "workspace.example.com"
 	testAdminPassword     = "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
+
+	dataAPIExecPath  = "/api/v2/exec"
+	dataAPIQueryPath = "/api/v2/query/rows"
 )
 
 func withMockDataAPIServer(t *testing.T, handler http.Handler) {
@@ -99,7 +102,7 @@ func TestSQLExecuteCreateReadDestroy(t *testing.T) {
 		require.NoError(t, err)
 
 		switch r.URL.Path {
-		case "/api/v2/exec":
+		case dataAPIExecPath:
 			execCalls.Add(1)
 			require.Equal(t, http.MethodPost, r.Method)
 
@@ -117,7 +120,7 @@ func TestSQLExecuteCreateReadDestroy(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, err = w.Write([]byte(`{"lastInsertId":7,"rowsAffected":1}`))
 			require.NoError(t, err)
-		case "/api/v2/query/rows":
+		case dataAPIQueryPath:
 			queryCalls.Add(1)
 			require.JSONEq(t, `{"sql":"SHOW DATABASES LIKE ?","args":["my_app_db"]}`, string(body))
 
@@ -164,10 +167,10 @@ func TestSQLExecutePasswordFromEnvNotInState(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v2/exec":
+		case dataAPIExecPath:
 			_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
 			require.NoError(t, err)
-		case "/api/v2/query/rows":
+		case dataAPIQueryPath:
 			_, err := w.Write([]byte(`{"results":[{"rows":[]}]}`))
 			require.NoError(t, err)
 		default:
@@ -236,6 +239,67 @@ resource "singlestoredb_sql_execute" "this" {
 			},
 		},
 	})
+}
+
+func TestSQLExecuteUpdateInPlace(t *testing.T) {
+	var execCalls atomic.Int32
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			execCalls.Add(1)
+			_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":1}`))
+			require.NoError(t, err)
+		case dataAPIQueryPath:
+			_, err := w.Write([]byte(`{"results":[{"rows":[{"Database":"my_app_db"}]}]}`))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	configWithRevert := func(revert string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_sql_execute" "this" {
+  endpoint   = %q
+  username   = "admin"
+  password   = "secret"
+  execute    = "SELECT 1"
+  revert     = %q
+  query      = "SHOW DATABASES LIKE ?"
+  query_args = ["my_app_db"]
+}
+`, testWorkspaceEndpoint, revert)
+	}
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithRevert("SELECT 1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "revert", "SELECT 1"),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+				),
+			},
+			{
+				Config: configWithRevert("SELECT 2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "revert", "SELECT 2"),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.0.Database", "my_app_db"),
+				),
+			},
+		},
+	})
+
+	require.Equal(t, int32(2), execCalls.Load(), "only create and destroy call /exec; in-place update must not run the execute statement")
 }
 
 func TestDataAPIRequestBodyShape(t *testing.T) {
@@ -323,7 +387,6 @@ func TestSQLExecuteDriftIntegration(t *testing.T) {
 					})
 					require.NoError(t, err)
 				},
-				Config:       integrationConfig,
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "0"),

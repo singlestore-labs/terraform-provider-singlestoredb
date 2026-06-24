@@ -90,3 +90,15 @@ func TestInvalidEndpointDiagnostic(t *testing.T) {
 	require.Equal(t, "Invalid workspace SQL endpoint", diag.Summary)
 	require.Equal(t, "bad endpoint", diag.Detail)
 }
+
+func TestErrorMessages(t *testing.T) {
+	t.Parallel()
+
+	apiErr := &sql.APIError{StatusCode: 500, Body: "boom", Host: "svc.example.com"}
+	require.Equal(t, "data api error 500: boom", apiErr.Error())
+
+	require.Equal(t, "sql statement exceeds the data api 1 mb request limit", sql.RequestTooLargeError{}.Error())
+
+	queryErr := &sql.QueryError{Message: "table not found", Host: "svc.example.com"}
+	require.Equal(t, "table not found", queryErr.Error())
+}
