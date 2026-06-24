@@ -118,6 +118,27 @@ func TestClientExec_RequestTooLarge(t *testing.T) {
 	require.ErrorAs(t, err, new(sql.RequestTooLargeError))
 }
 
+func TestClientExec_InBodyErrorOn200(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/v2/exec", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"error":{"code":1142,"message":"DROP command denied to user 'app'"}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	client := sql.NewClient(server.URL, "admin", "secret")
+	_, err := client.Exec(t.Context(), sql.ExecRequest{SQL: "DROP TABLE t"})
+	require.Error(t, err)
+
+	var queryErr *sql.QueryError
+	require.ErrorAs(t, err, &queryErr)
+	require.Equal(t, "DROP command denied to user 'app'", queryErr.Message)
+}
+
 func TestClientQueryRows_HappyPath(t *testing.T) {
 	t.Parallel()
 

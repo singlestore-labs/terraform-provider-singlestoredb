@@ -30,6 +30,35 @@ func TestStringifyRow(t *testing.T) {
 	require.Equal(t, "", got[0]["nilcol"])
 }
 
+func TestStringifyRow_ByteSlice(t *testing.T) {
+	t.Parallel()
+
+	got, err := sql.StringifyRows([]map[string]any{{"blob": []byte("raw bytes")}})
+	require.NoError(t, err)
+	require.Equal(t, "raw bytes", got[0]["blob"])
+}
+
+func TestStringifyRow_FloatAndNested(t *testing.T) {
+	t.Parallel()
+
+	got, err := sql.StringifyRows([]map[string]any{{
+		"price": 3.14,
+		"tags":  []any{"a", "b"},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, "3.14", got[0]["price"])
+	require.Equal(t, `["a","b"]`, got[0]["tags"])
+}
+
+func TestStringifyRow_MarshalError(t *testing.T) {
+	t.Parallel()
+
+	// A channel is not JSON-serializable, exercising the json.Marshal error branch.
+	_, err := sql.StringifyRows([]map[string]any{{"bad": make(chan int)}})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "bad")
+}
+
 func TestStringifyRow_BigIntPrecision(t *testing.T) {
 	t.Parallel()
 
@@ -41,6 +70,17 @@ func TestStringifyRow_BigIntPrecision(t *testing.T) {
 	got, err := sql.StringifyRows([]map[string]any{row})
 	require.NoError(t, err)
 	require.Equal(t, "9223372036854775807", got[0]["id"])
+}
+
+func TestFirstResultSetRows(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, sql.FirstResultSetRowsForTest(nil))
+	require.Nil(t, sql.FirstResultSetRowsForTest(&sql.QueryRowsResponse{}))
+
+	var resp sql.QueryRowsResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"results":[{"rows":[{"a":"1"}]}]}`), &resp))
+	require.Len(t, sql.FirstResultSetRowsForTest(&resp), 1)
 }
 
 func TestStringArgsToAny(t *testing.T) {
