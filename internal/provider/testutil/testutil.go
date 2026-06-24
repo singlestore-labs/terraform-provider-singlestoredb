@@ -78,7 +78,9 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
 	for i, s := range c.Steps {
-		if conf.WorkspaceGroupName != "" {
+		// Steps without a Config (e.g. RefreshState-only steps) reuse the
+		// configuration from the preceding step, so there is nothing to update.
+		if conf.WorkspaceGroupName != "" && s.Config != "" {
 			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
 
 			c.Steps[i].Config = UpdatableConfig(s.Config).

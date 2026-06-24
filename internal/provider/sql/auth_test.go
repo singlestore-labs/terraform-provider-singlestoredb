@@ -41,3 +41,12 @@ func TestPasswordForState(t *testing.T) {
 	require.True(t, sql.PasswordForStateForTest(types.StringValue("secret")).Equal(types.StringValue("secret")))
 	require.True(t, sql.PasswordForStateForTest(types.StringNull()).IsNull())
 }
+
+func TestPasswordConfiguredInPlan(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, sql.PasswordConfiguredInPlanForTest(types.StringValue("secret")))
+	require.False(t, sql.PasswordConfiguredInPlanForTest(types.StringValue("")))
+	require.False(t, sql.PasswordConfiguredInPlanForTest(types.StringNull()))
+	require.False(t, sql.PasswordConfiguredInPlanForTest(types.StringUnknown()))
+}
