@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -300,6 +301,138 @@ resource "singlestoredb_sql_execute" "this" {
 	})
 
 	require.Equal(t, int32(2), execCalls.Load(), "only create and destroy call /exec; in-place update must not run the execute statement")
+}
+
+func TestSQLExecuteDestroySucceedsWhenWorkspaceUnreachable(t *testing.T) {
+	var revertCalls atomic.Int32
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		// The revert statement (run on destroy) gets a 503, simulating a
+		// suspended/deleted workspace. Destroy must still succeed.
+		if r.URL.Path == dataAPIExecPath && strings.Contains(string(body), "DROP DATABASE") {
+			revertCalls.Add(1)
+			w.WriteHeader(http.StatusServiceUnavailable)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			_, err = w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+		default:
+			_, err = w.Write([]byte(`{"results":[{"rows":[]}]}`))
+		}
+		require.NoError(t, err)
+	}))
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{Config: sqlExecuteConfig(testWorkspaceEndpoint)},
+		},
+	})
+
+	require.GreaterOrEqual(t, revertCalls.Load(), int32(1), "destroy should attempt the revert statement")
+}
+
+func TestSQLExecuteCreateFailsWhenQueryFails(t *testing.T) {
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+			require.NoError(t, err)
+		case dataAPIQueryPath:
+			// Read-back query fails with an in-body error. On create this is a
+			// configuration error and must fail the apply (not just warn).
+			_, err := w.Write([]byte(`{"error":{"code":1146,"message":"Table 'missing' doesn't exist"}}`))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      sqlExecuteConfig(testWorkspaceEndpoint),
+				ExpectError: regexp.MustCompile("SQL query failed"),
+			},
+		},
+	})
+}
+
+func TestSQLExecuteUpdatePasswordChange(t *testing.T) {
+	var lastPassword atomic.Value
+	lastPassword.Store("")
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, pass, ok := r.BasicAuth()
+		require.True(t, ok)
+		lastPassword.Store(pass)
+
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+			require.NoError(t, err)
+		case dataAPIQueryPath:
+			_, err := w.Write([]byte(`{"results":[{"rows":[{"Database":"my_app_db"}]}]}`))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	configWithPassword := func(password string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_sql_execute" "this" {
+  endpoint   = %q
+  username   = "admin"
+  password   = %q
+  execute    = "SELECT 1"
+  revert     = "SELECT 1"
+  query      = "SHOW DATABASES LIKE ?"
+  query_args = ["my_app_db"]
+}
+`, testWorkspaceEndpoint, password)
+	}
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithPassword("secret"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "password", "secret"),
+				),
+			},
+			{
+				Config: configWithPassword("rotated"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "password", "rotated"),
+					resource.TestCheckResourceAttrWith("singlestoredb_sql_execute.this", "password", func(string) error {
+						if got := lastPassword.Load().(string); got != "rotated" {
+							return fmt.Errorf("expected rotated password sent to Data API on update, got %q", got)
+						}
+
+						return nil
+					}),
+				),
+			},
+		},
+	})
 }
 
 func TestDataAPIRequestBodyShape(t *testing.T) {

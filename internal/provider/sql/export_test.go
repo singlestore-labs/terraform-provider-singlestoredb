@@ -27,6 +27,11 @@ func QueryDataSourceIDForTest(endpoint, query string, args []string) string {
 	return queryDataSourceID(endpoint, query, args)
 }
 
+// FirstResultSetRowsForTest exposes firstResultSetRows for external tests.
+func FirstResultSetRowsForTest(resp *QueryRowsResponse) []map[string]any {
+	return firstResultSetRows(resp)
+}
+
 // SetHTTPClientFactoryForTest overrides the HTTP client used by NewClient. Returns a restore func.
 func SetHTTPClientFactoryForTest(factory func() *http.Client) func() {
 	prev := httpClientFactory

@@ -39,10 +39,17 @@ type ExecRequest struct {
 	Database string `json:"database,omitempty"`
 }
 
+// apiErrorBody is the in-body error envelope the Data API returns with HTTP 200.
+type apiErrorBody struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 // ExecResponse is the JSON body from /api/v2/exec.
 type ExecResponse struct {
-	LastInsertID int64 `json:"lastInsertId"`
-	RowsAffected int64 `json:"rowsAffected"`
+	LastInsertID int64         `json:"lastInsertId"`
+	RowsAffected int64         `json:"rowsAffected"`
+	Error        *apiErrorBody `json:"error,omitempty"`
 }
 
 // QueryRowsResponse is the JSON body from /api/v2/query/rows.
@@ -50,10 +57,7 @@ type QueryRowsResponse struct {
 	Results []struct {
 		Rows []map[string]any `json:"rows"`
 	} `json:"results"`
-	Error *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
+	Error *apiErrorBody `json:"error,omitempty"`
 }
 
 // NewClient creates a Data API client for the given base URL and credentials.
@@ -77,6 +81,13 @@ func (c *Client) Exec(ctx context.Context, req ExecRequest) (*ExecResponse, erro
 	var result ExecResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("decode exec response: %w", err)
+	}
+
+	if result.Error != nil {
+		return nil, &QueryError{
+			Message: result.Error.Message,
+			Host:    c.host,
+		}
 	}
 
 	return &result, nil

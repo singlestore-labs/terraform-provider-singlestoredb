@@ -89,6 +89,32 @@ func TestSQLQueryHardErrorOnQueryFailure(t *testing.T) {
 	})
 }
 
+func TestSQLQueryMissingCredentials(t *testing.T) {
+	require.NoError(t, os.Unsetenv(config.EnvSQLUserPassword))
+
+	configNoPassword := fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+data "singlestoredb_sql_query" "this" {
+  endpoint = %q
+  username = "admin"
+  query    = "SELECT 1"
+}
+`, testWorkspaceEndpoint)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      configNoPassword,
+				ExpectError: regexp.MustCompile("Missing SQL credentials"),
+			},
+		},
+	})
+}
+
 func TestSQLQueryIDChangesWhenArgsChange(t *testing.T) {
 	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

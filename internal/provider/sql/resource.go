@@ -178,7 +178,7 @@ func (r *sqlExecuteResource) Create(ctx context.Context, req resource.CreateRequ
 	plan.RowsAffected = types.Int64Value(execResp.RowsAffected)
 	plan.Password = passwordForState(plan.Password)
 
-	queryResults, readDiags := r.readQueryFromModel(ctx, client, plan)
+	queryResults, readDiags := r.readQueryFromModel(ctx, client, plan, queryFailureIsError)
 	resp.Diagnostics.Append(readDiags...)
 	plan.QueryResults = queryResults
 
@@ -213,7 +213,7 @@ func (r *sqlExecuteResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	queryResults, readDiags := r.readQueryFromModel(ctx, client, state)
+	queryResults, readDiags := r.readQueryFromModel(ctx, client, state, queryFailureIsWarning)
 	resp.Diagnostics.Append(readDiags...)
 	state.QueryResults = queryResults
 
@@ -252,7 +252,7 @@ func (r *sqlExecuteResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	queryResults, readDiags := r.readQueryFromModel(ctx, client, state)
+	queryResults, readDiags := r.readQueryFromModel(ctx, client, state, queryFailureIsError)
 	resp.Diagnostics.Append(readDiags...)
 	state.QueryResults = queryResults
 
@@ -285,6 +285,11 @@ func (r *sqlExecuteResource) Delete(ctx context.Context, req resource.DeleteRequ
 		Database: state.Database.ValueString(),
 	})
 	if err != nil {
+		// Deliberate trade-off: when the workspace is unreachable we let destroy
+		// succeed so a deleted/suspended workspace does not wedge `terraform destroy`.
+		// IsUnreachable also matches transient network failures, so a blip here can
+		// drop the resource from state without running revert. Surfacing it would
+		// block destroy of a genuinely-gone workspace, which is the worse failure.
 		if IsUnreachable(err) {
 			return
 		}
@@ -348,7 +353,17 @@ func modifyPlanQueryChanged(ctx context.Context, plan, state sqlExecuteResourceM
 		executeArgsDiffer(ctx, state.QueryArgs, plan.QueryArgs)
 }
 
-func (r *sqlExecuteResource) readQueryFromModel(ctx context.Context, client *Client, model sqlExecuteResourceModel) (types.List, diag.Diagnostics) {
+// queryFailureMode controls how a failed read-back query surfaces. On create and
+// update a broken query is a configuration error; on read it is treated as drift
+// (a warning) so refresh does not hard-fail when the workspace is reachable.
+type queryFailureMode bool
+
+const (
+	queryFailureIsError   queryFailureMode = false
+	queryFailureIsWarning queryFailureMode = true
+)
+
+func (r *sqlExecuteResource) readQueryFromModel(ctx context.Context, client *Client, model sqlExecuteResourceModel, onFailure queryFailureMode) (types.List, diag.Diagnostics) {
 	if model.Query.IsNull() || model.Query.ValueString() == "" {
 		return EmptyQueryResults(), nil
 	}
@@ -358,10 +373,10 @@ func (r *sqlExecuteResource) readQueryFromModel(ctx context.Context, client *Cli
 		return EmptyQueryResults(), diags
 	}
 
-	return readQuery(ctx, client, model.Database.ValueString(), model.Query.ValueString(), StringArgsToAny(queryArgs))
+	return readQuery(ctx, client, model.Database.ValueString(), model.Query.ValueString(), StringArgsToAny(queryArgs), onFailure)
 }
 
-func readQuery(ctx context.Context, client *Client, database, query string, queryArgs []any) (types.List, diag.Diagnostics) {
+func readQuery(ctx context.Context, client *Client, database, query string, queryArgs []any, onFailure queryFailureMode) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	resp, err := client.QueryRows(ctx, ExecRequest{
@@ -371,7 +386,11 @@ func readQuery(ctx context.Context, client *Client, database, query string, quer
 	})
 	if err != nil {
 		serr := DiagnosticFromError(err)
-		diags.AddWarning(serr.Summary, serr.Detail)
+		if onFailure == queryFailureIsWarning {
+			diags.AddWarning(serr.Summary, serr.Detail)
+		} else {
+			diags.AddError(serr.Summary, serr.Detail)
+		}
 
 		return EmptyQueryResults(), diags
 	}
