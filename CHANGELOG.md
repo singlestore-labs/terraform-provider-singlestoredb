@@ -2,12 +2,22 @@
 
 ## Unreleased
 
+## v0.1.17 - 2026-07-01
+
+### Fixed
+
+- Fixed a bug where Flow instances would report erroneous data in the plan (#112).
+- Fixed a bug where Flow instances would report as ready when they were not (#112).
+
+### Changed
+
+- Updated 403 response to mention credits where applicable (#117).
+
 ## v0.1.16 - 2026-05-18
 
 ### Fixed
 
 - Fixed a bug where workspace group update resulted in empty password being sent in a patch request, so users were getting the error "password must contain at least 14 characters" (#108).
-
 
 ## v0.1.15 - 2026-04-28
 
