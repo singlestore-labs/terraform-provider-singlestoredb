@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Fixed a panic (nil pointer dereference) when updating a `singlestoredb_private_connection` and the Management API returned a private connection with a null `allow_list` while waiting for the update to converge.
+
 ## v0.1.17 - 2026-07-01
 
 ### Fixed
