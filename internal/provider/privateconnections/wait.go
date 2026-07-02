@@ -67,12 +67,7 @@ func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithRes
 func waitConditionAllowList(desiredAllowList string) func(management.PrivateConnection) error {
 	return func(c management.PrivateConnection) error {
 		if c.AllowList == nil || *c.AllowList != desiredAllowList {
-			currentAllowList := "<nil>"
-			if c.AllowList != nil {
-				currentAllowList = *c.AllowList
-			}
-
-			return fmt.Errorf("private connection %s allow_list is %s, but should be %s", c.PrivateConnectionID, currentAllowList, desiredAllowList)
+			return fmt.Errorf("private connection %s allow_list is %s, but should be %s", c.PrivateConnectionID, util.Deref(c.AllowList), desiredAllowList)
 		}
 
 		return nil
