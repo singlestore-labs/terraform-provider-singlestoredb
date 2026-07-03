@@ -71,8 +71,8 @@ output "database_exists" {
 
 ### Optional
 
-- `database` (String) Context database for execute, revert, and query.
-- `execute_args` (List of String, Sensitive) Positional arguments for `?` placeholders in `execute`.
+- `database` (String) Context database for execute, revert, and query. Changing this value forces replacement so revert runs against the same database as execute.
+- `execute_args` (List of String, Sensitive) Positional arguments for `?` placeholders in `execute`. Changing this value forces replacement.
 - `password` (String, Sensitive) SQL user password or JWT when `username` is `*`. Falls back to `SINGLESTORE_SQL_USER_PASSWORD` when unset.
 - `query` (String) Optional read-back SQL. Re-executed on every read; results exposed as `query_results`.
 - `query_args` (List of String) Positional arguments for `?` placeholders in `query`.
