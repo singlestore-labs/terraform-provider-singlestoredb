@@ -6,14 +6,14 @@ provider "singlestoredb" {
 
 variable "app_user_password" {
   type        = string
-  default     = "password123"
+  default     = "password193!SomethingElse"
   sensitive   = true
   description = "Password for the application SQL user."
 }
 
 variable "app_readonly_password" {
   type        = string
-  default     = "readonly123"
+  default     = "readonly193!SomethingElse"
   sensitive   = true
   description = "Password for the read-only SQL user."
 }
