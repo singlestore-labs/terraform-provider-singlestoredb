@@ -1,7 +1,9 @@
 package sql_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 
@@ -52,6 +54,17 @@ func TestDiagnosticFromError_QueryInBody(t *testing.T) {
 	require.Equal(t, "table not found", diag.Detail)
 }
 
+func TestDiagnosticFromError_ExecInBody(t *testing.T) {
+	t.Parallel()
+
+	// An in-body error from /exec must be labeled like an HTTP exec failure,
+	// not "SQL query failed".
+	diag := sql.DiagnosticFromError(&sql.ExecError{Message: "duplicate key"})
+	require.NotNil(t, diag)
+	require.Equal(t, "SQL execution failed", diag.Summary)
+	require.Equal(t, "duplicate key", diag.Detail)
+}
+
 func TestDiagnosticFromError_Unreachable503(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +94,19 @@ func TestIsUnreachable(t *testing.T) {
 	require.True(t, sql.IsUnreachable(errors.New("dial tcp: connection refused")))
 	require.False(t, sql.IsUnreachable(&sql.APIError{StatusCode: 401}))
 	require.False(t, sql.IsUnreachable(nil))
+
+	// A dial failure means the workspace could not be reached.
+	dialErr := &net.OpError{Op: "dial", Err: errors.New("connect: connection refused")}
+	require.True(t, sql.IsUnreachable(dialErr))
+
+	// Read/write/handshake failures happen against a reachable server and must
+	// not be treated as unreachable (which would skip revert on destroy).
+	readErr := &net.OpError{Op: "read", Err: errors.New("connection reset by peer")}
+	require.False(t, sql.IsUnreachable(readErr))
+
+	// A canceled context is not a workspace-unreachable condition.
+	require.False(t, sql.IsUnreachable(context.Canceled))
+	require.False(t, sql.IsUnreachable(fmt.Errorf("exec: %w", context.Canceled)))
 }
 
 func TestInvalidEndpointDiagnostic(t *testing.T) {
@@ -101,4 +127,7 @@ func TestErrorMessages(t *testing.T) {
 
 	queryErr := &sql.QueryError{Message: "table not found", Host: "svc.example.com"}
 	require.Equal(t, "table not found", queryErr.Error())
+
+	execErr := &sql.ExecError{Message: "duplicate key", Host: "svc.example.com"}
+	require.Equal(t, "duplicate key", execErr.Error())
 }
