@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -38,6 +39,19 @@ func (e *QueryError) Error() string {
 	return e.Message
 }
 
+// ExecError is returned when /exec responds with HTTP 200 but an in-body error field.
+// It mirrors the HTTP 4xx exec failure so execute/revert statements get a
+// consistent "SQL execution failed" diagnostic regardless of how the Data API
+// reports the failure.
+type ExecError struct {
+	Message string
+	Host    string
+}
+
+func (e *ExecError) Error() string {
+	return e.Message
+}
+
 // DiagnosticFromError maps Data API client errors to provider diagnostics.
 func DiagnosticFromError(err error) *util.SummaryWithDetailError {
 	if err == nil {
@@ -49,6 +63,14 @@ func DiagnosticFromError(err error) *util.SummaryWithDetailError {
 		return &util.SummaryWithDetailError{
 			Summary: "SQL statement exceeds the Data API 1 MB request limit",
 			Detail:  "Shorten the statement or split across multiple singlestoredb_sql_execute resources.",
+		}
+	}
+
+	var execErr *ExecError
+	if errors.As(err, &execErr) {
+		return &util.SummaryWithDetailError{
+			Summary: "SQL execution failed",
+			Detail:  execErr.Message,
 		}
 	}
 
@@ -127,9 +149,29 @@ func IsUnreachable(err error) bool {
 		return false
 	}
 
-	var apiErr *APIError
-	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusServiceUnavailable {
+	// A canceled context means the caller aborted (e.g. Terraform is shutting
+	// down), not that the workspace is gone; do not skip revert for it.
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	if isUnreachableNetworkError(err) {
 		return true
+	}
+
+	msg := strings.ToLower(err.Error())
+
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "i/o timeout")
+}
+
+// isUnreachableNetworkError reports whether err is a typed error that indicates
+// the workspace could not be reached.
+func isUnreachableNetworkError(err error) bool {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode == http.StatusServiceUnavailable
 	}
 
 	var netErr net.Error
@@ -142,16 +184,13 @@ func IsUnreachable(err error) bool {
 		return true
 	}
 
+	// Only connection-establishment (dial) failures indicate the workspace is
+	// unreachable. TLS handshake errors, abrupt EOFs, and read/write failures
+	// can occur against a reachable server, so they must not silently skip
+	// revert and drop the resource from state.
 	var opErr *net.OpError
-	if errors.As(err, &opErr) {
-		return true
-	}
 
-	msg := strings.ToLower(err.Error())
-
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "i/o timeout")
+	return errors.As(err, &opErr) && opErr.Op == "dial"
 }
 
 func unreachableHost(err error) string {

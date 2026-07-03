@@ -134,9 +134,11 @@ func TestClientExec_InBodyErrorOn200(t *testing.T) {
 	_, err := client.Exec(t.Context(), sql.ExecRequest{SQL: "DROP TABLE t"})
 	require.Error(t, err)
 
-	var queryErr *sql.QueryError
-	require.ErrorAs(t, err, &queryErr)
-	require.Equal(t, "DROP command denied to user 'app'", queryErr.Message)
+	// An in-body error from /exec must surface as an ExecError so it is labeled
+	// "SQL execution failed" rather than "SQL query failed".
+	var execErr *sql.ExecError
+	require.ErrorAs(t, err, &execErr)
+	require.Equal(t, "DROP command denied to user 'app'", execErr.Message)
 }
 
 func TestClientQueryRows_HappyPath(t *testing.T) {

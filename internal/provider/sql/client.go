@@ -84,7 +84,7 @@ func (c *Client) Exec(ctx context.Context, req ExecRequest) (*ExecResponse, erro
 	}
 
 	if result.Error != nil {
-		return nil, &QueryError{
+		return nil, &ExecError{
 			Message: result.Error.Message,
 			Host:    c.host,
 		}
