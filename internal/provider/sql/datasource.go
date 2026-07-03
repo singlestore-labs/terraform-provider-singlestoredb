@@ -144,6 +144,13 @@ func (d *sqlQueryDataSource) Read(ctx context.Context, req datasource.ReadReques
 }
 
 func queryDataSourceID(endpoint, query string, args []string) string {
+	// Hash the normalized endpoint the client actually talks to so equivalent
+	// inputs (e.g. "host" vs "host:3306") do not churn the ID and cause spurious
+	// diffs. Fall back to the raw value if normalization fails.
+	if normalized, err := DataAPIURL(endpoint); err == nil {
+		endpoint = normalized
+	}
+
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
 		argsJSON = []byte("null")
