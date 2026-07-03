@@ -38,8 +38,3 @@ func passwordForState(attr types.String) types.String {
 
 	return types.StringNull()
 }
-
-// passwordConfiguredInPlan reports whether the user set password explicitly in config.
-func passwordConfiguredInPlan(attr types.String) bool {
-	return !attr.IsNull() && !attr.IsUnknown() && attr.ValueString() != ""
-}

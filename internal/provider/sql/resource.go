@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -85,18 +86,28 @@ func (r *sqlExecuteResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				MarkdownDescription: fmt.Sprintf("SQL user password or JWT when `username` is `*`. Falls back to `%s` when unset.", config.EnvSQLUserPassword),
 			},
 			"database": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "Context database for execute, revert, and query.",
+				Optional: true,
+				MarkdownDescription: "Context database for execute, revert, and query. " +
+					"Changing this value forces replacement so revert runs against the same database as execute.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"execute": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "SQL statement run on create. Changing this value forces replacement.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"execute_args": schema.ListAttribute{
 				Optional:            true,
 				Sensitive:           true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "Positional arguments for `?` placeholders in `execute`.",
+				MarkdownDescription: "Positional arguments for `?` placeholders in `execute`. Changing this value forces replacement.",
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.RequiresReplace(),
+				},
 			},
 			"revert": schema.StringAttribute{
 				Required:            true,
@@ -177,9 +188,21 @@ func (r *sqlExecuteResource) Create(ctx context.Context, req resource.CreateRequ
 	plan.LastInsertID = types.Int64Value(execResp.LastInsertID)
 	plan.RowsAffected = types.Int64Value(execResp.RowsAffected)
 	plan.Password = passwordForState(plan.Password)
+	plan.QueryResults = EmptyQueryResults()
+
+	// Persist the executed resource before running the optional read-back query.
+	// execute has already mutated the workspace, so a query failure must not
+	// orphan those objects: saving state first lets a later destroy run revert.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	queryResults, readDiags := r.readQueryFromModel(ctx, client, plan, queryFailureIsError)
 	resp.Diagnostics.Append(readDiags...)
+	if readDiags.HasError() {
+		return
+	}
 	plan.QueryResults = queryResults
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -229,9 +252,10 @@ func (r *sqlExecuteResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	if passwordConfiguredInPlan(plan.Password) {
-		state.Password = plan.Password
-	}
+	// Mirror create: persist an explicit password but never persist an
+	// env-sourced one. Assigning unconditionally lets users clear password to
+	// switch back to the SINGLESTORE_SQL_USER_PASSWORD fallback.
+	state.Password = passwordForState(plan.Password)
 
 	state.Database = plan.Database
 	state.Revert = plan.Revert
@@ -320,32 +344,13 @@ func (r *sqlExecuteResource) ModifyPlan(ctx context.Context, req resource.Modify
 		return
 	}
 
-	resp.RequiresReplace = append(resp.RequiresReplace, modifyPlanExecuteReplacement(ctx, plan, state, &resp.Diagnostics)...)
-
+	// Replacement on execute/execute_args/database changes is enforced by the
+	// RequiresReplace plan modifiers on those attributes so Terraform can
+	// schedule a normal destroy-and-recreate (revert runs against the original
+	// database) in a single apply.
 	if modifyPlanQueryChanged(ctx, plan, state) {
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("query_results"), types.ListUnknown(QueryResultsElementType))...)
 	}
-}
-
-func modifyPlanExecuteReplacement(ctx context.Context, plan, state sqlExecuteResourceModel, diags *diag.Diagnostics) []path.Path {
-	executeChanged := !state.Execute.IsNull() && state.Execute.ValueString() != "" &&
-		plan.Execute.ValueString() != state.Execute.ValueString()
-	executeArgsChanged := executeArgsDiffer(ctx, state.ExecuteArgs, plan.ExecuteArgs)
-	if !executeChanged && !executeArgsChanged {
-		return nil
-	}
-
-	diags.AddError(
-		"Execute statement change requires replacement",
-		"Changing execute or execute_args forces resource replacement. Update revert accordingly.",
-	)
-
-	requiresReplace := []path.Path{path.Root("execute")}
-	if executeArgsChanged {
-		requiresReplace = append(requiresReplace, path.Root("execute_args"))
-	}
-
-	return requiresReplace
 }
 
 func modifyPlanQueryChanged(ctx context.Context, plan, state sqlExecuteResourceModel) bool {

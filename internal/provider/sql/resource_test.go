@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -209,9 +210,18 @@ resource "singlestoredb_sql_execute" "this" {
 }
 
 func TestSQLExecutePlanReplacementOnExecuteChange(t *testing.T) {
+	var sawExecuteSelect2 atomic.Bool
+
 	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if r.URL.Path == dataAPIExecPath && strings.Contains(string(body), "SELECT 2") {
+			sawExecuteSelect2.Store(true)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+		_, err = w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
 		require.NoError(t, err)
 	}))
 
@@ -235,11 +245,17 @@ resource "singlestoredb_sql_execute" "this" {
 		Steps: []resource.TestStep{
 			{Config: baseConfig},
 			{
-				Config:      updatedConfig,
-				ExpectError: regexp.MustCompile("Execute statement change requires replacement"),
+				// Changing execute must force replacement (destroy + recreate) in
+				// a single apply, not fail planning.
+				Config: updatedConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "execute", "SELECT 2"),
+				),
 			},
 		},
 	})
+
+	require.True(t, sawExecuteSelect2.Load(), "replacement should run the new execute statement")
 }
 
 func TestSQLExecuteUpdateInPlace(t *testing.T) {
@@ -301,6 +317,82 @@ resource "singlestoredb_sql_execute" "this" {
 	})
 
 	require.Equal(t, int32(2), execCalls.Load(), "only create and destroy call /exec; in-place update must not run the execute statement")
+}
+
+func TestSQLExecuteReplacementOnDatabaseChange(t *testing.T) {
+	type execCall struct {
+		SQL      string `json:"sql"`
+		Database string `json:"database"`
+	}
+
+	var mu sync.Mutex
+	var execs []execCall
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			var call execCall
+			require.NoError(t, json.Unmarshal(body, &call))
+			mu.Lock()
+			execs = append(execs, call)
+			mu.Unlock()
+			_, err = w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+		default:
+			_, err = w.Write([]byte(`{"results":[{"rows":[]}]}`))
+		}
+		require.NoError(t, err)
+	}))
+
+	configWithDatabase := func(database string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_sql_execute" "this" {
+  endpoint = %q
+  username = "admin"
+  password = "secret"
+  database = %q
+  execute  = "CREATE TABLE t (id INT)"
+  revert   = "DROP TABLE t"
+}
+`, testWorkspaceEndpoint, database)
+	}
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{Config: configWithDatabase("db1")},
+			{
+				Config: configWithDatabase("db2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "database", "db2"),
+				),
+			},
+		},
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// On the database change, replacement must run revert against the original
+	// database (db1) and re-run execute against the new database (db2).
+	var revertOnDB1, executeOnDB2 bool
+	for _, c := range execs {
+		if strings.Contains(c.SQL, "DROP TABLE") && c.Database == "db1" {
+			revertOnDB1 = true
+		}
+		if strings.Contains(c.SQL, "CREATE TABLE") && c.Database == "db2" {
+			executeOnDB2 = true
+		}
+	}
+	require.True(t, revertOnDB1, "revert must run against the original database on replacement; got calls: %+v", execs)
+	require.True(t, executeOnDB2, "execute must re-run against the new database on replacement; got calls: %+v", execs)
 }
 
 func TestSQLExecuteDestroySucceedsWhenWorkspaceUnreachable(t *testing.T) {
