@@ -51,6 +51,26 @@ func TestDataAPIURL(t *testing.T) {
 			input:   "https://svc-abc.aws-east-1.svc.singlestore.com",
 			wantErr: "not a URL with a scheme",
 		},
+		{
+			name:    "path suffix",
+			input:   "svc-abc.aws-east-1.svc.singlestore.com/foo",
+			wantErr: "without a path",
+		},
+		{
+			name:    "query suffix",
+			input:   "svc-abc.aws-east-1.svc.singlestore.com?a=b",
+			wantErr: "without a path",
+		},
+		{
+			name:    "embedded credentials",
+			input:   "user@svc-abc.aws-east-1.svc.singlestore.com",
+			wantErr: "without a path",
+		},
+		{
+			name:    "non-numeric port",
+			input:   "svc-abc.aws-east-1.svc.singlestore.com:abc",
+			wantErr: "invalid port",
+		},
 	}
 
 	for _, tt := range tests {
