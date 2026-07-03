@@ -61,7 +61,7 @@ func (rt redirectTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	return http.DefaultTransport.RoundTrip(cloned)
 }
 
-func sqlExecuteConfig(endpoint string) string {
+func sqlExecuteConfig() string {
 	return fmt.Sprintf(`
 provider "singlestoredb" {
 }
@@ -76,10 +76,10 @@ resource "singlestoredb_sql_execute" "this" {
   query        = "SHOW DATABASES LIKE ?"
   query_args   = ["my_app_db"]
 }
-`, endpoint)
+`, testWorkspaceEndpoint)
 }
 
-func minimalSQLExecuteConfig(endpoint string) string {
+func minimalSQLExecuteConfig() string {
 	return fmt.Sprintf(`
 provider "singlestoredb" {
 }
@@ -91,7 +91,7 @@ resource "singlestoredb_sql_execute" "this" {
   execute  = "SELECT 1"
   revert   = "SELECT 1"
 }
-`, endpoint)
+`, testWorkspaceEndpoint)
 }
 
 func TestSQLExecuteCreateReadDestroy(t *testing.T) {
@@ -138,7 +138,7 @@ func TestSQLExecuteCreateReadDestroy(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: sqlExecuteConfig(testWorkspaceEndpoint),
+				Config: sqlExecuteConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "last_insert_id", "7"),
@@ -215,7 +215,7 @@ func TestSQLExecutePlanReplacementOnExecuteChange(t *testing.T) {
 		require.NoError(t, err)
 	}))
 
-	baseConfig := minimalSQLExecuteConfig(testWorkspaceEndpoint)
+	baseConfig := minimalSQLExecuteConfig()
 	updatedConfig := fmt.Sprintf(`
 provider "singlestoredb" {
 }
@@ -333,11 +333,128 @@ func TestSQLExecuteDestroySucceedsWhenWorkspaceUnreachable(t *testing.T) {
 		APIKey: testutil.UnusedAPIKey,
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
-			{Config: sqlExecuteConfig(testWorkspaceEndpoint)},
+			{Config: sqlExecuteConfig()},
 		},
 	})
 
 	require.GreaterOrEqual(t, revertCalls.Load(), int32(1), "destroy should attempt the revert statement")
+}
+
+func TestSQLExecuteDestroyFailsWhenRevertSQLError(t *testing.T) {
+	var revertCalls atomic.Int32
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		if r.URL.Path == dataAPIExecPath && strings.Contains(string(body), "DROP DATABASE") {
+			if revertCalls.Add(1) == 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, err = w.Write([]byte("cannot drop protected database"))
+				require.NoError(t, err)
+
+				return
+			}
+
+			_, err = w.Write([]byte(`{"lastInsertId":0,"rowsAffected":0}`))
+			require.NoError(t, err)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			_, err = w.Write([]byte(`{"lastInsertId":0,"rowsAffected":1}`))
+		case dataAPIQueryPath:
+			_, err = w.Write([]byte(`{"results":[{"rows":[{"Database":"my_app_db"}]}]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+		require.NoError(t, err)
+	}))
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: sqlExecuteConfig(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
+				),
+			},
+			{
+				Config:      sqlExecuteConfig(),
+				Destroy:     true,
+				ExpectError: regexp.MustCompile("SQL execution failed"),
+			},
+		},
+	})
+
+	require.Equal(t, int32(2), revertCalls.Load(), "expected one failed revert during destroy step and one successful post-test cleanup")
+}
+
+func TestSQLExecuteUpdateFailsWhenQueryFails(t *testing.T) {
+	var failQuery atomic.Bool
+
+	withMockDataAPIServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case dataAPIExecPath:
+			_, err := w.Write([]byte(`{"lastInsertId":0,"rowsAffected":1}`))
+			require.NoError(t, err)
+		case dataAPIQueryPath:
+			if failQuery.Load() {
+				_, err := w.Write([]byte(`{"error":{"code":1146,"message":"Table 'missing' doesn't exist"}}`))
+				require.NoError(t, err)
+
+				return
+			}
+
+			_, err := w.Write([]byte(`{"results":[{"rows":[{"Database":"my_app_db"}]}]}`))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	configWithRevert := func(revert string) string {
+		return fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_sql_execute" "this" {
+  endpoint   = %q
+  username   = "admin"
+  password   = "secret"
+  execute    = "SELECT 1"
+  revert     = %q
+  query      = "SHOW DATABASES LIKE ?"
+  query_args = ["my_app_db"]
+}
+`, testWorkspaceEndpoint, revert)
+	}
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithRevert("SELECT 1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+				),
+			},
+			{
+				PreConfig: func() {
+					failQuery.Store(true)
+				},
+				Config:      configWithRevert("SELECT 2"),
+				ExpectError: regexp.MustCompile("SQL query failed"),
+			},
+		},
+	})
 }
 
 func TestSQLExecuteCreateFailsWhenQueryFails(t *testing.T) {
@@ -362,7 +479,7 @@ func TestSQLExecuteCreateFailsWhenQueryFails(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config:      sqlExecuteConfig(testWorkspaceEndpoint),
+				Config:      sqlExecuteConfig(),
 				ExpectError: regexp.MustCompile("SQL query failed"),
 			},
 		},
@@ -476,6 +593,36 @@ func TestSQLExecuteResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
+				),
+			},
+		},
+	})
+}
+
+func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
+	adminPassword := testAdminPassword
+	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
+
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey:             os.Getenv(config.EnvTestAPIKey),
+		WorkspaceGroupName: "example",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceWithSQLResource).
+					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_db", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.create_db", "query_results.#", "1"),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_app_user", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_readonly_user", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.grant_app_user", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.grant_readonly", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_users_table", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_posts_table", config.IDAttribute),
 				),
 			},
 		},
