@@ -90,10 +90,10 @@ resource "singlestoredb_sql_execute" "grant_app_user" {
   database = local.app_db
 
   execute = <<-EOT
-    GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, PROCESS, INDEX, ALTER, DROP, SHOW METADATA, CREATE DATABASE, DROP DATABASE, CREATE USER ON my_app_db.* TO 'app_user'@'%'
+    GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER, DROP ON my_app_db.* TO 'app_user'@'%'
   EOT
   revert  = <<-EOT
-    REVOKE SELECT, INSERT, UPDATE, DELETE, CREATE, PROCESS, INDEX, ALTER, DROP, SHOW METADATA, CREATE DATABASE, DROP DATABASE, CREATE USER ON my_app_db.* FROM 'app_user'@'%'
+    REVOKE SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER, DROP ON my_app_db.* FROM 'app_user'@'%'
   EOT
 }
 
