@@ -64,7 +64,7 @@ output "database_exists" {
 
 ### Required
 
-- `endpoint` (String) Workspace SQL endpoint (host or host:port). Typically `singlestoredb_workspace.<n>.endpoint`. The provider strips any port and uses HTTPS on port 443.
+- `endpoint` (String) Workspace SQL endpoint (bare host). Typically `singlestoredb_workspace.<n>.endpoint`. Must not include a port; the Data API uses HTTPS on port 443.
 - `execute` (String) SQL statement run on create. Changing this value forces replacement.
 - `revert` (String) SQL statement run on destroy. Required so destroy is meaningful.
 - `username` (String) SQL user name, or `*` when using JWT authentication.

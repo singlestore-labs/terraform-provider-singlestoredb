@@ -68,7 +68,7 @@ func (r *sqlExecuteResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Workspace SQL endpoint (host or host:port). Typically `singlestoredb_workspace.<n>.endpoint`. The provider strips any port and uses HTTPS on port 443.",
+				MarkdownDescription: "Workspace SQL endpoint (bare host). Typically `singlestoredb_workspace.<n>.endpoint`. Must not include a port; the Data API uses HTTPS on port 443.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

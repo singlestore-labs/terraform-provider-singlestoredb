@@ -22,19 +22,19 @@ func TestDataAPIURL(t *testing.T) {
 			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
 		},
 		{
-			name:  "host with port suffix",
-			input: "svc-abc.aws-east-1.svc.singlestore.com:3306",
-			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
-		},
-		{
-			name:  "strips any port suffix",
-			input: "svc-abc.aws-east-1.svc.singlestore.com:8080",
-			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
-		},
-		{
 			name:  "trimmed",
-			input: "  svc-abc.aws-east-1.svc.singlestore.com:3306  ",
+			input: "  svc-abc.aws-east-1.svc.singlestore.com  ",
 			want:  "https://svc-abc.aws-east-1.svc.singlestore.com",
+		},
+		{
+			name:    "port suffix",
+			input:   "svc-abc.aws-east-1.svc.singlestore.com:3306",
+			wantErr: "must not include a port",
+		},
+		{
+			name:    "non-default port suffix",
+			input:   "svc-abc.aws-east-1.svc.singlestore.com:8080",
+			wantErr: "must not include a port",
 		},
 		{
 			name:    "empty",
@@ -69,7 +69,7 @@ func TestDataAPIURL(t *testing.T) {
 		{
 			name:    "non-numeric port",
 			input:   "svc-abc.aws-east-1.svc.singlestore.com:abc",
-			wantErr: "invalid port",
+			wantErr: "must not include a port",
 		},
 	}
 

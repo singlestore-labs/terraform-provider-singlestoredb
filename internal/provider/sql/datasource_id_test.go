@@ -19,9 +19,5 @@ func TestQueryDataSourceID(t *testing.T) {
 	require.NotEqual(t, id1, id3)
 	require.NotEqual(t, id1, id4)
 	require.Equal(t, id1, sql.QueryDataSourceIDForTest("host.example.com", "SELECT 1", []string{"a"}))
-
-	// Equivalent endpoints that normalize to the same Data API URL must produce
-	// the same ID so a port suffix does not churn state.
-	require.Equal(t, id1, sql.QueryDataSourceIDForTest("host.example.com:3306", "SELECT 1", []string{"a"}))
-	require.Equal(t, id1, sql.QueryDataSourceIDForTest("  host.example.com:443  ", "SELECT 1", []string{"a"}))
+	require.Equal(t, id1, sql.QueryDataSourceIDForTest("  host.example.com  ", "SELECT 1", []string{"a"}))
 }
