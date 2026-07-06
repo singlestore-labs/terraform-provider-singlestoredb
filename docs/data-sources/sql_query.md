@@ -59,7 +59,7 @@ output "query_row_count" {
 
 ### Required
 
-- `endpoint` (String) Workspace SQL endpoint (host or host:port). Typically `singlestoredb_workspace.<n>.endpoint`. The provider strips any port and uses HTTPS on port 443.
+- `endpoint` (String) Workspace SQL endpoint (bare host). Typically `singlestoredb_workspace.<n>.endpoint`. Must not include a port; the Data API uses HTTPS on port 443.
 - `query` (String) Read-only SQL (typically SELECT). Only the first result set is returned; all cell values are strings.
 - `username` (String) SQL user name, or `*` when using JWT authentication.
 

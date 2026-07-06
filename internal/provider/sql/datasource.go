@@ -51,7 +51,7 @@ func (d *sqlQueryDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			},
 			"endpoint": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Workspace SQL endpoint (host or host:port). Typically `singlestoredb_workspace.<n>.endpoint`. The provider strips any port and uses HTTPS on port 443.",
+				MarkdownDescription: "Workspace SQL endpoint (bare host). Typically `singlestoredb_workspace.<n>.endpoint`. Must not include a port; the Data API uses HTTPS on port 443.",
 			},
 			"username": schema.StringAttribute{
 				Required:            true,
@@ -144,9 +144,8 @@ func (d *sqlQueryDataSource) Read(ctx context.Context, req datasource.ReadReques
 }
 
 func queryDataSourceID(endpoint, query string, args []string) string {
-	// Hash the normalized endpoint the client actually talks to so equivalent
-	// inputs (e.g. "host" vs "host:3306") do not churn the ID and cause spurious
-	// diffs. Fall back to the raw value if normalization fails.
+	// Hash the normalized endpoint the client actually talks to. Fall back to the
+	// raw value if normalization fails.
 	if normalized, err := DataAPIURL(endpoint); err == nil {
 		endpoint = normalized
 	}

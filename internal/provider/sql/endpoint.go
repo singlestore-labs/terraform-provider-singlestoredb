@@ -3,12 +3,11 @@ package sql
 import (
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 )
 
-// DataAPIURL returns "https://<host>" for a workspace SQL endpoint (host or host:port).
-// Any port suffix is stripped; the Data API is always reached on HTTPS port 443.
+// DataAPIURL returns "https://<host>" for a workspace SQL endpoint (bare host).
+// The Data API is always reached on HTTPS port 443; port suffixes are rejected.
 func DataAPIURL(endpoint string) (string, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
@@ -17,24 +16,23 @@ func DataAPIURL(endpoint string) (string, error) {
 
 	if strings.Contains(endpoint, "://") {
 		return "", fmt.Errorf(
-			"workspace SQL endpoint must be a host or host:port, not a URL with a scheme; use singlestoredb_workspace.<n>.endpoint",
+			"workspace SQL endpoint must be a bare host, not a URL with a scheme; use singlestoredb_workspace.<n>.endpoint",
 		)
 	}
 
 	host := endpoint
 	if strings.ContainsRune(endpoint, ':') {
-		h, port, err := net.SplitHostPort(endpoint)
+		_, port, err := net.SplitHostPort(endpoint)
 		if err != nil {
-			return "", fmt.Errorf("workspace SQL endpoint %q is not a valid host or host:port: %w", endpoint, err)
+			return "", fmt.Errorf("workspace SQL endpoint %q is not a valid host: %w", endpoint, err)
 		}
 
 		if port != "" {
-			if _, err := strconv.Atoi(port); err != nil {
-				return "", fmt.Errorf("workspace SQL endpoint %q has an invalid port %q; use a host or host:port", endpoint, port)
-			}
+			return "", fmt.Errorf(
+				"workspace SQL endpoint %q must not include a port; use a bare host (the Data API uses HTTPS on port 443)",
+				endpoint,
+			)
 		}
-
-		host = h
 	}
 
 	if host == "" {
@@ -46,7 +44,7 @@ func DataAPIURL(endpoint string) (string, error) {
 	// downstream to the request.
 	if i := strings.IndexAny(host, "/?#@ "); i >= 0 {
 		return "", fmt.Errorf(
-			"workspace SQL endpoint %q must be a bare host or host:port without a path, query, fragment, or credentials",
+			"workspace SQL endpoint %q must be a bare host without a path, query, fragment, or credentials",
 			endpoint,
 		)
 	}
