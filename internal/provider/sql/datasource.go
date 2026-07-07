@@ -137,25 +137,19 @@ func (d *sqlQueryDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	model.Rows = rows
-	model.ID = types.StringValue(queryDataSourceID(model.Endpoint.ValueString(), model.Query.ValueString(), args))
+	model.ID = types.StringValue(queryDataSourceID(client.baseURL, model.Query.ValueString(), args))
 	model.Password = passwordForState(model.Password)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-func queryDataSourceID(endpoint, query string, args []string) string {
-	// Hash the normalized endpoint the client actually talks to. Fall back to the
-	// raw value if normalization fails.
-	if normalized, err := DataAPIURL(endpoint); err == nil {
-		endpoint = normalized
-	}
-
+func queryDataSourceID(normalizedEndpoint, query string, args []string) string {
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
 		argsJSON = []byte("null")
 	}
 
-	sum := sha256.Sum256([]byte(endpoint + "\x00" + query + "\x00" + string(argsJSON)))
+	sum := sha256.Sum256([]byte(normalizedEndpoint + "\x00" + query + "\x00" + string(argsJSON)))
 
 	return hex.EncodeToString(sum[:])
 }

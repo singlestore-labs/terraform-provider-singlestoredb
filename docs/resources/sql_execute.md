@@ -66,7 +66,7 @@ output "database_exists" {
 
 - `endpoint` (String) Workspace SQL endpoint (bare host). Typically `singlestoredb_workspace.<n>.endpoint`. Must not include a port; the Data API uses HTTPS on port 443.
 - `execute` (String) SQL statement run on create. Changing this value forces replacement.
-- `revert` (String) SQL statement run on destroy. Required so destroy is meaningful.
+- `revert` (String) SQL statement run on destroy. Required so destroy is meaningful. Must undo the effects of `execute`; changing `revert` in place does not re-run `execute` and the new value is used on the next destroy only. When retargeting to a different object, change `execute` and `revert` in the same apply so replacement destroy runs the old revert.
 - `username` (String) SQL user name, or `*` when using JWT authentication.
 
 ### Optional

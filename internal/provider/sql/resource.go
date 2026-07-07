@@ -110,8 +110,11 @@ func (r *sqlExecuteResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 			},
 			"revert": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "SQL statement run on destroy. Required so destroy is meaningful.",
+				Required: true,
+				MarkdownDescription: "SQL statement run on destroy. Required so destroy is meaningful. " +
+					"Must undo the effects of `execute`; changing `revert` in place does not re-run `execute` " +
+					"and the new value is used on the next destroy only. When retargeting to a different object, " +
+					"change `execute` and `revert` in the same apply so replacement destroy runs the old revert.",
 			},
 			"query": schema.StringAttribute{
 				Optional:            true,

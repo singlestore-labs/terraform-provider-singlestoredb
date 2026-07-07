@@ -19,5 +19,4 @@ func TestQueryDataSourceID(t *testing.T) {
 	require.NotEqual(t, id1, id3)
 	require.NotEqual(t, id1, id4)
 	require.Equal(t, id1, sql.QueryDataSourceIDForTest("host.example.com", "SELECT 1", []string{"a"}))
-	require.Equal(t, id1, sql.QueryDataSourceIDForTest("  host.example.com  ", "SELECT 1", []string{"a"}))
 }

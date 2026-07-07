@@ -147,7 +147,7 @@ func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest)
 		return nil, err
 	}
 
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+	if resp.StatusCode != http.StatusOK {
 		return nil, &APIError{
 			StatusCode: resp.StatusCode,
 			Body:       string(respBody),
