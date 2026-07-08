@@ -20,6 +20,16 @@ func NewHTTPClient() *http.Client {
 	return NewClientWithTimeout(defaultTimeout)
 }
 
+// NewPlainHTTPClient creates a standard HTTP client without automatic retries.
+// Use this for non-idempotent requests (for example Data API /exec DDL/DML).
+func NewPlainHTTPClient() *http.Client {
+	return NewPlainClientWithTimeout(defaultTimeout)
+}
+
+func NewPlainClientWithTimeout(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
+
 func NewClientWithTimeout(timeout time.Duration) *http.Client {
 	client := retryablehttp.NewClient()
 	client.ErrorHandler = HandleError

@@ -35,6 +35,30 @@ func TestHTTPClientStatusOK(t *testing.T) {
 	require.Equal(t, body, result)
 }
 
+func TestPlainHTTPClientStatusInternalServerError(t *testing.T) {
+	body := []byte("fizz")
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, err := w.Write(body)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	client := util.NewPlainHTTPClient()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	result, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, body, result)
+	require.Equal(t, 1, attempts, "plain client must not retry 500s")
+}
+
 func TestHTTPClientStatusInternalServerError(t *testing.T) {
 	body := []byte("fizz")
 	attempts := 0

@@ -27,12 +27,15 @@ func FirstResultSetRowsForTest(resp *QueryRowsResponse) []map[string]any {
 	return firstResultSetRows(resp)
 }
 
-// SetHTTPClientFactoryForTest overrides the HTTP client used by NewClient. Returns a restore func.
+// SetHTTPClientFactoryForTest overrides the HTTP clients used by NewClient. Returns a restore func.
 func SetHTTPClientFactoryForTest(factory func() *http.Client) func() {
-	prev := httpClientFactory
-	httpClientFactory = factory
+	prevExec := execHTTPClientFactory
+	prevQuery := queryHTTPClientFactory
+	execHTTPClientFactory = factory
+	queryHTTPClientFactory = factory
 
 	return func() {
-		httpClientFactory = prev
+		execHTTPClientFactory = prevExec
+		queryHTTPClientFactory = prevQuery
 	}
 }
