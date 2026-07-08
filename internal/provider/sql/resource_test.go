@@ -707,6 +707,8 @@ func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.reader", "name", config.TestReaderWorkspaceName),
+					resource.TestCheckResourceAttrWith("singlestoredb_workspace.reader", "endpoint", isDataAPIReady),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_db", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.create_db", "query_results.#", "1"),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_app_user", config.IDAttribute),
@@ -715,6 +717,8 @@ func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.grant_readonly", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_users_table", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_posts_table", config.IDAttribute),
+					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.attach_app_db_readonly", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_sql_execute.attach_app_db_readonly", "query_results.#", "1"),
 				),
 			},
 		},

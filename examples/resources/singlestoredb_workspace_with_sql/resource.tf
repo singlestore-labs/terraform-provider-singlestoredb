@@ -34,11 +34,20 @@ resource "singlestoredb_workspace" "this" {
   suspended          = false
 }
 
+resource "singlestoredb_workspace" "reader" {
+  name               = "workspace-2"
+  workspace_group_id = singlestoredb_workspace_group.example.id
+  size               = "S-00"
+  suspended          = false
+}
+
 locals {
-  sql_endpoint = singlestoredb_workspace.this.endpoint
-  sql_username = "admin"
-  sql_password = singlestoredb_workspace_group.example.admin_password
-  app_db       = "my_app_db"
+  sql_endpoint          = singlestoredb_workspace.this.endpoint
+  reader_sql_endpoint   = singlestoredb_workspace.reader.endpoint
+  sql_username          = "admin"
+  sql_password          = singlestoredb_workspace_group.example.admin_password
+  app_db                = "my_app_db"
+  reader_workspace_name = singlestoredb_workspace.reader.name
 }
 
 resource "singlestoredb_sql_execute" "create_db" {
@@ -149,10 +158,35 @@ resource "singlestoredb_sql_execute" "create_posts_table" {
   revert  = "DROP TABLE IF EXISTS posts"
 }
 
+resource "singlestoredb_sql_execute" "attach_app_db_readonly" {
+  depends_on = [
+    singlestoredb_workspace.reader,
+    singlestoredb_sql_execute.create_db,
+  ]
+
+  endpoint = local.reader_sql_endpoint
+  username = local.sql_username
+  password = local.sql_password
+
+  execute = "ATTACH DATABASE ${local.app_db} READ ONLY"
+  revert  = "DETACH DATABASE ${local.app_db} FROM WORKSPACE `${local.reader_workspace_name}`"
+
+  query      = "SHOW DATABASES LIKE ?"
+  query_args = [local.app_db]
+}
+
 output "endpoint" {
   value = singlestoredb_workspace.this.endpoint
 }
 
+output "reader_endpoint" {
+  value = singlestoredb_workspace.reader.endpoint
+}
+
 output "database_exists" {
   value = length(singlestoredb_sql_execute.create_db.query_results) > 0
+}
+
+output "reader_database_attached" {
+  value = length(singlestoredb_sql_execute.attach_app_db_readonly.query_results) > 0
 }

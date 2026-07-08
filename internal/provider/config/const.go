@@ -75,6 +75,8 @@ const (
 	TestInitialUpdateWindowHour = 14
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "workspace-1"
+	// TestReaderWorkspaceName is the reader workspace name in the workspace_with_sql example.
+	TestReaderWorkspaceName = "workspace-2"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.
