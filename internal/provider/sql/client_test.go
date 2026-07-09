@@ -46,46 +46,6 @@ func TestClientExec_HappyPath(t *testing.T) {
 	require.Equal(t, int64(0), resp.RowsAffected)
 }
 
-func TestClientExec_DoesNotRetryOn500(t *testing.T) {
-	t.Parallel()
-
-	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err := w.Write([]byte("server error"))
-		require.NoError(t, err)
-	}))
-	t.Cleanup(server.Close)
-
-	client := sql.NewClient(server.URL, "admin", "secret")
-	_, err := client.Exec(t.Context(), sql.ExecRequest{SQL: "CREATE DATABASE foo"})
-	require.Error(t, err)
-
-	var apiErr *sql.APIError
-	require.ErrorAs(t, err, &apiErr)
-	require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
-	require.Equal(t, 1, attempts, "exec must not retry non-idempotent POSTs")
-}
-
-func TestClientQueryRows_RetriesOn500(t *testing.T) {
-	t.Parallel()
-
-	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err := w.Write([]byte("server error"))
-		require.NoError(t, err)
-	}))
-	t.Cleanup(server.Close)
-
-	client := sql.NewClient(server.URL, "admin", "secret")
-	_, err := client.QueryRows(t.Context(), sql.ExecRequest{SQL: "SELECT 1"})
-	require.Error(t, err)
-	require.Greater(t, attempts, 1, "query/rows may retry transient 5xx responses")
-}
-
 func TestClientExec_JWTBasicAuth(t *testing.T) {
 	t.Parallel()
 

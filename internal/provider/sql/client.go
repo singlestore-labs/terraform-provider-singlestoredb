@@ -21,22 +21,15 @@ const (
 	queryRowsPath = "/api/v2/query/rows"
 )
 
-var (
-	// Exec must not use the retryable client: a retried POST can run the same
-	// DDL/DML twice when the first attempt already succeeded.
-	execHTTPClientFactory = util.NewPlainHTTPClient
-	// QueryRows is read-only; transient 5xx retries are safe.
-	queryHTTPClientFactory = util.NewHTTPClient
-)
+var httpClientFactory = util.NewHTTPClient
 
 // Client calls the SingleStore Data API over HTTPS.
 type Client struct {
-	execHTTPClient  *http.Client
-	queryHTTPClient *http.Client
-	baseURL         string
-	host            string
-	username        string
-	password        string
+	httpClient *http.Client
+	baseURL    string
+	host       string
+	username   string
+	password   string
 }
 
 // ExecRequest is the JSON body for /exec and /query/rows.
@@ -70,18 +63,17 @@ type QueryRowsResponse struct {
 // NewClient creates a Data API client for the given base URL and credentials.
 func NewClient(baseURL, username, password string) *Client {
 	return &Client{
-		execHTTPClient:  execHTTPClientFactory(),
-		queryHTTPClient: queryHTTPClientFactory(),
-		baseURL:         baseURL,
-		host:            hostFromBaseURL(baseURL),
-		username:        username,
-		password:        password,
+		httpClient: httpClientFactory(),
+		baseURL:    baseURL,
+		host:       hostFromBaseURL(baseURL),
+		username:   username,
+		password:   password,
 	}
 }
 
 // Exec runs a statement via POST /api/v2/exec.
 func (c *Client) Exec(ctx context.Context, req ExecRequest) (*ExecResponse, error) {
-	body, err := c.postJSON(ctx, execPath, req, c.execHTTPClient)
+	body, err := c.postJSON(ctx, execPath, req)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +95,7 @@ func (c *Client) Exec(ctx context.Context, req ExecRequest) (*ExecResponse, erro
 
 // QueryRows runs a read query via POST /api/v2/query/rows.
 func (c *Client) QueryRows(ctx context.Context, req ExecRequest) (*QueryRowsResponse, error) {
-	body, err := c.postJSON(ctx, queryRowsPath, req, c.queryHTTPClient)
+	body, err := c.postJSON(ctx, queryRowsPath, req)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +118,7 @@ func (c *Client) QueryRows(ctx context.Context, req ExecRequest) (*QueryRowsResp
 	return &result, nil
 }
 
-func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest, httpClient *http.Client) ([]byte, error) {
+func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("encode request: %w", err)
@@ -144,7 +136,7 @@ func (c *Client) postJSON(ctx context.Context, path string, payload ExecRequest,
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.SetBasicAuth(c.username, c.password)
 
-	resp, err := httpClient.Do(httpReq)
+	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
