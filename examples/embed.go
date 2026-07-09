@@ -46,6 +46,9 @@ var (
 	FlowListDataSource               = mustRead("data-sources/singlestoredb_flows/data-source.tf")
 	FlowResource                     = mustRead("resources/singlestoredb_flow/resource.tf")
 	ProjectResource                  = mustRead("resources/singlestoredb_project/resource.tf")
+	SQLExecuteResource               = mustRead("resources/singlestoredb_sql_execute/resource.tf")
+	SQLQueryDataSource               = mustRead("data-sources/singlestoredb_sql_query/data-source.tf")
+	WorkspaceWithSQLResource         = mustRead("resources/singlestoredb_workspace_with_sql/resource.tf")
 )
 
 func mustRead(path string) string {

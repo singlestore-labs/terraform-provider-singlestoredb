@@ -72,6 +72,8 @@ Create `.vscode/private.env` (gitignored) and set your API key, for example:
 
     echo 'SINGLESTOREDB_API_KEY=your-api-key' > .vscode/private.env
 
+For `singlestoredb_sql_execute` and `singlestoredb_sql_query`, SQL credentials are separate from the Management API key. Set `SINGLESTORE_SQL_USER_PASSWORD` in the same file when testing resources that rely on the env-var password fallback instead of an explicit `password` attribute.
+
 ### `.vscode/launch.json`
 
 ```json

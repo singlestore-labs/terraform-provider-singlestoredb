@@ -21,6 +21,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regions"
 	regions_v2 "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/users"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -181,6 +182,7 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		flow.NewDataSourceList,
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
+		sql.NewDataSourceQuery,
 	}
 }
 
@@ -199,6 +201,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		roles.NewRoleResource,
 		flow.NewResource,
 		projects.NewResource,
+		sql.NewResource,
 	}
 }
 

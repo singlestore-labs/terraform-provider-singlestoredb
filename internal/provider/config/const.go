@@ -75,6 +75,8 @@ const (
 	TestInitialUpdateWindowHour = 14
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "workspace-1"
+	// TestReaderWorkspaceName is the reader workspace name in the workspace_with_sql example.
+	TestReaderWorkspaceName = "workspace-2"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.
@@ -92,6 +94,8 @@ const (
 	ProviderTypeName = "provider"
 	// TestInitialProjectName is the initial project name in the example.
 	TestInitialProjectName = "Standard Project"
+	// EnvSQLUserPassword is the env var for SQL user password / JWT on sql_execute and sql_query.
+	EnvSQLUserPassword = "SINGLESTORE_SQL_USER_PASSWORD" //nolint:gosec
 )
 
 var (

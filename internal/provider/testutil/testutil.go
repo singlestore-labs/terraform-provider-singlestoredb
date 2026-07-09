@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
+	singlestoresql "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
@@ -76,7 +78,9 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
 
 	for i, s := range c.Steps {
-		if conf.WorkspaceGroupName != "" {
+		// Steps without a Config (e.g. RefreshState-only steps) reuse the
+		// configuration from the preceding step, so there is nothing to update.
+		if conf.WorkspaceGroupName != "" && s.Config != "" {
 			instantExpiration := time.Now().UTC().Add(config.TestWorkspaceGroupExpiration).Format(time.RFC3339)
 
 			c.Steps[i].Config = UpdatableConfig(s.Config).
@@ -170,6 +174,25 @@ func IsConnectableWithAdminPassword(adminPassword string) resource.CheckResource
 			}
 
 			return nil
+		}, b)
+	}
+}
+
+// IsDataAPIReady polls the workspace Data API until SELECT 1 succeeds.
+func IsDataAPIReady(adminPassword string) resource.CheckResourceAttrWithFunc {
+	return func(endpoint string) error {
+		baseURL, err := singlestoresql.DataAPIURL(endpoint)
+		if err != nil {
+			return err
+		}
+
+		client := singlestoresql.NewClient(baseURL, "admin", adminPassword)
+		b := backoff.WithMaxRetries(backoff.NewExponentialBackOff(), connectRetries)
+
+		return backoff.Retry(func() error {
+			_, err := client.QueryRows(context.Background(), singlestoresql.ExecRequest{SQL: "SELECT 1"})
+
+			return err
 		}, b)
 	}
 }
