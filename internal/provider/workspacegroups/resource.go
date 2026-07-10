@@ -2,6 +2,7 @@ package workspacegroups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -224,24 +225,14 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	var regionID *uuid.UUID
-	if regionIDIsSet {
-		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
+	regionID, projectID, err := resolveCreateIDs(ctx, r.ClientWithResponsesInterface, plan)
+	if err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
 	}
 
-	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
-	var projectID *uuid.UUID
-	if projectNameIsSet {
-		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(err.Summary, err.Detail)
-
-			return
-		}
-		projectID = resolvedProjectID
-	}
-
-	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
+	createBody := management.PostV1WorkspaceGroupsJSONRequestBody{
 		AdminPassword:            util.MaybeNonEmptyString(plan.AdminPassword),
 		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
@@ -254,34 +245,85 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
 		UpdateWindow:             toManagementUpdateWindow(ctx, plan.UpdateWindow),
-	})
-	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
-		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
-		)
-
-		return
 	}
 
-	id := workspaceGroupCreateResponse.JSON200.WorkspaceGroupID
-	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, waitConditionFirewallRanges(plan.FirewallRanges))
-	if werr != nil {
-		resp.Diagnostics.AddError(
-			werr.Summary,
-			werr.Detail,
-		)
+	wg, createResponse, cerr := r.createWorkspaceGroupWithRetry(ctx, createBody, plan.FirewallRanges)
+	if cerr != nil {
+		resp.Diagnostics.AddError(cerr.Summary, cerr.Detail)
 
 		return
 	}
 
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
-		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
+		util.Deref(createResponse.JSON200.AdminPassword), // Either from input or output.
 	), regionIDIsSet)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+func resolveCreateIDs(
+	ctx context.Context,
+	client management.ClientWithResponsesInterface,
+	plan workspaceGroupResourceModel,
+) (*uuid.UUID, *uuid.UUID, *util.SummaryWithDetailError) {
+	var regionID *uuid.UUID
+	if util.IsConfiguredString(plan.RegionID) {
+		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
+	}
+
+	var projectID *uuid.UUID
+	if util.IsConfiguredString(plan.ProjectName) {
+		resolvedProjectID, err := resolveProjectIDByName(ctx, client, plan.ProjectName.ValueString())
+		if err != nil {
+			return nil, nil, err
+		}
+		projectID = resolvedProjectID
+	}
+
+	return regionID, projectID, nil
+}
+
+func (r *workspaceGroupResource) createWorkspaceGroupWithRetry(
+	ctx context.Context,
+	createBody management.PostV1WorkspaceGroupsJSONRequestBody,
+	firewallRanges []types.String,
+) (management.WorkspaceGroup, *management.PostV1WorkspaceGroupsResponse, *util.SummaryWithDetailError) {
+	var (
+		wg             management.WorkspaceGroup
+		createResponse *management.PostV1WorkspaceGroupsResponse
+		lastWaitErr    *util.SummaryWithDetailError
+	)
+
+	for attempt := 1; attempt <= config.WorkspaceGroupCreateMaxAttempts; attempt++ {
+		var err error
+		createResponse, err = r.PostV1WorkspaceGroupsWithResponse(ctx, createBody)
+		if serr := util.StatusOK(createResponse, err); serr != nil {
+			return management.WorkspaceGroup{}, nil, serr
+		}
+
+		id := createResponse.JSON200.WorkspaceGroupID
+		wg, lastWaitErr = verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, waitConditionFirewallRanges(firewallRanges))
+		if lastWaitErr == nil {
+			return wg, createResponse, nil
+		}
+
+		// Best-effort cleanup so a FAILED group does not linger until expires_at.
+		r.deleteWorkspaceGroupBestEffort(ctx, id)
+
+		if !isFatalWorkspaceGroupCreationError(lastWaitErr) || attempt == config.WorkspaceGroupCreateMaxAttempts {
+			return management.WorkspaceGroup{}, nil, lastWaitErr
+		}
+	}
+
+	return management.WorkspaceGroup{}, nil, lastWaitErr
+}
+
+func (r *workspaceGroupResource) deleteWorkspaceGroupBestEffort(ctx context.Context, id management.WorkspaceGroupID) {
+	_, _ = r.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
+		&management.DeleteV1WorkspaceGroupsWorkspaceGroupIDParams{Force: util.Ptr(true)},
+	)
 }
 
 func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
@@ -705,6 +747,25 @@ func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringV
 // waitCondition return nil if it is satisfied.
 type waitCondition func(management.WorkspaceGroup) error
 
+// fatalWorkspaceGroupStateError indicates the Management API reported FAILED or TERMINATED
+// while waiting for a workspace group to become ready.
+type fatalWorkspaceGroupStateError struct {
+	id    management.WorkspaceGroupID
+	state management.WorkspaceGroupState
+}
+
+func (e fatalWorkspaceGroupStateError) Error() string {
+	return fmt.Sprintf("workspace group %s creation failed (state %s); %s", e.id, e.state, config.ContactSupportErrorDetail)
+}
+
+func isFatalWorkspaceGroupCreationError(err *util.SummaryWithDetailError) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Detail, "creation failed (state")
+}
+
 func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
 	result := management.WorkspaceGroup{}
 
@@ -727,9 +788,10 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
 
 		if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
-			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
-
-			return retry.NonRetryableError(err)
+			return retry.NonRetryableError(fatalWorkspaceGroupStateError{
+				id:    workspaceGroup.JSON200.WorkspaceGroupID,
+				state: workspaceGroup.JSON200.State,
+			})
 		}
 
 		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.WorkspaceGroupStateACTIVE, management.WorkspaceGroupStatePENDING) {
@@ -750,9 +812,15 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 
 		return nil
 	}); err != nil {
+		detail := fmt.Sprintf("Workspace group is not ready: %s", err)
+		var fatalErr fatalWorkspaceGroupStateError
+		if errors.As(err, &fatalErr) {
+			detail = fmt.Sprintf("Workspace group is not ready: %s", fatalErr.Error())
+		}
+
 		return management.WorkspaceGroup{}, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for a workspace group %s creation", id),
-			Detail:  fmt.Sprintf("Workspace group is not ready: %s", err),
+			Detail:  detail,
 		}
 	}
 

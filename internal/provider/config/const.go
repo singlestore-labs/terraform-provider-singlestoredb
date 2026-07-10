@@ -25,6 +25,9 @@ const (
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
 	WorkspaceGroupCreationTimeout = time.Hour
+	// WorkspaceGroupCreateMaxAttempts is how many times Create retries when the
+	// Management API reports the new workspace group as FAILED during provisioning.
+	WorkspaceGroupCreateMaxAttempts = 3
 	// WorkspaceReadTimeout limits the workspace creation time.
 	WorkspaceReadTimeout = 10 * time.Minute
 	// WorkspaceCreationTimeout limits the workspace creation time.

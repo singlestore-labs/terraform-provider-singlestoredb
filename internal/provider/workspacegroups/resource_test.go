@@ -1138,3 +1138,114 @@ func waitWorkspaceGroupActive(t *testing.T, c *management.ClientWithResponses, i
 	}
 	t.Fatalf("workspace group %s did not reach ACTIVE state within timeout", id)
 }
+
+func TestCreateWorkspaceGroupRetriesOnFailedState(t *testing.T) { //nolint:cyclop
+	regionsv2 := []management.RegionV2{
+		{
+			Provider:   management.CloudProviderAWS,
+			RegionName: "us-east-1",
+		},
+	}
+
+	failedID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	successID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+	workspaceGroup := management.WorkspaceGroup{
+		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
+		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
+		Name:             config.TestInitialWorkspaceGroupName,
+		RegionName:       regionsv2[0].RegionName,
+		Provider:         management.CloudProviderAWS,
+		State:            management.WorkspaceGroupStatePENDING,
+		WorkspaceGroupID: successID,
+		DeploymentType:   &defaultDeploymentType,
+	}
+
+	var (
+		postCount   int
+		deleteCount int
+		failedPolls int
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(regionsv2))
+			require.NoError(t, err)
+
+		case r.URL.Path == "/v1/workspaceGroups" && r.Method == http.MethodPost:
+			postCount++
+			id := failedID
+			if postCount > 1 {
+				id = successID
+			}
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				WorkspaceGroupID uuid.UUID
+			}{WorkspaceGroupID: id}))
+			require.NoError(t, err)
+
+		case strings.HasPrefix(r.URL.Path, "/v1/workspaceGroups/") && r.Method == http.MethodGet:
+			id := strings.TrimPrefix(r.URL.Path, "/v1/workspaceGroups/")
+			w.Header().Add("Content-Type", "json")
+			switch id {
+			case failedID.String():
+				failedPolls++
+				failed := workspaceGroup
+				failed.WorkspaceGroupID = failedID
+				failed.State = management.WorkspaceGroupStateFAILED
+				_, err := w.Write(testutil.MustJSON(failed))
+				require.NoError(t, err)
+			case successID.String():
+				_, err := w.Write(testutil.MustJSON(workspaceGroup))
+				require.NoError(t, err)
+				workspaceGroup.State = management.WorkspaceGroupStateACTIVE
+			default:
+				t.Fatalf("unexpected workspace group GET for %s", id)
+			}
+
+		case strings.HasPrefix(r.URL.Path, "/v1/workspaceGroups/") && r.Method == http.MethodDelete:
+			id := strings.TrimPrefix(r.URL.Path, "/v1/workspaceGroups/")
+			switch id {
+			case failedID.String():
+				deleteCount++
+			case successID.String():
+				// Terraform destroy of the successfully created group.
+			default:
+				t.Fatalf("unexpected workspace group DELETE for %s", id)
+			}
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				WorkspaceGroupID uuid.UUID
+			}{WorkspaceGroupID: uuid.MustParse(id)}))
+			require.NoError(t, err)
+
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("project_name", cty.NullVal(cty.String)).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, successID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
+				),
+			},
+		},
+	})
+
+	require.GreaterOrEqual(t, postCount, 2, "expected create to retry after FAILED state")
+	require.Equal(t, 1, deleteCount, "expected best-effort delete of the FAILED workspace group")
+	require.GreaterOrEqual(t, failedPolls, 1)
+}

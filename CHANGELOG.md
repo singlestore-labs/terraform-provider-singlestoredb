@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Retry `singlestoredb_workspace_group` creation when the Management API reports the new group as `FAILED` during provisioning, and best-effort delete the failed group before retrying. This addresses flaky integration failures such as `TestSQLExecuteResourceIntegration` where workspace group creation intermittently fails.
+
 ### Added
 
 - New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection.
