@@ -139,7 +139,7 @@ func IntegrationTestRetry(t *testing.T, attempts int, retryMatch *regexp.Regexp,
 
 	var lastOut []byte
 	for attempt := 1; attempt <= attempts; attempt++ {
-		cmd := exec.Command(exe, "-test.run="+runArg, "-test.count=1", "-test.v") //nolint:gosec // re-invokes this test binary for flake retries
+		cmd := exec.Command(exe, "-test.run="+runArg, "-test.count=1", "-test.v")
 		cmd.Env = append(os.Environ(), envIntegrationRetryInner+"=1")
 		out, runErr := cmd.CombinedOutput()
 		lastOut = out
