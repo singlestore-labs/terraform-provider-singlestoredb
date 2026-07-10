@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +32,15 @@ const (
 	UnusedAPIKey   = "foo"
 	devVersion     = "dev"
 	connectRetries = 10
+
+	// envIntegrationRetryInner marks a child process that should run the real
+	// IntegrationTest body instead of spawning another retry wrapper.
+	envIntegrationRetryInner = "TESTUTIL_INTEGRATION_RETRY_INNER"
 )
+
+// WorkspaceGroupCreationFailed matches transient Management API failures where a
+// newly created workspace group enters FAILED during readiness polling.
+var WorkspaceGroupCreationFailed = regexp.MustCompile(`workspace group .+ creation failed`)
 
 type UnitTestConfig struct {
 	APIKeyFromEnv string
@@ -97,6 +107,54 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 		config.ProviderName: providerserver.NewProtocol6WithError(f()),
 	}
 	resource.Test(t, c)
+}
+
+// IntegrationTestRetry is like IntegrationTest, but re-runs the calling test in a
+// child process up to attempts times when the failure output matches retryMatch.
+// Use this for known-transient cloud provisioning flakes (e.g. workspace group
+// creation reporting FAILED) without changing provider create behavior.
+func IntegrationTestRetry(t *testing.T, attempts int, retryMatch *regexp.Regexp, conf IntegrationTestConfig, c resource.TestCase) {
+	t.Helper()
+
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	if os.Getenv(envIntegrationRetryInner) == "1" {
+		IntegrationTest(t, conf, c)
+
+		return
+	}
+
+	if testing.Short() {
+		t.Skip("skipping integration test because go test is run with the flag -short")
+	}
+
+	require.NotEmpty(t, conf.APIKey, "envirnomental variable %s should be set for running integration tests", config.EnvTestAPIKey)
+
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	runArg := fmt.Sprintf("^-?%s$", regexp.QuoteMeta(t.Name()))
+
+	var lastOut []byte
+	for attempt := 1; attempt <= attempts; attempt++ {
+		cmd := exec.Command(exe, "-test.run="+runArg, "-test.count=1", "-test.v") //nolint:gosec // re-invokes this test binary for flake retries
+		cmd.Env = append(os.Environ(), envIntegrationRetryInner+"=1")
+		out, runErr := cmd.CombinedOutput()
+		lastOut = out
+		t.Logf("integration attempt %d/%d:\n%s", attempt, attempts, out)
+
+		if runErr == nil {
+			return
+		}
+
+		if retryMatch == nil || !retryMatch.Match(out) || attempt == attempts {
+			t.Fatalf("integration test failed after %d attempt(s): %v\n%s", attempt, runErr, lastOut)
+		}
+
+		t.Logf("transient failure matched %q; retrying", retryMatch.String())
+	}
 }
 
 // GenerateUniqueResourceName generates a unique resource name by appending a timestamp and random suffix.

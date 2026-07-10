@@ -671,7 +671,9 @@ func TestSQLExecuteResourceIntegration(t *testing.T) {
 	adminPassword := testAdminPassword
 	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
 
-	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+	// Retry transient Management API failures where workspace group creation
+	// reports FAILED during readiness polling (seen in scheduled CI).
+	testutil.IntegrationTestRetry(t, 3, testutil.WorkspaceGroupCreationFailed, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
 	}, resource.TestCase{

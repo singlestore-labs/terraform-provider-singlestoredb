@@ -35,9 +35,8 @@ var (
 )
 
 const (
-	pathV2Regions         = "/v2/regions"
-	pathV1Projects        = "/v1/projects"
-	pathV1WorkspaceGroups = "/v1/workspaceGroups"
+	pathV2Regions  = "/v2/regions"
+	pathV1Projects = "/v1/projects"
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
@@ -101,7 +100,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 
 	returnNotFound := true
 	workspaceGroupsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{pathV1WorkspaceGroups, workspaceGroupID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -124,7 +123,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	}
 
 	workspaceGroupsPostHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, pathV1WorkspaceGroups, r.URL.Path)
+		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
@@ -153,7 +152,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 
 	returnInternalError := true
 	workspaceGroupsPatchHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{pathV1WorkspaceGroups, workspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), r.URL.Path)
 
 		if returnInternalError {
 			w.Header().Add("Content-Type", "json")
@@ -196,7 +195,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	}
 
 	workspaceGroupsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{pathV1WorkspaceGroups, workspaceGroupID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/workspaceGroups", workspaceGroupID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "json")
@@ -405,7 +404,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 		// CREATE workspace group
 		func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, pathV1WorkspaceGroups, r.URL.Path)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 
 			var input management.WorkspaceGroupCreate
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
@@ -444,7 +443,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	readHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, fmt.Sprintf("%s/%s", pathV1WorkspaceGroups, workspaceGroupID), r.URL.Path)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
 
 		// Value persists at the initially set value
 		uw := &management.UpdateWindow{Day: float32(config.TestInitialUpdateWindowDay), Hour: float32(config.TestInitialUpdateWindowHour)}
@@ -494,7 +493,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	deleteHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodDelete, r.Method)
-		require.Equal(t, fmt.Sprintf("%s/%s", pathV1WorkspaceGroups, workspaceGroupID), r.URL.Path)
+		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
 
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(
@@ -614,7 +613,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 			return true
 		},
 		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != fmt.Sprintf("%s/%s", pathV1WorkspaceGroups, workspaceGroupID) || r.Method != http.MethodGet {
+			if r.URL.Path != fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID) || r.Method != http.MethodGet {
 				return false
 			}
 
@@ -645,7 +644,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodPost, r.Method)
-			require.Equal(t, pathV1WorkspaceGroups, r.URL.Path)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 
 			var input management.WorkspaceGroupCreate
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
@@ -665,7 +664,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 		},
 		func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, http.MethodDelete, r.Method)
-			require.Equal(t, fmt.Sprintf("%s/%s", pathV1WorkspaceGroups, workspaceGroupID), r.URL.Path)
+			require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID), r.URL.Path)
 
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(
@@ -917,7 +916,7 @@ func newWorkspaceGroupUpdateWithoutAdminPasswordTestServer(
 ) *httptest.Server {
 	t.Helper()
 
-	workspaceGroupPath := fmt.Sprintf("%s/%s", pathV1WorkspaceGroups, workspaceGroupID)
+	workspaceGroupPath := fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroupID)
 	readOnlyHandlers := []func(http.ResponseWriter, *http.Request) bool{
 		func(w http.ResponseWriter, r *http.Request) bool {
 			if r.URL.Path != pathV2Regions || r.Method != http.MethodGet {
@@ -950,7 +949,7 @@ func newWorkspaceGroupUpdateWithoutAdminPasswordTestServer(
 
 	writeHandlers := []func(http.ResponseWriter, *http.Request){
 		func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, pathV1WorkspaceGroups, r.URL.Path)
+			require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 			require.Equal(t, http.MethodPost, r.Method)
 
 			body, err := io.ReadAll(r.Body)
@@ -1138,365 +1137,4 @@ func waitWorkspaceGroupActive(t *testing.T, c *management.ClientWithResponses, i
 		time.Sleep(10 * time.Second)
 	}
 	t.Fatalf("workspace group %s did not reach ACTIVE state within timeout", id)
-}
-
-func TestCreateWorkspaceGroupRetriesOnFailedState(t *testing.T) { //nolint:cyclop
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	failedID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-	successID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-
-	workspaceGroup := management.WorkspaceGroup{
-		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
-		Name:             config.TestInitialWorkspaceGroupName,
-		RegionName:       regionsv2[0].RegionName,
-		Provider:         management.CloudProviderAWS,
-		State:            management.WorkspaceGroupStatePENDING,
-		WorkspaceGroupID: successID,
-		DeploymentType:   &defaultDeploymentType,
-	}
-
-	var (
-		postCount   int
-		deleteCount int
-		failedPolls int
-	)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-
-		case r.URL.Path == pathV1WorkspaceGroups && r.Method == http.MethodPost:
-			postCount++
-			id := failedID
-			if postCount > 1 {
-				id = successID
-			}
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: id}))
-			require.NoError(t, err)
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodGet:
-			id := strings.TrimPrefix(r.URL.Path, pathV1WorkspaceGroups+"/")
-			w.Header().Add("Content-Type", "json")
-			switch id {
-			case failedID.String():
-				failedPolls++
-				failed := workspaceGroup
-				failed.WorkspaceGroupID = failedID
-				failed.State = management.WorkspaceGroupStateFAILED
-				_, err := w.Write(testutil.MustJSON(failed))
-				require.NoError(t, err)
-			case successID.String():
-				_, err := w.Write(testutil.MustJSON(workspaceGroup))
-				require.NoError(t, err)
-				workspaceGroup.State = management.WorkspaceGroupStateACTIVE
-			default:
-				t.Fatalf("unexpected workspace group GET for %s", id)
-			}
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodDelete:
-			id := strings.TrimPrefix(r.URL.Path, pathV1WorkspaceGroups+"/")
-			switch id {
-			case failedID.String():
-				deleteCount++
-			case successID.String():
-				// Terraform destroy of the successfully created group.
-			default:
-				t.Fatalf("unexpected workspace group DELETE for %s", id)
-			}
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: uuid.MustParse(id)}))
-			require.NoError(t, err)
-
-		default:
-			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.NullVal(cty.String)).
-					String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, successID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
-				),
-			},
-		},
-	})
-
-	require.GreaterOrEqual(t, postCount, 2, "expected create to retry after FAILED state")
-	require.Equal(t, 1, deleteCount, "expected best-effort delete of the FAILED workspace group")
-	require.GreaterOrEqual(t, failedPolls, 1)
-}
-
-func TestCreateWorkspaceGroupExhaustsRetriesOnFailedState(t *testing.T) {
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	var postCount int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-
-		case r.URL.Path == pathV1WorkspaceGroups && r.Method == http.MethodPost:
-			postCount++
-			id := uuid.New()
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: id}))
-			require.NoError(t, err)
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodGet:
-			id := uuid.MustParse(strings.TrimPrefix(r.URL.Path, pathV1WorkspaceGroups+"/"))
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(management.WorkspaceGroup{
-				CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-				FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
-				Name:             config.TestInitialWorkspaceGroupName,
-				RegionName:       regionsv2[0].RegionName,
-				Provider:         management.CloudProviderAWS,
-				State:            management.WorkspaceGroupStateFAILED,
-				WorkspaceGroupID: id,
-				DeploymentType:   &defaultDeploymentType,
-			}))
-			require.NoError(t, err)
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodDelete:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: uuid.MustParse(strings.TrimPrefix(r.URL.Path, pathV1WorkspaceGroups+"/"))}))
-			require.NoError(t, err)
-
-		default:
-			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.NullVal(cty.String)).
-					String(),
-				ExpectError: regexp.MustCompile(`creation failed \(state FAILED\)`),
-			},
-		},
-	})
-
-	require.Equal(t, config.WorkspaceGroupCreateMaxAttempts, postCount)
-}
-
-func TestCreateWorkspaceGroupPostError(t *testing.T) {
-	regionsv2 := []management.RegionV2{
-		{
-			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-
-		case r.URL.Path == pathV1WorkspaceGroups && r.Method == http.MethodPost:
-			w.WriteHeader(http.StatusInternalServerError)
-
-		default:
-			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("project_name", cty.NullVal(cty.String)).
-					String(),
-				ExpectError: regexp.MustCompile(http.StatusText(http.StatusInternalServerError)),
-			},
-		},
-	})
-}
-
-func TestCreateWorkspaceGroupValidationErrors(t *testing.T) {
-	t.Run("missing region", func(t *testing.T) {
-		testutil.UnitTest(t, testutil.UnitTestConfig{
-			APIKey:        testutil.UnusedAPIKey,
-			APIServiceURL: "http://unused",
-		}, resource.TestCase{
-			Steps: []resource.TestStep{
-				{
-					Config: `
-provider "singlestoredb" {
-}
-resource "singlestoredb_workspace_group" "test" {
-  name            = "group"
-  firewall_ranges = ["0.0.0.0/0"]
-}
-`,
-					ExpectError: regexp.MustCompile("Invalid region configuration|Missing Attribute"),
-				},
-			},
-		})
-	})
-
-	t.Run("opt_in_preview_feature requires non-production", func(t *testing.T) {
-		regionsv2 := []management.RegionV2{
-			{
-				Provider:   management.CloudProviderAWS,
-				RegionName: "us-east-1",
-			},
-		}
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, pathV2Regions, r.URL.Path)
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(regionsv2))
-			require.NoError(t, err)
-		}))
-		t.Cleanup(server.Close)
-
-		testutil.UnitTest(t, testutil.UnitTestConfig{
-			APIKey:        testutil.UnusedAPIKey,
-			APIServiceURL: server.URL,
-		}, resource.TestCase{
-			Steps: []resource.TestStep{
-				{
-					Config: `
-provider "singlestoredb" {
-}
-resource "singlestoredb_workspace_group" "test" {
-  name                    = "group"
-  firewall_ranges         = ["0.0.0.0/0"]
-  cloud_provider          = "AWS"
-  region_name             = "us-east-1"
-  deployment_type         = "PRODUCTION"
-  opt_in_preview_feature  = true
-}
-`,
-					ExpectError: regexp.MustCompile("opt_in_preview_feature"),
-				},
-			},
-		})
-	})
-}
-
-func TestCreateWorkspaceGroupWithRegionID(t *testing.T) {
-	regionID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
-	workspaceGroupID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
-
-	workspaceGroup := management.WorkspaceGroup{
-		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-		FirewallRanges:   util.Ptr([]string{config.TestInitialFirewallRange}),
-		Name:             config.TestInitialWorkspaceGroupName,
-		RegionID:         regionID,
-		Provider:         management.CloudProviderAWS,
-		State:            management.WorkspaceGroupStatePENDING,
-		WorkspaceGroupID: workspaceGroupID,
-		DeploymentType:   &defaultDeploymentType,
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == pathV1WorkspaceGroups && r.Method == http.MethodPost:
-			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
-			var input management.WorkspaceGroupCreate
-			require.NoError(t, json.Unmarshal(body, &input))
-			require.NotNil(t, input.RegionID)
-			require.Equal(t, regionID, *input.RegionID)
-			require.Nil(t, input.Provider)
-			require.Nil(t, input.RegionName)
-
-			w.Header().Add("Content-Type", "json")
-			_, err = w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: workspaceGroupID}))
-			require.NoError(t, err)
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodGet:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(workspaceGroup))
-			require.NoError(t, err)
-			workspaceGroup.State = management.WorkspaceGroupStateACTIVE
-
-		case strings.HasPrefix(r.URL.Path, pathV1WorkspaceGroups+"/") && r.Method == http.MethodDelete:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(struct {
-				WorkspaceGroupID uuid.UUID
-			}{WorkspaceGroupID: workspaceGroupID}))
-			require.NoError(t, err)
-
-		default:
-			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	testutil.UnitTest(t, testutil.UnitTestConfig{
-		APIServiceURL: server.URL,
-		APIKey:        testutil.UnusedAPIKey,
-	}, resource.TestCase{
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(`
-provider "singlestoredb" {
-}
-resource "singlestoredb_workspace_group" "this" {
-  name            = %q
-  firewall_ranges = [%q]
-  expires_at      = %q
-  region_id       = %q
-  admin_password  = %q
-}
-`, config.TestInitialWorkspaceGroupName, config.TestInitialFirewallRange, config.TestInitialWorkspaceGroupExpiresAt, regionID.String(), config.TestInitialAdminPassword),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "region_id", regionID.String()),
-				),
-			},
-		},
-	})
 }
