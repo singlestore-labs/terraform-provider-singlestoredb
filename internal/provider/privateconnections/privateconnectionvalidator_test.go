@@ -66,6 +66,12 @@ func TestValidatePrivateConnection(t *testing.T) {
 	plan.ServiceName = types.StringValue("test service name")
 
 	err = privateconnections.ValidatePrivateConnection(plan, false)
+	require.NotNil(t, err)
+	require.Equal(t, "workspace_id configuration is required for OUTBOUND private connections. Without workspace_id, the request is treated as a DDL private connection.", err.Detail)
+
+	plan.WorkspaceID = types.StringValue("41c1c310-9a5f-4a7a-ba8e-088af6056d8d")
+
+	err = privateconnections.ValidatePrivateConnection(plan, false)
 	require.Nil(t, err)
 
 	plan.AllowList = types.StringValue("12345")

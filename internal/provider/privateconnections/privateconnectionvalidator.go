@@ -65,6 +65,7 @@ func getOutboundValidationRules(plan PrivateConnectionModel, isUpdate bool) []va
 		{isUpdate, "OUTBOUND private connections update is not allowed."},
 		{isDefined(plan.AllowList), "allow_list configuration is not allowed for OUTBOUND private connections."},
 		{isUndefined(plan.ServiceName), "service_name configuration is required for OUTBOUND private connections."},
+		{isUndefined(plan.WorkspaceID), "workspace_id configuration is required for OUTBOUND private connections. Without workspace_id, the request is treated as a DDL private connection."},
 	}
 }
 

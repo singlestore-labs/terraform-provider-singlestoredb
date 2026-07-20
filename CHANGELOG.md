@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `singlestoredb_private_connection`: require `workspace_id` for OUTBOUND connections so Terraform reports a clear validation error instead of an API error when creating a DML private link without a workspace.
+
 ### Added
 
 - New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection.

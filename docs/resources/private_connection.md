@@ -69,7 +69,7 @@ output "private_connection_id" {
 - `sql_port` (Number) The SQL port.
 - `type` (String) The private connection type.
 - `web_socket_port` (Number) The websockets port.
-- `workspace_id` (String) The ID of the workspace to connect with.
+- `workspace_id` (String) The ID of the workspace to connect with. Required for OUTBOUND private connections (DML private link).
 
 ### Read-Only
 

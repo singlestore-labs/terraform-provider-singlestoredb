@@ -151,7 +151,7 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 			},
 			"workspace_id": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The ID of the workspace to connect with.",
+				MarkdownDescription: "The ID of the workspace to connect with. Required for OUTBOUND private connections (DML private link).",
 			},
 		},
 	}
