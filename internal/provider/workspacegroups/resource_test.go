@@ -189,7 +189,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		require.NoError(t, err)
 		workspaceGroup.ExpiresAt = &updatedExpiresAt
 		workspaceGroup.Name = updatedWorkspaceGroupName
-		workspaceGroup.AllowAllTraffic = util.Ptr(true)
+		// An empty allowlist blocks all inbound traffic, which the Management API
+		// reports as no ranges rather than as allowAllTraffic.
+		workspaceGroup.AllowAllTraffic = util.Ptr(false)
 		workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
 		workspaceGroup.DeploymentType = &updatedDeploymentType
 	}

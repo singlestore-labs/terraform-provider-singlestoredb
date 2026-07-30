@@ -25,6 +25,10 @@ const (
 	HTTPRequestTimeout = time.Second * 10
 	// WorkspaceGroupCreationTimeout limits the workspace group creation time.
 	WorkspaceGroupCreationTimeout = time.Hour
+	// WorkspaceGroupUpdateTimeout limits the workspace group update time. Updates
+	// wait for the Management API to reflect the change, which for firewall ranges
+	// happens asynchronously.
+	WorkspaceGroupUpdateTimeout = 10 * time.Minute
 	// WorkspaceReadTimeout limits the workspace creation time.
 	WorkspaceReadTimeout = 10 * time.Minute
 	// WorkspaceCreationTimeout limits the workspace creation time.

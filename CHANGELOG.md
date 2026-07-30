@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Fixed "Provider produced inconsistent result after apply" errors on `singlestoredb_workspace_group.firewall_ranges` when the Management API returns ranges in a different order, reports unrestricted access via `allowAllTraffic`, or has not yet applied a firewall update. Updates now wait for the reported allowlist to converge, and Terraform state keeps the configured order when the API reports an equivalent set.
+
 ### Added
 
 - New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection.
