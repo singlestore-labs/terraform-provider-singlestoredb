@@ -2,19 +2,27 @@
 
 ## Unreleased
 
+## v0.1.19 - 2026-07-31
+
 ### Fixed
 
-- Fixed "Provider produced inconsistent result after apply" errors on `singlestoredb_workspace_group.firewall_ranges` when the Management API returns ranges in a different order, reports unrestricted access via `allowAllTraffic`, or has not yet applied a firewall update. Updates now wait for the reported allowlist to converge, and Terraform state keeps the configured order when the API reports an equivalent set.
+- Fixed "Provider produced inconsistent result after apply" errors on `singlestoredb_workspace_group.firewall_ranges` when the Management API returns ranges in a different order, reports unrestricted access via `allowAllTraffic`, or has not yet applied a firewall update. Updates now wait for the reported allowlist to converge, and Terraform state keeps the configured order when the API reports an equivalent set (#130).
 
 ### Added
 
-- New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection.
-- New `singlestoredb_sql_query` data source for read-only SQL queries at plan/apply time.
-- `SINGLESTORE_SQL_USER_PASSWORD` environment variable for SQL user password / JWT fallback on SQL resources and data sources.
+- New `singlestoredb_sql_execute` resource for DDL/DML against Helios workspaces via the Data API, with optional read-back for drift detection (#118).
+- New `singlestoredb_sql_query` data source for read-only SQL queries at plan/apply time (#118).
+- `SINGLESTORE_SQL_USER_PASSWORD` environment variable for SQL user password / JWT fallback on SQL resources and data sources (#118).
 
 ### Changed
 
-- Rewrote `singlestoredb_workspace_with_sql` example to use `singlestoredb_sql_execute` resources instead of `null_resource` and the `mysql` CLI.
+- Rewrote `singlestoredb_workspace_with_sql` example to use `singlestoredb_sql_execute` resources instead of `null_resource` and the `mysql` CLI (#118).
+
+### Dependencies
+
+- Bump `google.golang.org/grpc` from 1.79.3 to 1.82.1 (#129).
+- Bump `golang.org/x/crypto` from 0.51.0 to 0.52.0 (#127).
+- Bump `golang.org/x/net` from 0.48.0 to 0.55.0 (#123).
 
 ## v0.1.18 - 2026-07-02
 
