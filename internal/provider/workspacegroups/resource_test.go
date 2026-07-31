@@ -32,6 +32,7 @@ var (
 	updatedAdminPassword      = "mockPasswordUpdated193!"
 	defaultDeploymentType     = management.WorkspaceGroupDeploymentTypePRODUCTION
 	updatedDeploymentType     = management.WorkspaceGroupDeploymentTypeNONPRODUCTION
+	updatedFirewallRanges     = []string{"198.51.100.0/24", "192.0.2.0/24"}
 )
 
 const (
@@ -189,7 +190,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		require.NoError(t, err)
 		workspaceGroup.ExpiresAt = &updatedExpiresAt
 		workspaceGroup.Name = updatedWorkspaceGroupName
-		workspaceGroup.AllowAllTraffic = util.Ptr(true)
+		// An empty allowlist blocks all inbound traffic, which the Management API
+		// reports as no ranges rather than as allowAllTraffic.
+		workspaceGroup.AllowAllTraffic = util.Ptr(false)
 		workspaceGroup.FirewallRanges = util.Ptr([]string{}) // Updating for the next reads.
 		workspaceGroup.DeploymentType = &updatedDeploymentType
 	}
@@ -327,7 +330,10 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
-					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListVal([]cty.Value{
+					cty.StringVal(updatedFirewallRanges[0]),
+					cty.StringVal(updatedFirewallRanges[1]),
+				})).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					WithWorkspaceGroupResource("this")(
 					"update_window", cty.ObjectVal(map[string]cty.Value{
@@ -340,11 +346,28 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", config.TestInitialProjectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "2"),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", updatedFirewallRanges[0]),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.1", updatedFirewallRanges[1]),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.day", fmt.Sprint(config.TestInitialUpdateWindowDay)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "update_window.hour", fmt.Sprint(config.TestInitialUpdateWindowHour)),
 				),
+			},
+			{
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
+					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
+					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
+					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListValEmpty(cty.String)).
+					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
+					WithWorkspaceGroupResource("this")(
+					"update_window", cty.ObjectVal(map[string]cty.Value{
+						"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
+						"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
+					})).
+					String(),
+				Check: resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "0"),
 			},
 		},
 	})

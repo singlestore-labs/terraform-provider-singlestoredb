@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -265,7 +266,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	id := workspaceGroupCreateResponse.JSON200.WorkspaceGroupID
-	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, waitConditionFirewallRanges(plan.FirewallRanges))
+	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, config.WorkspaceGroupCreationTimeout, waitConditionFirewallRanges(plan.FirewallRanges))
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -278,7 +279,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	), regionIDIsSet)
+	), regionIDIsSet, plan.FirewallRanges)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -349,7 +350,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := util.IsConfiguredString(state.RegionID)
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet)
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -405,7 +406,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id)
+	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, config.WorkspaceGroupUpdateTimeout, waitConditionFirewallRanges(plan.FirewallRanges))
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -416,7 +417,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet)
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -622,12 +623,17 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool) workspaceGroupResourceModel {
+// toWorkspaceGroupResourceModel maps a workspace group onto the resource model.
+//
+// configuredFirewallRanges is the allowlist Terraform holds for the resource, either
+// from the plan or from the prior state. It decides how the reported ranges are
+// spelled, see firewallRangesForState.
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
 		ProjectName:              util.StringValueOrNull(workspaceGroup.ProjectName),
-		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
+		FirewallRanges:           firewallRangesForState(configuredFirewallRanges, workspaceGroup),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		AdminPassword:            types.StringValue(adminPassword),
@@ -705,12 +711,12 @@ func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringV
 // waitCondition return nil if it is satisfied.
 type waitCondition func(management.WorkspaceGroup) error
 
-func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
+func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, timeout time.Duration, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
 	result := management.WorkspaceGroup{}
 
 	workspaceGroupStateHistory := make([]management.WorkspaceGroupState, 0, config.WorkspaceGroupConsistencyThreshold)
 
-	if err := retry.RetryContext(ctx, config.WorkspaceGroupCreationTimeout, func() *retry.RetryError {
+	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		workspaceGroup, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
 		if err != nil { // Not status code OK does not get here, not retrying for that reason.
 			ferr := fmt.Errorf("failed to get workspace group %s: %w", id, err)
@@ -727,7 +733,7 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
 
 		if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
-			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
+			err := fmt.Errorf("workspace group %s create or update failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
@@ -751,7 +757,7 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 		return nil
 	}); err != nil {
 		return management.WorkspaceGroup{}, &util.SummaryWithDetailError{
-			Summary: fmt.Sprintf("Failed to wait for a workspace group %s creation", id),
+			Summary: fmt.Sprintf("Failed to wait for a workspace group %s to be ready", id),
 			Detail:  fmt.Sprintf("Workspace group is not ready: %s", err),
 		}
 	}
@@ -763,16 +769,20 @@ func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
 	return state == management.WorkspaceGroupStateFAILED || state == management.WorkspaceGroupStateTERMINATED
 }
 
-func waitConditionFirewallRanges(firewallRanges []types.String) func(management.WorkspaceGroup) error {
+// waitConditionFirewallRanges holds until the Management API reports the configured
+// allowlist. Firewall changes are applied asynchronously, so for a while after a
+// create or update the API still reports the previous ranges.
+func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 	return func(w management.WorkspaceGroup) error {
-		switch {
-		case len(firewallRanges) == 0:
-			return nil
-		case w.FirewallRanges == nil || len(*w.FirewallRanges) != len(firewallRanges):
-			return fmt.Errorf("workspace group %s firewallRanges length should be %d", w.WorkspaceGroupID, len(firewallRanges))
-		default:
+		if firewallRangesConverged(firewallRanges, w) {
 			return nil
 		}
+
+		return fmt.Errorf("workspace group %s firewall ranges are [%s] but should be [%s]",
+			w.WorkspaceGroupID,
+			util.Join(effectiveFirewallRanges(w), ", "),
+			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
+		)
 	}
 }
 
