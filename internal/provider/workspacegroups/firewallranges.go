@@ -54,7 +54,7 @@ func firewallRangesConverged(configured []types.String, workspaceGroup managemen
 // does not surface as a diff. An allowlist that genuinely differs is reported as
 // the API gives it, so that drift is still detected.
 func firewallRangesForState(configured []types.String, workspaceGroup management.WorkspaceGroup) []types.String {
-	if firewallRangesConverged(configured, workspaceGroup) {
+	if configured != nil && firewallRangesConverged(configured, workspaceGroup) {
 		return configured
 	}
 

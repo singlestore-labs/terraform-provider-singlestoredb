@@ -122,4 +122,14 @@ func TestFirewallRangesForState(t *testing.T) {
 		})
 		require.Equal(t, configuredUnrestricted, got)
 	})
+
+	t.Run("imported empty allowlist is non-nil", func(t *testing.T) {
+		t.Parallel()
+		got := firewallRangesForState(nil, management.WorkspaceGroup{
+			AllowAllTraffic: util.Ptr(false),
+			FirewallRanges:  util.Ptr([]string{}),
+		})
+		require.NotNil(t, got)
+		require.Empty(t, got)
+	})
 }
