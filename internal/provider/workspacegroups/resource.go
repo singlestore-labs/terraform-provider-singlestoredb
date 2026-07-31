@@ -733,7 +733,7 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
 
 		if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
-			err := fmt.Errorf("workspace group %s creation failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
+			err := fmt.Errorf("workspace group %s create or update failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
