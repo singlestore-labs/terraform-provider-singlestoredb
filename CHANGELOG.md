@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
+
 ## v0.1.19 - 2026-07-31
 
 ### Fixed
