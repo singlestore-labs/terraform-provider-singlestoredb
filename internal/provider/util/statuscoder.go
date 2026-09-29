@@ -74,10 +74,10 @@ func statusHint(code int, body string) string {
 func forbiddenHint(body string) string {
 	normalized := strings.ToLower(body)
 	switch {
-	case indicatesInsufficientCredits(normalized):
-		return config.CreditsErrorDetail
 	case indicatesAccessDenied(normalized):
 		return config.AccessNotAuthorizedErrorDetail
+	case indicatesInsufficientCredits(normalized):
+		return config.CreditsErrorDetail
 	default:
 		return ""
 	}
