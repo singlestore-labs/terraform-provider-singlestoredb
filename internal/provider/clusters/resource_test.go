@@ -258,7 +258,9 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.ClustersResource,
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, clusterID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "name", "cluster-1"),
@@ -438,7 +440,9 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.ClustersResource,
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "endpoint", endpoint),
@@ -446,6 +450,7 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
 					WithClusterResource("this")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -454,6 +459,7 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
 					WithClusterResource("this")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(

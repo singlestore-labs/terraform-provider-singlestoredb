@@ -8,7 +8,7 @@ import (
 )
 
 func TestAdminPasswordForState(t *testing.T) {
-	require.Equal(t, "generated", util.AdminPasswordForState("configured", "generated"))
+	require.Equal(t, "configured", util.AdminPasswordForState("configured", "generated"))
 	require.Equal(t, "configured", util.AdminPasswordForState("configured", ""))
 	require.Equal(t, "generated", util.AdminPasswordForState("", "generated"))
 }

@@ -26,7 +26,6 @@ resource "singlestoredb_workspace_group" "example" {
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "example" {

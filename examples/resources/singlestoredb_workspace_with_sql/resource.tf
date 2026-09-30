@@ -25,7 +25,6 @@ resource "singlestoredb_workspace_group" "example" {
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "this" {
@@ -38,8 +37,8 @@ resource "singlestoredb_workspace" "this" {
 locals {
   sql_endpoint = singlestoredb_workspace.this.endpoint
   sql_username = "admin"
-  // Prefer the workspace group attribute: /v2/clusters may replace the configured
-  // admin_password with a generated value stored in Terraform state.
+  // Omit admin_password on the workspace group so /v2/clusters can generate one;
+  // Terraform state then holds the working password for SQL resources.
   sql_password = singlestoredb_workspace_group.example.admin_password
   app_db       = "my_app_db"
 }

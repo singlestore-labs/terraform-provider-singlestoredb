@@ -58,10 +58,11 @@ func Ptr[A any](a A) *A {
 	return &a
 }
 
-// AdminPasswordForState prefers the password the Management API actually applied
-// (returned on create) over the configured value, which /v2/clusters often ignores.
+// AdminPasswordForState returns the password to persist after create.
+// When the configuration sets admin_password, Terraform requires state to match
+// that planned sensitive value. When unset, use the API-generated password.
 func AdminPasswordForState(configured, apiReturned string) string {
-	return FirstNotEmpty(apiReturned, configured)
+	return FirstNotEmpty(configured, apiReturned)
 }
 
 // FirstNotEmpty returns the first encountered not empty string if present.

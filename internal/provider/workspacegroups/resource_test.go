@@ -159,7 +159,9 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: examples.WorkspaceGroupsResource,
+				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
+					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
