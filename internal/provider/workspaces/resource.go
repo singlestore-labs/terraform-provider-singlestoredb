@@ -267,8 +267,9 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	sibling, found := findClusterInGroup(util.Deref(clustersResp.JSON200), groupID)
-	if !found {
+	allClusters := util.Deref(clustersResp.JSON200)
+	groupClusters := filterClustersByGroupID(allClusters, groupID)
+	if len(groupClusters) == 0 {
 		resp.Diagnostics.AddError(
 			"Cannot resolve workspace group details",
 			"No existing workspace was found in the workspace group. Create the workspace group (singlestoredb_workspace_group) before creating additional workspaces in it.",
@@ -277,12 +278,40 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// /v2/clusters create requires region/provider/firewallRanges even when attaching to an
-	// existing group; copy those from a sibling workspace in the group so the classic
-	// workspace_group → workspace flow stays unchanged for callers.
+	// /v2/clusters ignores GroupID on create (each POST gets a new group). For the common
+	// workspace_group → workspace flow, adopt the group's sole starter cluster instead of
+	// creating an unreachable orphan cluster with a different admin password.
+	if starter, ok := soleAdoptableCluster(groupClusters, plan.Name.ValueString()); ok {
+		w, werr := adoptStarterCluster(ctx, r.ClientWithResponsesInterface, starter, plan)
+		if werr != nil {
+			resp.Diagnostics.AddError(werr.Summary, werr.Detail)
+
+			return
+		}
+		result := toWorkspaceResourceModel(w)
+		result.WorkspaceGroupID = plan.WorkspaceGroupID
+		diags = resp.State.Set(ctx, &result)
+		resp.Diagnostics.Append(diags...)
+
+		return
+	}
+
+	if _, exists := findClusterByName(groupClusters, plan.Name.ValueString()); exists {
+		resp.Diagnostics.AddError(
+			"Workspace already exists in the workspace group",
+			fmt.Sprintf("A workspace named %q already exists in workspace group %s.", plan.Name.ValueString(), groupID),
+		)
+
+		return
+	}
+
+	sibling := groupClusters[0]
+	// POST /v2/clusters treats an empty firewallRanges list as deny-all. Siblings with
+	// unrestricted access report allowAllTraffic=true and an empty list — expand that
+	// back to 0.0.0.0/0 before create.
 	// Do not copy ExpiresAt: the list API often returns a non-RFC3339 spelling that
 	// /v2/clusters rejects on create, and workspace create never set expiration under v1.
-	firewallRanges := util.Deref(sibling.FirewallRanges)
+	firewallRanges := effectiveFirewallRanges(sibling)
 	workspaceCreateResponse, err := r.PostV2ClustersWithResponse(ctx, management.PostV2ClustersJSONRequestBody{
 		Name:           plan.Name.ValueString(),
 		GroupID:        util.Ptr(groupID),

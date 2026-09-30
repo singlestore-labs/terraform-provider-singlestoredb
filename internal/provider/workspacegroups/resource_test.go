@@ -222,7 +222,7 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", config.TestInitialProjectName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", "admin_password"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
@@ -231,17 +231,16 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
-					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListVal([]cty.Value{
-					cty.StringVal(updatedFirewallRanges[0]),
-					cty.StringVal(updatedFirewallRanges[1]),
-				})).
+						cty.StringVal(updatedFirewallRanges[0]),
+						cty.StringVal(updatedFirewallRanges[1]),
+					})).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", "admin_password"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "2"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),
 				),

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -37,12 +38,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	projectID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-	starterClusterID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-	workspaceID := uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
+	// Under /v2/clusters the workspace adopts the workspace_group starter cluster.
+	clusterID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 
-	starterCluster := management.Cluster{
+	cluster := management.Cluster{
 		AllowAllTraffic: util.Ptr(false),
-		CreatedAt:       util.Ptr(time.Now().UTC()),
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 		ExpiresAt:       util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
 		FirewallRanges:  util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
 		Name:            config.TestInitialWorkspaceGroupName,
@@ -50,32 +51,21 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 		Provider:        util.Ptr(management.CloudProviderAWS),
 		State:           util.Ptr(management.ClusterStateACTIVE),
 		GroupID:         util.Ptr(workspaceGroupID),
-		ClusterID:       util.Ptr(starterClusterID),
+		ClusterID:       util.Ptr(clusterID),
 		ProjectID:       projectID,
 		DeploymentType:  util.Ptr(management.PRODUCTION),
-		SizeConfig:      &management.SizeConfig{Size: util.Ptr("S-00")},
+		Endpoint:        util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
+		SizeConfig:      &management.SizeConfig{Size: util.Ptr("S-00"), ScaleFactor: util.Ptr[float32](1), CacheConfig: util.Ptr[float32](1)},
 	}
 
-	workspace := management.Cluster{
-		CreatedAt:  mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
-		Name:       config.TestWorkspaceName,
-		State:      util.Ptr(management.ClusterStateACTIVE),
-		ClusterID:  util.Ptr(workspaceID),
-		GroupID:    util.Ptr(workspaceGroupID),
-		ProjectID:  projectID,
-		Endpoint:   util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		SizeConfig: &management.SizeConfig{Size: util.Ptr(config.TestInitialWorkspaceSize), ScaleFactor: util.Ptr[float32](1), CacheConfig: util.Ptr[float32](1)},
-	}
-
-	workspaceExists := false
-	starterExists := true
+	clusterExists := true
 	postCount := 0
-	patchAttempts := 0
+	adoptPatches := 0
+	updatePatches := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
-		workspacePath := strings.Join([]string{"/v2/clusters", workspaceID.String()}, "/")
-		starterPath := strings.Join([]string{"/v2/clusters", starterClusterID.String()}, "/")
+		clusterPath := strings.Join([]string{"/v2/clusters", clusterID.String()}, "/")
 
 		switch {
 		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
@@ -84,104 +74,100 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 			}}))
 			require.NoError(t, err)
 		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
-			clusters := make([]management.Cluster, 0, 2)
-			if starterExists {
-				clusters = append(clusters, starterCluster)
-			}
-			if workspaceExists {
-				clusters = append(clusters, workspace)
+			clusters := []management.Cluster{}
+			if clusterExists {
+				clusters = append(clusters, cluster)
 			}
 			_, err := w.Write(testutil.MustJSON(clusters))
 			require.NoError(t, err)
 		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
 			postCount++
+			require.Equal(t, 1, postCount, "workspace create should adopt the starter cluster, not POST a second cluster")
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			var input management.Cluster
 			require.NoError(t, json.Unmarshal(body, &input))
-			if postCount == 1 {
-				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-					GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
-				}{ClusterID: starterClusterID, GroupID: workspaceGroupID}))
-			} else {
-				require.Nil(t, input.AutoScale, "AutoScale should be nil when max_scale_factor defaults to 1")
-				workspaceExists = true
-				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-					GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
-				}{ClusterID: workspaceID, GroupID: workspaceGroupID}))
-			}
+			require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
+			_, err = w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{ClusterID: clusterID, GroupID: workspaceGroupID}))
 			require.NoError(t, err)
-		case r.URL.Path == workspacePath && r.Method == http.MethodGet:
-			if !workspaceExists {
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
+			if !clusterExists {
 				w.WriteHeader(http.StatusNotFound)
 
 				return
 			}
-			_, err := w.Write(testutil.MustJSON(workspace))
+			_, err := w.Write(testutil.MustJSON(cluster))
 			require.NoError(t, err)
-		case r.URL.Path == starterPath && r.Method == http.MethodGet:
-			_, err := w.Write(testutil.MustJSON(starterCluster))
-			require.NoError(t, err)
-		case r.URL.Path == strings.Join([]string{workspacePath, "suspend"}, "/") && r.Method == http.MethodPost:
-			workspace.State = util.Ptr(management.ClusterStateSUSPENDED)
-			workspace.Endpoint = nil
+		case r.URL.Path == strings.Join([]string{clusterPath, "suspend"}, "/") && r.Method == http.MethodPost:
+			cluster.State = util.Ptr(management.ClusterStateSUSPENDED)
+			cluster.Endpoint = nil
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: workspaceID}))
+			}{ClusterID: clusterID}))
 			require.NoError(t, err)
-		case r.URL.Path == strings.Join([]string{workspacePath, "resume"}, "/") && r.Method == http.MethodPost:
-			workspace.State = util.Ptr(management.ClusterStateACTIVE)
-			workspace.Endpoint = newEndpoint
+		case r.URL.Path == strings.Join([]string{clusterPath, "resume"}, "/") && r.Method == http.MethodPost:
+			cluster.State = util.Ptr(management.ClusterStateACTIVE)
+			cluster.Endpoint = newEndpoint
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: workspaceID}))
+			}{ClusterID: clusterID}))
 			require.NoError(t, err)
-		case r.URL.Path == workspacePath && r.Method == http.MethodPatch:
-			patchAttempts++
-			if patchAttempts == 1 {
-				w.WriteHeader(http.StatusInternalServerError)
-
-				return
-			}
+		case r.URL.Path == clusterPath && r.Method == http.MethodPatch:
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			var input management.Cluster
 			require.NoError(t, json.Unmarshal(body, &input))
+			if input.Name == config.TestWorkspaceName && adoptPatches == 0 {
+				adoptPatches++
+				cluster.Name = config.TestWorkspaceName
+				cluster.SizeConfig = &management.SizeConfig{
+					Size:        util.Ptr(config.TestInitialWorkspaceSize),
+					ScaleFactor: util.Ptr[float32](1),
+					CacheConfig: util.Ptr[float32](1),
+				}
+				_, err = w.Write(testutil.MustJSON(struct {
+					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				}{ClusterID: clusterID}))
+				require.NoError(t, err)
+
+				return
+			}
+			updatePatches++
+			if updatePatches == 1 {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
 			require.Equal(t, updatedWorkspaceSize, util.Deref(input.SizeConfig.Size))
 			require.Equal(t, updatedCacheConfig, util.Deref(input.SizeConfig.CacheConfig))
 			require.Equal(t, updatedScaleFactor, util.Deref(input.SizeConfig.ScaleFactor))
 			require.Equal(t, updatedMaxScaleFactor, util.Deref(input.AutoScale.MaxScaleFactor))
 			require.Equal(t, management.AutoScaleSensitivity(updatedSensitivity), util.Deref(input.AutoScale.Sensitivity))
-			workspace.SizeConfig = &management.SizeConfig{
+			cluster.SizeConfig = &management.SizeConfig{
 				Size:        util.Ptr(updatedWorkspaceSize),
 				CacheConfig: util.Ptr(updatedCacheConfig),
 				ScaleFactor: util.Ptr(updatedScaleFactor),
 			}
-			workspace.AutoScale = &management.AutoScale{
+			cluster.AutoScale = &management.AutoScale{
 				MaxScaleFactor: util.Ptr(updatedMaxScaleFactor),
 				Sensitivity:    util.Ptr(management.AutoScaleSensitivity(updatedSensitivity)),
 			}
-			workspace.AutoSuspend = &management.AutoSuspend{
+			cluster.AutoSuspend = &management.AutoSuspend{
 				SuspendType:      util.Ptr(management.IDLE),
 				IdleAfterSeconds: util.Ptr(int(updatedSuspendSeconds)),
 			}
 			_, err = w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: workspaceID}))
+			}{ClusterID: clusterID}))
 			require.NoError(t, err)
-		case r.URL.Path == workspacePath && r.Method == http.MethodDelete:
-			workspaceExists = false
+		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
+			clusterExists = false
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: workspaceID}))
-			require.NoError(t, err)
-		case r.URL.Path == starterPath && r.Method == http.MethodDelete:
-			starterExists = false
-			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: starterClusterID}))
+			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 		default:
 			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
@@ -197,12 +183,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 			{
 				Config: examples.WorkspacesResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", config.IDAttribute, workspaceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", config.IDAttribute, clusterID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "workspace_group_id", workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", workspace.Name),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "created_at", workspace.CreatedAt.Format(time.RFC3339)),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "created_at", cluster.CreatedAt.Format(time.RFC3339)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "endpoint", "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "kai_enabled", "false"),
 					resource.TestCheckNoResourceAttr("singlestoredb_workspace.this", "last_resumed_at"),
@@ -236,13 +222,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
 					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
 					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
-					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
-					"sensitivity":      cty.StringVal(updatedSensitivity),
-				})).
+						"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+						"sensitivity":      cty.StringVal(updatedSensitivity),
+					})).
 					WithWorkspaceResource("this")("auto_suspend", cty.ObjectVal(map[string]cty.Value{
-					"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
-					"suspend_type":          cty.StringVal(updatedSuspendType),
-				})).
+						"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
+						"suspend_type":          cty.StringVal(updatedSuspendType),
+					})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
@@ -259,15 +245,12 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 		},
 	})
 
-	require.GreaterOrEqual(t, patchAttempts, 2)
-	require.False(t, workspaceExists)
-	require.False(t, starterExists)
+	require.Equal(t, 1, adoptPatches)
+	require.GreaterOrEqual(t, updatePatches, 2)
+	require.False(t, clusterExists)
 }
 
 func TestWorkspaceResourceIntegration(t *testing.T) {
-	adminPassword := "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
-	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
-
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
@@ -275,17 +258,16 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
-					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
-					"sensitivity":      cty.StringVal(updatedSensitivity),
-				})).
+						"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+						"sensitivity":      cty.StringVal(updatedSensitivity),
+					})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
+					isConnectableUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
@@ -293,4 +275,21 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			},
 		},
 	})
+}
+
+func isConnectableUsingGroupPassword(workspaceAddr, groupAddr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		ws, ok := s.RootModule().Resources[workspaceAddr]
+		if !ok {
+			return fmt.Errorf("resource %s not found", workspaceAddr)
+		}
+		wg, ok := s.RootModule().Resources[groupAddr]
+		if !ok {
+			return fmt.Errorf("resource %s not found", groupAddr)
+		}
+		endpoint := ws.Primary.Attributes["endpoint"]
+		password := wg.Primary.Attributes["admin_password"]
+
+		return testutil.IsConnectableWithAdminPassword(password)(endpoint)
+	}
 }

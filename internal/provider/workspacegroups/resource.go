@@ -289,10 +289,12 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, util.FirstNotEmpty(
+	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, util.AdminPasswordForState(
 		plan.AdminPassword.ValueString(),
-		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
+		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword),
 	), false, plan.FirewallRanges)
+	// Keep the configured name: workspaces may rename the starter cluster when adopting it.
+	result.Name = plan.Name
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -363,7 +365,13 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := util.IsConfiguredString(state.RegionID)
+	configuredName := state.Name
 	state = toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, workspaceGroup, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
+	// Workspaces may rename the starter cluster when adopting it under /v2/clusters.
+	// On import, state has no prior name — keep the API name instead.
+	if util.IsConfiguredString(configuredName) {
+		state.Name = configuredName
+	}
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -414,10 +422,11 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// update_window is immutable under /v2/clusters PATCH (ModifyPlan rejects changes).
-	// Name is required on the Cluster JSON shape, so the current (unchanged) name is sent.
+	// Name is required on the Cluster JSON shape; send the live cluster name so a workspace
+	// that adopted/renamed the starter cluster is not renamed back to the group name.
 	workspaceGroupUpdateResponse, err := r.PatchV2ClustersClusterIDWithResponse(ctx, *cluster.ClusterID,
 		management.Cluster{
-			Name:           plan.Name.ValueString(),
+			Name:           cluster.Name,
 			AdminPassword:  workspaceGroupPatchAdminPassword(plan, state),
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
@@ -445,6 +454,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 
 	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
 	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
+	result.Name = plan.Name
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)

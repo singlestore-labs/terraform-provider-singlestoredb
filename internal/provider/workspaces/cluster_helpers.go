@@ -1,9 +1,13 @@
 package workspaces
 
 import (
+	"context"
+	"strings"
+
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
@@ -119,4 +123,71 @@ func filterClustersByGroupID(clusters []management.Cluster, groupID otypes.UUID)
 	}
 
 	return result
+}
+
+func findClusterByName(clusters []management.Cluster, name string) (management.Cluster, bool) {
+	for _, c := range clusters {
+		if strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
+			return c, true
+		}
+	}
+
+	return management.Cluster{}, false
+}
+
+// soleAdoptableCluster returns the group's only cluster when it is still the
+// workspace_group starter (not already renamed to the desired workspace name).
+func soleAdoptableCluster(groupClusters []management.Cluster, workspaceName string) (management.Cluster, bool) {
+	if len(groupClusters) != 1 {
+		return management.Cluster{}, false
+	}
+	if _, exists := findClusterByName(groupClusters, workspaceName); exists {
+		return management.Cluster{}, false
+	}
+
+	return groupClusters[0], true
+}
+
+// adoptStarterCluster renames/resizes the workspace_group starter cluster into the
+// configured workspace. /v2/clusters cannot attach a second cluster to an existing
+// GroupID, so this keeps password/firewall/group identity aligned for the classic
+// workspace_group → workspace flow.
+func adoptStarterCluster(
+	ctx context.Context,
+	c management.ClientWithResponsesInterface,
+	starter management.Cluster,
+	plan workspaceResourceModel,
+) (management.Cluster, *util.SummaryWithDetailError) {
+	if starter.ClusterID == nil {
+		return management.Cluster{}, &util.SummaryWithDetailError{
+			Summary: "Missing cluster ID",
+			Detail:  "The workspace group starter cluster response did not include a cluster ID.",
+		}
+	}
+
+	id := *starter.ClusterID
+	patch := management.Cluster{
+		Name:        plan.Name.ValueString(),
+		SizeConfig:  toSizeConfig(plan),
+		Kai:         util.MaybeBool(plan.KaiEnabled),
+		AutoSuspend: toClusterAutoSuspend(plan),
+		AutoScale:   toCreateAutoScale(plan),
+	}
+	updateResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patch)
+	if serr := util.StatusOK(updateResponse, err); serr != nil {
+		return management.Cluster{}, serr
+	}
+
+	desiredSize := plan.Size.ValueString()
+	conditions := []waitCondition{
+		waitConditionState(management.ClusterStateACTIVE),
+	}
+	if desiredSize != "" && desiredSize != clusterSize(starter) {
+		conditions = append(conditions,
+			waitConditionSize(desiredSize),
+			waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
+		)
+	}
+
+	return wait(ctx, c, id, config.WorkspaceCreationTimeout, conditions...)
 }

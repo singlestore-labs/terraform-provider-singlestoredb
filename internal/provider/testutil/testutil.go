@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	singlestoresql "github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
@@ -209,6 +210,24 @@ func IsDataAPIReady(adminPassword string) resource.CheckResourceAttrWithFunc {
 
 			return err
 		}, b)
+	}
+}
+
+// IsDataAPIReadyUsingGroupPassword reads the workspace endpoint and workspace-group
+// admin_password from Terraform state. /v2/clusters often ignores configured passwords
+// and returns a generated one that must be used for connectivity checks.
+func IsDataAPIReadyUsingGroupPassword(workspaceAddr, groupAddr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		ws, ok := s.RootModule().Resources[workspaceAddr]
+		if !ok {
+			return fmt.Errorf("resource %s not found", workspaceAddr)
+		}
+		wg, ok := s.RootModule().Resources[groupAddr]
+		if !ok {
+			return fmt.Errorf("resource %s not found", groupAddr)
+		}
+
+		return IsDataAPIReady(wg.Primary.Attributes["admin_password"])(ws.Primary.Attributes["endpoint"])
 	}
 }
 

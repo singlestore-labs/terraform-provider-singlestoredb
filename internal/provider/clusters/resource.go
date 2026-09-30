@@ -406,7 +406,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	result := toClusterResourceModel(cluster, util.FirstNotEmpty(
+	result := toClusterResourceModel(cluster, util.AdminPasswordForState(
 		plan.AdminPassword.ValueString(),
 		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
 	), plan.FirewallRanges, plan.ProjectName)

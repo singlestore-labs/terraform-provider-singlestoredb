@@ -58,6 +58,12 @@ func Ptr[A any](a A) *A {
 	return &a
 }
 
+// AdminPasswordForState prefers the password the Management API actually applied
+// (returned on create) over the configured value, which /v2/clusters often ignores.
+func AdminPasswordForState(configured, apiReturned string) string {
+	return FirstNotEmpty(apiReturned, configured)
+}
+
 // FirstNotEmpty returns the first encountered not empty string if present.
 func FirstNotEmpty(ss ...string) string {
 	for _, s := range ss {
