@@ -122,6 +122,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 			require.NoError(t, json.Unmarshal(body, &input))
 			if input.Name == config.TestWorkspaceName && adoptPatches == 0 {
 				adoptPatches++
+				require.Nil(t, input.Kai, "adopt PATCH must omit default kai=false to avoid mongoproxy teardown")
 				cluster.Name = config.TestWorkspaceName
 				cluster.SizeConfig = &management.SizeConfig{
 					Size:        util.Ptr(config.TestInitialWorkspaceSize),

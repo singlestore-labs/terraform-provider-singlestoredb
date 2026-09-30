@@ -148,6 +148,17 @@ func soleAdoptableCluster(groupClusters []management.Cluster, workspaceName stri
 	return groupClusters[0], true
 }
 
+// kaiPatchIfChanged returns a Kai value only when the plan requests a change from
+// the live cluster. Omitting an unchanged false avoids PATCH bodies that disable Kai.
+func kaiPatchIfChanged(plan types.Bool, current *bool) *bool {
+	desired := util.MaybeBool(plan)
+	if desired == nil || *desired == util.Deref(current) {
+		return nil
+	}
+
+	return desired
+}
+
 // adoptStarterCluster renames/resizes the workspace_group starter cluster into the
 // configured workspace. /v2/clusters cannot attach a second cluster to an existing
 // GroupID, so this keeps password/firewall/group identity aligned for the classic
@@ -169,9 +180,13 @@ func adoptStarterCluster(
 	patch := management.Cluster{
 		Name:        plan.Name.ValueString(),
 		SizeConfig:  toSizeConfig(plan),
-		Kai:         util.MaybeBool(plan.KaiEnabled),
 		AutoSuspend: toClusterAutoSuspend(plan),
 		AutoScale:   toCreateAutoScale(plan),
+	}
+	// kai_enabled defaults to false in the schema. Sending "kai": false on PATCH makes
+	// /v2/clusters try to tear down mongoproxy and can 500 when it was never provisioned.
+	if kai := kaiPatchIfChanged(plan.KaiEnabled, starter.Kai); kai != nil {
+		patch.Kai = kai
 	}
 	updateResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patch)
 	if serr := util.StatusOK(updateResponse, err); serr != nil {
