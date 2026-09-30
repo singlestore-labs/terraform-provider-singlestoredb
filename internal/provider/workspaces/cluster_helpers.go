@@ -99,16 +99,6 @@ func toSizeConfig(plan workspaceResourceModel) *management.SizeConfig {
 	}
 }
 
-func findClusterProjectID(clusters []management.Cluster, groupID otypes.UUID) (otypes.UUID, bool) {
-	for _, c := range clusters {
-		if c.GroupID != nil && *c.GroupID == groupID {
-			return c.ProjectID, true
-		}
-	}
-
-	return otypes.UUID{}, false
-}
-
 // findClusterInGroup returns a representative cluster from the workspace group.
 func findClusterInGroup(clusters []management.Cluster, groupID otypes.UUID) (management.Cluster, bool) {
 	for _, c := range clusters {

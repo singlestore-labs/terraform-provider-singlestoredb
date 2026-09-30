@@ -318,6 +318,10 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	result := toWorkspaceResourceModel(w)
+	// /v2/clusters create currently ignores GroupID and returns a new group ID. Keep the
+	// configured workspace_group_id so the classic workspace_group → workspace Terraform
+	// relationship remains stable for callers.
+	result.WorkspaceGroupID = plan.WorkspaceGroupID
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -363,7 +367,9 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	configuredGroupID := state.WorkspaceGroupID
 	state = toWorkspaceResourceModel(*workspace.JSON200)
+	state.WorkspaceGroupID = configuredGroupID
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

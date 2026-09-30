@@ -87,7 +87,7 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 		return workspaceResourceModel{}, werr
 	}
 
-	return toWorkspaceResourceModel(workspace), nil
+	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
 }
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -104,7 +104,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return workspaceResourceModel{}, werr
 	}
 
-	return toWorkspaceResourceModel(workspace), nil
+	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
 }
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -121,5 +121,11 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return workspaceResourceModel{}, werr
 	}
 
-	return toWorkspaceResourceModel(workspace), nil
+	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
+}
+
+func withConfiguredWorkspaceGroupID(model, configured workspaceResourceModel) workspaceResourceModel {
+	model.WorkspaceGroupID = configured.WorkspaceGroupID
+
+	return model
 }

@@ -164,13 +164,14 @@ type ResourceType string
 const (
 	ResourceTypeOrganization   ResourceType = "Organization"
 	ResourceTypeWorkspaceGroup ResourceType = "Cluster"
-	// resourceTypeClusterGroup is returned by identity-roles APIs for workspace-group
-	// scoped cluster grants. Terraform continues to use resource_type = "Cluster".
-	resourceTypeClusterGroup ResourceType = "ClusterGroup"
-	ResourceTypeTeam         ResourceType = "Team"
-	ResourceTypeSecret       ResourceType = "Secret"
-	ResourceTypeUnknown      ResourceType = "Unknown"
+	ResourceTypeTeam           ResourceType = "Team"
+	ResourceTypeSecret         ResourceType = "Secret"
+	ResourceTypeUnknown        ResourceType = "Unknown"
 )
+
+// identityRolesClusterGroupType is returned by identity-roles APIs for workspace-group
+// scoped cluster grants. Terraform continues to use resource_type = "Cluster".
+const identityRolesClusterGroupType = "ClusterGroup"
 
 var ResourceTypeList = []ResourceType{
 	ResourceTypeOrganization,
@@ -192,7 +193,7 @@ func ResourceTypeString(provider types.String) ResourceType {
 		}
 	}
 	// Identity-roles APIs report workspace-group grants as ClusterGroup.
-	if strings.EqualFold(value, string(resourceTypeClusterGroup)) {
+	if strings.EqualFold(value, identityRolesClusterGroupType) {
 		return ResourceTypeWorkspaceGroup
 	}
 
@@ -324,27 +325,36 @@ func alignClusterRoleResourceIDs(
 	configuredIDs := configuredClusterResourceIDs(expectedRoles, unexpectedRoles)
 	aligned := make([]RoleAttributesModel, len(roles))
 	for i, role := range roles {
-		aligned[i] = role
-		if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
-			continue
-		}
-		resourceID, perr := uuid.Parse(role.ResourceID.ValueString())
-		if perr != nil {
-			continue
-		}
-		groupID, isClusterID := clusterToGroup[resourceID]
-		if !isClusterID {
-			continue
-		}
-		if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
-			aligned[i].ResourceID = util.UUIDStringValue(id)
-
-			continue
-		}
-		aligned[i].ResourceID = util.UUIDStringValue(groupID)
+		aligned[i] = alignOneClusterRoleResourceID(role, clusterToGroup, configuredIDs)
 	}
 
 	return aligned, nil
+}
+
+func alignOneClusterRoleResourceID(
+	role RoleAttributesModel,
+	clusterToGroup map[uuid.UUID]uuid.UUID,
+	configuredIDs []uuid.UUID,
+) RoleAttributesModel {
+	if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
+		return role
+	}
+	resourceID, err := uuid.Parse(role.ResourceID.ValueString())
+	if err != nil {
+		return role
+	}
+	groupID, isClusterID := clusterToGroup[resourceID]
+	if !isClusterID {
+		return role
+	}
+	if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
+		role.ResourceID = util.UUIDStringValue(id)
+
+		return role
+	}
+	role.ResourceID = util.UUIDStringValue(groupID)
+
+	return role
 }
 
 func configuredClusterResourceIDs(expectedRoles, unexpectedRoles *[]RoleAttributesModel) []uuid.UUID {
