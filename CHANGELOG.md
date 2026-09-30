@@ -10,7 +10,8 @@
 ### Changed
 
 - Bump `github.com/singlestore-labs/singlestore-go/management` from v1.2.158 to v1.2.176. The Management API client now targets v2 endpoints; `/v1/workspaces` and `/v1/workspaceGroups` are replaced by `/v2/clusters`.
-- `singlestoredb_workspace_group` and `singlestoredb_workspace` now use `/v2/clusters` under the hood. Workspace group create provisions a cluster (workspace + group); `project_name` is effectively required because the API requires a project ID.
+- `singlestoredb_workspace_group` and `singlestoredb_workspace` remain first-class resources with the same Terraform UX; they now call `/v2/clusters` under the hood because the SDK no longer exposes `/v1/workspaces` and `/v1/workspaceGroups`. Workspace group create provisions a starter workspace in the group; `project_name` is effectively required because the API requires a project ID. `name` and `update_window` cannot be updated after create (not supported by `/v2/clusters` PATCH).
+- Role grants with `resource_type = "Cluster"` continue to accept `singlestoredb_workspace_group.id`; identity-roles responses that use `ClusterGroup` are normalized back to `Cluster`.
 - `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
 - Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.
 
