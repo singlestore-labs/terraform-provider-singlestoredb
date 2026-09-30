@@ -24,11 +24,10 @@ import (
 )
 
 var (
-	updatedWorkspaceGroupName = strings.Join([]string{"updated", config.TestInitialWorkspaceGroupName}, "-")
-	updatedAdminPassword      = "mockPasswordUpdated193!"
-	defaultDeploymentType     = management.PRODUCTION
-	updatedDeploymentType     = management.NONPRODUCTION
-	updatedFirewallRanges     = []string{"198.51.100.0/24", "192.0.2.0/24"}
+	updatedAdminPassword  = "mockPasswordUpdated193!"
+	defaultDeploymentType = management.PRODUCTION
+	updatedDeploymentType = management.NONPRODUCTION
+	updatedFirewallRanges = []string{"198.51.100.0/24", "192.0.2.0/24"}
 )
 
 const (
@@ -128,15 +127,14 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:cyclop
 			require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
 			require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
 			require.Empty(t, util.Deref(input.FirewallRanges))
-			require.Equal(t, updatedWorkspaceGroupName, input.Name)
+			require.Equal(t, config.TestInitialWorkspaceGroupName, input.Name)
 			require.Equal(t, string(updatedDeploymentType), string(*input.DeploymentType))
-			require.NotNil(t, input.UpdateWindow)
+			require.Nil(t, input.UpdateWindow)
 			_, err = w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 			workspaceGroup.ExpiresAt = &updatedExpiresAt
-			workspaceGroup.Name = updatedWorkspaceGroupName
 			workspaceGroup.AllowAllTraffic = util.Ptr(false)
 			workspaceGroup.FirewallRanges = util.Ptr([]string{})
 			workspaceGroup.DeploymentType = &updatedDeploymentType
@@ -185,7 +183,6 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(projectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
@@ -193,14 +190,10 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:cyclop
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					WithWorkspaceGroupResource("this")("cloud_provider", cty.StringVal(string(management.CloudProviderAWS))).
 					WithWorkspaceGroupResource("this")("region_name", cty.StringVal(regionsv2[0].RegionName)).
-					WithWorkspaceGroupResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
-					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
-					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
-				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "project_name", projectName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
@@ -237,7 +230,6 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
-					WithWorkspaceGroupResource("this")("name", cty.StringVal(updatedWorkspaceGroupName)).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
 					WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListVal([]cty.Value{
@@ -245,14 +237,10 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 					cty.StringVal(updatedFirewallRanges[1]),
 				})).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
-					WithWorkspaceGroupResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
-					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
-					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
-				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", updatedWorkspaceGroupName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "name", config.TestInitialWorkspaceGroupName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "admin_password", updatedAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "firewall_ranges.#", "2"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace_group.this", "deployment_type", string(updatedDeploymentType)),

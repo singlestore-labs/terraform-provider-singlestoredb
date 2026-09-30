@@ -267,24 +267,33 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	projectID, found := findClusterProjectID(util.Deref(clustersResp.JSON200), groupID)
+	sibling, found := findClusterInGroup(util.Deref(clustersResp.JSON200), groupID)
 	if !found {
 		resp.Diagnostics.AddError(
-			"Cannot resolve project ID for workspace group",
-			"No existing cluster was found in the workspace group. Create the workspace group with the singlestoredb_cluster resource (or ensure the group already contains a cluster) before creating additional workspaces.",
+			"Cannot resolve workspace group details",
+			"No existing workspace was found in the workspace group. Create the workspace group (singlestoredb_workspace_group) before creating additional workspaces in it.",
 		)
 
 		return
 	}
 
+	// /v2/clusters create requires region/provider/firewallRanges even when attaching to an
+	// existing group; copy those from a sibling workspace in the group so the classic
+	// workspace_group → workspace flow stays unchanged for callers.
+	firewallRanges := util.Deref(sibling.FirewallRanges)
 	workspaceCreateResponse, err := r.PostV2ClustersWithResponse(ctx, management.PostV2ClustersJSONRequestBody{
-		Name:        plan.Name.ValueString(),
-		GroupID:     util.Ptr(groupID),
-		ProjectID:   projectID,
-		Kai:         util.MaybeBool(plan.KaiEnabled),
-		SizeConfig:  toSizeConfig(plan),
-		AutoSuspend: toClusterAutoSuspend(plan),
-		AutoScale:   toCreateAutoScale(plan),
+		Name:           plan.Name.ValueString(),
+		GroupID:        util.Ptr(groupID),
+		ProjectID:      sibling.ProjectID,
+		Provider:       sibling.Provider,
+		Region:         sibling.Region,
+		FirewallRanges: &firewallRanges,
+		DeploymentType: sibling.DeploymentType,
+		ExpiresAt:      sibling.ExpiresAt,
+		Kai:            util.MaybeBool(plan.KaiEnabled),
+		SizeConfig:     toSizeConfig(plan),
+		AutoSuspend:    toClusterAutoSuspend(plan),
+		AutoScale:      toCreateAutoScale(plan),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(

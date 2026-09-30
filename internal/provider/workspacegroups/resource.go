@@ -90,7 +90,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit).",
+				MarkdownDescription: "Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created.",
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(1, 32), //nolint:mnd
 				},
@@ -180,7 +180,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"update_window": schema.SingleNestedAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur.",
+				MarkdownDescription: "Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. This value cannot be changed after the workspace group is created.",
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
 				},
@@ -413,6 +413,8 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	// update_window is immutable under /v2/clusters PATCH (ModifyPlan rejects changes).
+	// Name is required on the Cluster JSON shape, so the current (unchanged) name is sent.
 	workspaceGroupUpdateResponse, err := r.PatchV2ClustersClusterIDWithResponse(ctx, *cluster.ClusterID,
 		management.Cluster{
 			Name:           plan.Name.ValueString(),
@@ -420,7 +422,6 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
 			DeploymentType: util.ClusterDeploymentTypeString(plan.DeploymentType),
-			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -626,6 +627,21 @@ func validateModifyProjectName(plan, state *workspaceGroupResourceModel) *util.S
 }
 
 func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	if !plan.Name.Equal(state.Name) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group name",
+			Detail: "Updating the name is not permitted. " +
+				"Current value: \"" + state.Name.ValueString() + "\", configured value: \"" + plan.Name.ValueString() + "\".",
+		}
+	}
+
+	if !plan.UpdateWindow.IsUnknown() && !state.UpdateWindow.IsUnknown() && !plan.UpdateWindow.Equal(state.UpdateWindow) {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot update workspace group update_window",
+			Detail:  "Updating the update_window is not permitted after the workspace group is created.",
+		}
+	}
+
 	if !plan.HighAvailabilityTwoZones.Equal(state.HighAvailabilityTwoZones) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot change the high_availability_two_zones configuration for the workspace group.",

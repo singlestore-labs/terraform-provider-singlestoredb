@@ -164,9 +164,12 @@ type ResourceType string
 const (
 	ResourceTypeOrganization   ResourceType = "Organization"
 	ResourceTypeWorkspaceGroup ResourceType = "Cluster"
-	ResourceTypeTeam           ResourceType = "Team"
-	ResourceTypeSecret         ResourceType = "Secret"
-	ResourceTypeUnknown        ResourceType = "Unknown"
+	// resourceTypeClusterGroup is returned by identity-roles APIs for workspace-group
+	// scoped cluster grants. Terraform continues to use resource_type = "Cluster".
+	resourceTypeClusterGroup ResourceType = "ClusterGroup"
+	ResourceTypeTeam         ResourceType = "Team"
+	ResourceTypeSecret       ResourceType = "Secret"
+	ResourceTypeUnknown      ResourceType = "Unknown"
 )
 
 var ResourceTypeList = []ResourceType{
@@ -177,15 +180,20 @@ var ResourceTypeList = []ResourceType{
 }
 
 func ResourceTypeString(provider types.String) ResourceType {
+	value := provider.ValueString()
 	for _, s := range []ResourceType{
 		ResourceTypeOrganization,
 		ResourceTypeWorkspaceGroup,
 		ResourceTypeTeam,
 		ResourceTypeSecret,
 	} {
-		if strings.EqualFold(provider.ValueString(), string(s)) {
+		if strings.EqualFold(value, string(s)) {
 			return s
 		}
+	}
+	// Identity-roles APIs report workspace-group grants as ClusterGroup.
+	if strings.EqualFold(value, string(resourceTypeClusterGroup)) {
+		return ResourceTypeWorkspaceGroup
 	}
 
 	return ResourceTypeUnknown
@@ -218,9 +226,16 @@ type RoleAttributesModel struct {
 }
 
 func toRoleAttributesModel(role management.IdentityRole) RoleAttributesModel {
+	resourceType := role.ResourceType
+	// Normalize API ClusterGroup → Terraform Cluster so configs using
+	// resource_type = "Cluster" with singlestoredb_workspace_group.id keep working.
+	if ResourceTypeString(types.StringValue(resourceType)) == ResourceTypeWorkspaceGroup {
+		resourceType = string(ResourceTypeWorkspaceGroup)
+	}
+
 	return RoleAttributesModel{
 		RoleName:     types.StringValue(role.Role),
-		ResourceType: types.StringValue(role.ResourceType),
+		ResourceType: types.StringValue(resourceType),
 		ResourceID:   util.UUIDStringValue(role.ResourceID),
 	}
 }
@@ -258,11 +273,109 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	}
 
 	roles := util.Map(util.Deref(jsonRoles), toRoleAttributesModel)
+	// Identity roles for resource_type=Cluster return cluster IDs, while Terraform configs
+	// historically use singlestoredb_workspace_group.id (group ID). Align IDs so validation
+	// and state match the configured resource_id.
+	roles, err := alignClusterRoleResourceIDs(ctx, r, roles, expectedRoles, unexpectedRoles)
+	if err != nil {
+		return nil, err
+	}
+
 	if expectedRoles == nil && unexpectedRoles == nil {
 		return roles, nil
 	}
 
 	return validateRoles(ctx, entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)
+}
+
+// alignClusterRoleResourceIDs rewrites Cluster role resource IDs from cluster IDs to the
+// identifier form used in Terraform (typically workspace group ID). When expected/unexpected
+// roles are provided, prefer that configured identifier if it refers to the same cluster/group.
+func alignClusterRoleResourceIDs(
+	ctx context.Context,
+	c management.ClientWithResponsesInterface,
+	roles []RoleAttributesModel,
+	expectedRoles, unexpectedRoles *[]RoleAttributesModel,
+) ([]RoleAttributesModel, error) {
+	needsAlign := false
+	for _, role := range roles {
+		if ResourceTypeString(role.ResourceType) == ResourceTypeWorkspaceGroup {
+			needsAlign = true
+
+			break
+		}
+	}
+	if !needsAlign {
+		return roles, nil
+	}
+
+	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(list, err); serr != nil {
+		return nil, serr
+	}
+
+	clusterToGroup := make(map[uuid.UUID]uuid.UUID)
+	for _, cluster := range util.Deref(list.JSON200) {
+		if cluster.ClusterID != nil && cluster.GroupID != nil {
+			clusterToGroup[*cluster.ClusterID] = *cluster.GroupID
+		}
+	}
+
+	configuredIDs := configuredClusterResourceIDs(expectedRoles, unexpectedRoles)
+	aligned := make([]RoleAttributesModel, len(roles))
+	for i, role := range roles {
+		aligned[i] = role
+		if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
+			continue
+		}
+		resourceID, perr := uuid.Parse(role.ResourceID.ValueString())
+		if perr != nil {
+			continue
+		}
+		groupID, isClusterID := clusterToGroup[resourceID]
+		if !isClusterID {
+			continue
+		}
+		if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
+			aligned[i].ResourceID = util.UUIDStringValue(id)
+
+			continue
+		}
+		aligned[i].ResourceID = util.UUIDStringValue(groupID)
+	}
+
+	return aligned, nil
+}
+
+func configuredClusterResourceIDs(expectedRoles, unexpectedRoles *[]RoleAttributesModel) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, list := range []*[]RoleAttributesModel{expectedRoles, unexpectedRoles} {
+		if list == nil {
+			continue
+		}
+		for _, role := range *list {
+			if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
+				continue
+			}
+			id, err := uuid.Parse(role.ResourceID.ValueString())
+			if err != nil {
+				continue
+			}
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+func pickConfiguredClusterResourceID(configured []uuid.UUID, clusterID, groupID uuid.UUID) (uuid.UUID, bool) {
+	for _, id := range configured {
+		if id == clusterID || id == groupID {
+			return id, true
+		}
+	}
+
+	return uuid.UUID{}, false
 }
 
 func validateRoles(ctx context.Context, entityIDstr string, entityType EntityType, resourceType *string, roles []RoleAttributesModel, expectedRoles, unexpectedRoles *[]RoleAttributesModel) ([]RoleAttributesModel, error) {
@@ -386,7 +499,12 @@ func applyOrganizationAccessControls(ctx context.Context, r management.ClientWit
 }
 
 func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, resourceID, management.PatchV2ClustersClusterIDAccessControlsJSONRequestBody{
+	clusterID, err := resolveClusterIDForAccessControls(ctx, r, resourceID)
+	if err != nil {
+		return false, err
+	}
+
+	response, err := r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, clusterID, management.PatchV2ClustersClusterIDAccessControlsJSONRequestBody{
 		Grants:  grants,
 		Revokes: revokes,
 	})
@@ -395,6 +513,32 @@ func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientW
 	}
 
 	return true, nil
+}
+
+// resolveClusterIDForAccessControls accepts either a cluster ID or a workspace group ID.
+// Terraform configs historically pass singlestoredb_workspace_group.id (group ID) for
+// resource_type = "Cluster"; /v2/clusters/{id}/accessControls expects a cluster ID.
+func resolveClusterIDForAccessControls(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (uuid.UUID, error) {
+	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
+	if err == nil && direct != nil && direct.StatusCode() == 200 && direct.JSON200 != nil {
+		return resourceID, nil
+	}
+
+	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(list, err); serr != nil {
+		return uuid.UUID{}, serr
+	}
+
+	for _, cluster := range util.Deref(list.JSON200) {
+		if cluster.GroupID != nil && *cluster.GroupID == resourceID && cluster.ClusterID != nil {
+			return *cluster.ClusterID, nil
+		}
+	}
+
+	return uuid.UUID{}, &util.SummaryWithDetailError{
+		Summary: "Failed to resolve cluster ID",
+		Detail:  fmt.Sprintf("No cluster was found for resource ID %s (tried as cluster ID and as workspace group ID).", resourceID),
+	}
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
@@ -459,9 +603,14 @@ func mapRoleAttributes(entityType EntityType, entityID uuid.UUID, roles *[]RoleA
 }
 
 func IsRoleChanged(plan, state RoleAttributesModel) bool {
-	return plan.ResourceID != state.ResourceID ||
-		plan.ResourceType != state.ResourceType ||
-		plan.RoleName != state.RoleName
+	if !strings.EqualFold(plan.RoleName.ValueString(), state.RoleName.ValueString()) {
+		return true
+	}
+	if !strings.EqualFold(plan.ResourceType.ValueString(), state.ResourceType.ValueString()) {
+		return true
+	}
+
+	return plan.ResourceID.ValueString() != state.ResourceID.ValueString()
 }
 
 func SubtractRoles(a, b []RoleAttributesModel) []RoleAttributesModel {
@@ -488,7 +637,9 @@ func MatchedRoles(a, b []RoleAttributesModel) []RoleAttributesModel {
 	for _, role := range a {
 		for _, mappedRole := range b {
 			if !IsRoleChanged(role, mappedRole) {
-				result = append(result, mappedRole)
+				// Prefer the configured role (a) so Cluster resource_id stays as the
+				// workspace group ID from Terraform config when IDs were aligned.
+				result = append(result, role)
 
 				break
 			}

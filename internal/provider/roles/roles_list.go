@@ -265,7 +265,12 @@ func (d *rolesDataSourceList) getOrganizationRoles(ctx context.Context, resource
 }
 
 func (d *rolesDataSourceList) getWorkspaceGroupRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
-	response, err := d.GetV2ClustersClusterIDAccessControlsWithResponse(ctx, resourceID)
+	clusterID, err := resolveClusterIDForAccessControls(ctx, d.ClientWithResponsesInterface, resourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := d.GetV2ClustersClusterIDAccessControlsWithResponse(ctx, clusterID)
 	if serr := util.StatusOK(response, err); serr != nil {
 		return nil, serr
 	}

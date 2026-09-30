@@ -109,6 +109,17 @@ func findClusterProjectID(clusters []management.Cluster, groupID otypes.UUID) (o
 	return otypes.UUID{}, false
 }
 
+// findClusterInGroup returns a representative cluster from the workspace group.
+func findClusterInGroup(clusters []management.Cluster, groupID otypes.UUID) (management.Cluster, bool) {
+	for _, c := range clusters {
+		if c.GroupID != nil && *c.GroupID == groupID {
+			return c, true
+		}
+	}
+
+	return management.Cluster{}, false
+}
+
 func filterClustersByGroupID(clusters []management.Cluster, groupID otypes.UUID) []management.Cluster {
 	result := make([]management.Cluster, 0)
 	for _, c := range clusters {
