@@ -222,13 +222,13 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 					WithWorkspaceResource("this")("cache_config", cty.NumberIntVal(int64(updatedCacheConfig))).
 					WithWorkspaceResource("this")("scale_factor", cty.NumberIntVal(int64(updatedScaleFactor))).
 					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
-						"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
-						"sensitivity":      cty.StringVal(updatedSensitivity),
-					})).
+					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+					"sensitivity":      cty.StringVal(updatedSensitivity),
+				})).
 					WithWorkspaceResource("this")("auto_suspend", cty.ObjectVal(map[string]cty.Value{
-						"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
-						"suspend_type":          cty.StringVal(updatedSuspendType),
-					})).
+					"suspend_after_seconds": cty.NumberIntVal(int64(updatedSuspendSeconds)),
+					"suspend_type":          cty.StringVal(updatedSuspendType),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
@@ -259,9 +259,9 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspacesResource).
 					WithWorkspaceResource("this")("auto_scale", cty.ObjectVal(map[string]cty.Value{
-						"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
-						"sensitivity":      cty.StringVal(updatedSensitivity),
-					})).
+					"max_scale_factor": cty.NumberIntVal(int64(updatedMaxScaleFactor)),
+					"sensitivity":      cty.StringVal(updatedSensitivity),
+				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),

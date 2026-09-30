@@ -232,9 +232,9 @@ func TestWorkspaceGroupResourceIntegration(t *testing.T) {
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
 					WithWorkspaceGroupResource("this")("project_name", cty.StringVal(config.TestInitialProjectName)).
 					WithWorkspaceGroupResource("this")("firewall_ranges", cty.ListVal([]cty.Value{
-						cty.StringVal(updatedFirewallRanges[0]),
-						cty.StringVal(updatedFirewallRanges[1]),
-					})).
+					cty.StringVal(updatedFirewallRanges[0]),
+					cty.StringVal(updatedFirewallRanges[1]),
+				})).
 					WithWorkspaceGroupResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
