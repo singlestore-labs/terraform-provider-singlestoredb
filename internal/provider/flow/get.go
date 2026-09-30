@@ -27,13 +27,13 @@ type flowInstanceDataSourceGet struct {
 
 // flowInstanceDataSourceModel maps flow instance schema data.
 type flowInstanceDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	WorkspaceID types.String `tfsdk:"workspace_id"`
-	CreatedAt   types.String `tfsdk:"created_at"`
-	DeletedAt   types.String `tfsdk:"deleted_at"`
-	Endpoint    types.String `tfsdk:"endpoint"`
-	Size        types.String `tfsdk:"size"`
+	ID        types.String `tfsdk:"id"`
+	Name      types.String `tfsdk:"name"`
+	ClusterID types.String `tfsdk:"cluster_id"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	DeletedAt types.String `tfsdk:"deleted_at"`
+	Endpoint  types.String `tfsdk:"endpoint"`
+	Size      types.String `tfsdk:"size"`
 }
 
 type flowInstanceDataSourceSchemaConfig struct {
@@ -130,7 +130,7 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the Flow instance. Either `id` or `name` must be specified.",
 		},
-		"workspace_id": schema.StringAttribute{
+		"cluster_id": schema.StringAttribute{
 			Computed:            true,
 			MarkdownDescription: "The unique identifier of the workspace associated with the Flow instance.",
 		},
@@ -153,14 +153,14 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 	}
 }
 
-func toFlowInstanceDataSourceModel(flow management.Flow) (flowInstanceDataSourceModel, *util.SummaryWithDetailError) {
+func toFlowInstanceDataSourceModel(flow management.FlowV2) (flowInstanceDataSourceModel, *util.SummaryWithDetailError) {
 	model := flowInstanceDataSourceModel{
-		ID:          util.UUIDStringValue(flow.FlowID),
-		Name:        types.StringValue(flow.Name),
-		WorkspaceID: util.MaybeUUIDStringValue(flow.WorkspaceID),
-		CreatedAt:   types.StringValue(flow.CreatedAt.String()),
-		Endpoint:    util.MaybeStringValue(flow.Endpoint),
-		Size:        util.MaybeStringValue(flow.Size),
+		ID:        util.UUIDStringValue(flow.FlowID),
+		Name:      types.StringValue(flow.Name),
+		ClusterID: util.MaybeUUIDStringValue(flow.ClusterID),
+		CreatedAt: types.StringValue(flow.CreatedAt.String()),
+		Endpoint:  util.MaybeStringValue(flow.Endpoint),
+		Size:      util.MaybeStringValue(flow.Size),
 	}
 
 	if flow.DeletedAt != nil {
@@ -184,7 +184,7 @@ func readByID(data flowInstanceDataSourceModel, ctx context.Context, d *flowInst
 		return
 	}
 
-	flow, err := d.GetV1FlowFlowIDWithResponse(ctx, id)
+	flow, err := d.GetV2FlowFlowIDWithResponse(ctx, id)
 	if serr := util.StatusOK(flow, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -217,7 +217,7 @@ func readByID(data flowInstanceDataSourceModel, ctx context.Context, d *flowInst
 
 func readByName(data flowInstanceDataSourceModel, ctx context.Context, d *flowInstanceDataSourceGet, resp *datasource.ReadResponse) {
 	// Get all Flow instances
-	flowInstances, err := d.GetV1FlowWithResponse(ctx, &management.GetV1FlowParams{})
+	flowInstances, err := d.GetV2FlowWithResponse(ctx, &management.GetV2FlowParams{})
 	if serr := util.StatusOK(flowInstances, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -227,7 +227,7 @@ func readByName(data flowInstanceDataSourceModel, ctx context.Context, d *flowIn
 		return
 	}
 
-	var foundFlowInstances []management.Flow
+	var foundFlowInstances []management.FlowV2
 	targetName := strings.TrimSpace(data.Name.ValueString())
 
 	// Filter Flow instances by name (case-insensitive), excluding terminated ones

@@ -13,12 +13,12 @@ const unrestrictedCIDR = "0.0.0.0/0"
 
 // effectiveFirewallRanges returns the allowlist the Management API reports,
 // spelled the way a configuration spells it.
-func effectiveFirewallRanges(workspaceGroup management.WorkspaceGroup) []string {
-	if util.Deref(workspaceGroup.AllowAllTraffic) {
+func effectiveFirewallRanges(cluster management.Cluster) []string {
+	if util.Deref(cluster.AllowAllTraffic) {
 		return []string{unrestrictedCIDR}
 	}
 
-	return util.Deref(workspaceGroup.FirewallRanges)
+	return util.Deref(cluster.FirewallRanges)
 }
 
 // firewallRangesConverged reports whether the Management API already reflects the
@@ -26,16 +26,16 @@ func effectiveFirewallRanges(workspaceGroup management.WorkspaceGroup) []string 
 //
 // Ranges are compared as a set: they are applied to a firewall that has no notion
 // of order or duplicates, and the API reads them back sorted.
-func firewallRangesConverged(configured []types.String, workspaceGroup management.WorkspaceGroup) bool {
+func firewallRangesConverged(configured []types.String, cluster management.Cluster) bool {
 	want := stringSet(util.StringFirewallRanges(configured))
 
 	// an allowlist containing the unrestricted range is applied as plain
 	// unrestricted access, so the API never reports the other ranges back
-	if _, ok := want[unrestrictedCIDR]; ok && util.Deref(workspaceGroup.AllowAllTraffic) {
+	if _, ok := want[unrestrictedCIDR]; ok && util.Deref(cluster.AllowAllTraffic) {
 		return true
 	}
 
-	got := stringSet(effectiveFirewallRanges(workspaceGroup))
+	got := stringSet(effectiveFirewallRanges(cluster))
 	if len(want) != len(got) {
 		return false
 	}
@@ -53,12 +53,12 @@ func firewallRangesConverged(configured []types.String, workspaceGroup managemen
 // Management API reports an equivalent allowlist, so that the order it returns
 // does not surface as a diff. An allowlist that genuinely differs is reported as
 // the API gives it, so that drift is still detected.
-func firewallRangesForState(configured []types.String, workspaceGroup management.WorkspaceGroup) []types.String {
-	if configured != nil && firewallRangesConverged(configured, workspaceGroup) {
+func firewallRangesForState(configured []types.String, cluster management.Cluster) []types.String {
+	if configured != nil && firewallRangesConverged(configured, cluster) {
 		return configured
 	}
 
-	return util.FirewallRanges(util.Ptr(effectiveFirewallRanges(workspaceGroup)))
+	return util.FirewallRanges(util.Ptr(effectiveFirewallRanges(cluster)))
 }
 
 func stringSet(ss []string) map[string]struct{} {

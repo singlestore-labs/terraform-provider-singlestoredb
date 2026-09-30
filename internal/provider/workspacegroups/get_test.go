@@ -1,7 +1,6 @@
 package workspacegroups_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,31 +25,37 @@ var (
 )
 
 func TestReadsWorkspaceGroupByID(t *testing.T) {
-	workspaceGroup := management.WorkspaceGroup{
+	workspaceGroup := management.Cluster{
 		AllowAllTraffic: nil,
-		CreatedAt:       "2023-02-28T05:33:06.3003Z",
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 		ExpiresAt:       nil,
 		FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 		Name:            "foo",
-		RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-		Provider:        management.CloudProviderAWS,
-		RegionName:      "us-west-2",
-		State:           management.WorkspaceGroupStateACTIVE,
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		Region:          util.Ptr("us-west-2"),
+		State:           util.Ptr(management.ClusterStateACTIVE),
 		TerminatedAt:    nil,
 		UpdateWindow: &management.UpdateWindow{
 			Day:  3,
 			Hour: 15,
 		},
-		WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		GroupID:           util.Ptr(uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")),
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s", workspaceGroup.WorkspaceGroupID), r.URL.Path)
-		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
-		_, err := w.Write(testutil.MustJSON(workspaceGroup))
-		require.NoError(t, err)
+		w.Header().Add("Content-Type", "json")
+		switch r.URL.Path {
+		case pathV2Clusters:
+			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -61,21 +66,20 @@ func TestReadsWorkspaceGroupByID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.WorkspaceGroupsGetDataSource).
-					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal(workspaceGroup.WorkspaceGroupID.String())).
+					WithWorkspaceGroupGetDataSource("this")(config.IDAttribute, cty.StringVal(util.Deref(workspaceGroup.GroupID).String())).
 					WithWorkspaceGroupGetDataSource("this")("name", unset).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, util.Deref(workspaceGroup.GroupID).String()),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "allow_all_traffic"),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "expires_at"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "firewall_ranges.#",
 						strconv.Itoa(len(util.Deref(workspaceGroup.FirewallRanges))),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "name", workspaceGroup.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_id", workspaceGroup.RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "cloud_provider", string(workspaceGroup.Provider)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "cloud_provider", string(util.Deref(workspaceGroup.Provider))),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_name", "us-west-2"),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(workspaceGroup.State)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(util.Deref(workspaceGroup.State))),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_group.this", "terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "update_window.day",
 						strconv.Itoa(int(workspaceGroup.UpdateWindow.Day)),
@@ -153,33 +157,38 @@ func TestGetWorkspaceGroupNotFoundByIDIntegration(t *testing.T) {
 }
 
 func TestReadsWorkspaceGroupByName(t *testing.T) {
-	workspaceGroup := management.WorkspaceGroup{
+	workspaceGroup := management.Cluster{
 		AllowAllTraffic: nil,
-		CreatedAt:       "2023-02-28T05:33:06.3003Z",
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 		ExpiresAt:       nil,
 		FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 		Name:            "test-workspace-group",
-		RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-		Provider:        management.CloudProviderAWS,
-		RegionName:      "us-west-2",
-		State:           management.WorkspaceGroupStateACTIVE,
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		Region:          util.Ptr("us-west-2"),
+		State:           util.Ptr(management.ClusterStateACTIVE),
 		TerminatedAt:    nil,
 		UpdateWindow: &management.UpdateWindow{
 			Day:  3,
 			Hour: 15,
 		},
-		WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		GroupID:           util.Ptr(uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")),
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		w.Header().Add("Content-Type", "json")
-		// Return a list containing the workspace group
-		workspaceGroups := []management.WorkspaceGroup{workspaceGroup}
-		_, err := w.Write(testutil.MustJSON(workspaceGroups))
-		require.NoError(t, err)
+		switch r.URL.Path {
+		case pathV2Clusters:
+			workspaceGroups := []management.Cluster{workspaceGroup}
+			_, err := w.Write(testutil.MustJSON(workspaceGroups))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -193,12 +202,11 @@ func TestReadsWorkspaceGroupByName(t *testing.T) {
 					WithWorkspaceGroupGetDataSource("this")("name", cty.StringVal(workspaceGroup.Name)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, util.Deref(workspaceGroup.GroupID).String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "name", workspaceGroup.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_id", workspaceGroup.RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "cloud_provider", string(workspaceGroup.Provider)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "cloud_provider", string(util.Deref(workspaceGroup.Provider))),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "region_name", "us-west-2"),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(workspaceGroup.State)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "state", string(util.Deref(workspaceGroup.State))),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "deployment_type", string(defaultDeploymentType)),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "outbound_allow_list", testOutboundAllowList),
 				),
@@ -209,12 +217,18 @@ func TestReadsWorkspaceGroupByName(t *testing.T) {
 
 func TestWorkspaceGroupByNameNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		w.Header().Add("Content-Type", "json")
-		// Return empty list
-		workspaceGroups := []management.WorkspaceGroup{}
-		_, err := w.Write(testutil.MustJSON(workspaceGroups))
-		require.NoError(t, err)
+		switch r.URL.Path {
+		case pathV2Clusters:
+			workspaceGroups := []management.Cluster{}
+			_, err := w.Write(testutil.MustJSON(workspaceGroups))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -234,32 +248,37 @@ func TestWorkspaceGroupByNameNotFound(t *testing.T) {
 }
 
 func TestWorkspaceGroupByNameMultipleFound(t *testing.T) {
-	workspaceGroup1 := management.WorkspaceGroup{
+	workspaceGroup1 := management.Cluster{
 		AllowAllTraffic:   nil,
-		CreatedAt:         "2023-02-28T05:33:06.3003Z",
+		CreatedAt:         mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 		ExpiresAt:         nil,
 		FirewallRanges:    util.Ptr([]string{"127.0.0.1/32"}),
 		Name:              "duplicate-name",
-		RegionID:          uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-		Provider:          management.CloudProviderAWS,
-		RegionName:        "us-west-2",
-		State:             management.WorkspaceGroupStateACTIVE,
+		Provider:          util.Ptr(management.CloudProviderAWS),
+		Region:            util.Ptr("us-west-2"),
+		State:             util.Ptr(management.ClusterStateACTIVE),
 		TerminatedAt:      nil,
-		WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		GroupID:           util.Ptr(uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")),
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	workspaceGroup2 := workspaceGroup1
-	workspaceGroup2.WorkspaceGroupID = uuid.MustParse("1aa1aff3-4092-4a0c-bf36-da54e85a4fdf")
+	workspaceGroup2.GroupID = util.Ptr(uuid.MustParse("1aa1aff3-4092-4a0c-bf36-da54e85a4fdf"))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		w.Header().Add("Content-Type", "json")
-		// Return list with duplicate names
-		workspaceGroups := []management.WorkspaceGroup{workspaceGroup1, workspaceGroup2}
-		_, err := w.Write(testutil.MustJSON(workspaceGroups))
-		require.NoError(t, err)
+		switch r.URL.Path {
+		case pathV2Clusters:
+			workspaceGroups := []management.Cluster{workspaceGroup1, workspaceGroup2}
+			_, err := w.Write(testutil.MustJSON(workspaceGroups))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -324,32 +343,38 @@ func TestConflictingIdentifiers(t *testing.T) {
 }
 
 func TestWorkspaceGroupByNameCaseInsensitive(t *testing.T) {
-	workspaceGroup := management.WorkspaceGroup{
+	workspaceGroup := management.Cluster{
 		AllowAllTraffic: nil,
-		CreatedAt:       "2023-02-28T05:33:06.3003Z",
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 		ExpiresAt:       nil,
 		FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 		Name:            "Test-Workspace-Group",
-		RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-		Provider:        management.CloudProviderAWS,
-		RegionName:      "us-west-2",
-		State:           management.WorkspaceGroupStateACTIVE,
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		Region:          util.Ptr("us-west-2"),
+		State:           util.Ptr(management.ClusterStateACTIVE),
 		TerminatedAt:    nil,
 		UpdateWindow: &management.UpdateWindow{
 			Day:  3,
 			Hour: 15,
 		},
-		WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+		GroupID:           util.Ptr(uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")),
 		DeploymentType:    &defaultDeploymentType,
 		OutboundAllowList: &testOutboundAllowList,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
 		w.Header().Add("Content-Type", "json")
-		workspaceGroups := []management.WorkspaceGroup{workspaceGroup}
-		_, err := w.Write(testutil.MustJSON(workspaceGroups))
-		require.NoError(t, err)
+		switch r.URL.Path {
+		case pathV2Clusters:
+			workspaceGroups := []management.Cluster{workspaceGroup}
+			_, err := w.Write(testutil.MustJSON(workspaceGroups))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -363,7 +388,7 @@ func TestWorkspaceGroupByNameCaseInsensitive(t *testing.T) {
 					WithWorkspaceGroupGetDataSource("this")("name", cty.StringVal("test-workspace-group")).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroup.WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", config.IDAttribute, util.Deref(workspaceGroup.GroupID).String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_group.this", "name", workspaceGroup.Name),
 				),
 			},

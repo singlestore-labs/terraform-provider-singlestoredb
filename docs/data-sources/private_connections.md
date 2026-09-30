@@ -51,6 +51,7 @@ Read-Only:
 
 - `active_at` (String) The timestamp of when the private connection became active.
 - `allow_list` (String) The private connection allow list. This is the account ID for AWS,  subscription ID for Azure, and the project name GCP.
+- `cluster_id` (String) The ID of the cluster connected with this private connection.
 - `created_at` (String) The timestamp of when the private connection was created.
 - `deleted_at` (String) The timestamp of when the private connection was deleted.
 - `endpoint` (String) The service endpoint.
@@ -62,5 +63,5 @@ Read-Only:
 - `type` (String) The private connection type.
 - `updated_at` (String) The timestamp of when the private connection was updated.
 - `web_socket_port` (Number) The websockets port.
-- `workspace_group_id` (String) The ID of the workspace group containing the private connection.
-- `workspace_id` (String) The ID of the workspace to connect with.
+- `workspace_group_id` (String) Deprecated. Previously the workspace group ID; no longer returned by the v2 API.
+- `workspace_id` (String) Deprecated alias for cluster_id.

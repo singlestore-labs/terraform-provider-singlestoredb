@@ -65,7 +65,7 @@ func (d *usersDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	users, err := d.GetV1UsersWithResponse(ctx, &management.GetV1UsersParams{})
+	users, err := d.GetV2UsersWithResponse(ctx, &management.GetV2UsersParams{})
 	if serr := util.StatusOK(users, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,

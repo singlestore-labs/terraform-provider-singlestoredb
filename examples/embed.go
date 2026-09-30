@@ -49,6 +49,9 @@ var (
 	SQLExecuteResource               = mustRead("resources/singlestoredb_sql_execute/resource.tf")
 	SQLQueryDataSource               = mustRead("data-sources/singlestoredb_sql_query/data-source.tf")
 	WorkspaceWithSQLResource         = mustRead("resources/singlestoredb_workspace_with_sql/resource.tf")
+	ClustersGetDataSource            = mustRead("data-sources/singlestoredb_cluster/data-source.tf")
+	ClustersListDataSource           = mustRead("data-sources/singlestoredb_clusters/data-source.tf")
+	ClustersResource                 = mustRead("resources/singlestoredb_cluster/resource.tf")
 )
 
 func mustRead(path string) string {

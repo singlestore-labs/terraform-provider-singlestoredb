@@ -14,7 +14,7 @@ func TestEffectiveFirewallRanges(t *testing.T) {
 
 	t.Run("allow all traffic", func(t *testing.T) {
 		t.Parallel()
-		got := effectiveFirewallRanges(management.WorkspaceGroup{
+		got := effectiveFirewallRanges(management.Cluster{
 			AllowAllTraffic: util.Ptr(true),
 			FirewallRanges:  nil,
 		})
@@ -23,7 +23,7 @@ func TestEffectiveFirewallRanges(t *testing.T) {
 
 	t.Run("explicit ranges", func(t *testing.T) {
 		t.Parallel()
-		got := effectiveFirewallRanges(management.WorkspaceGroup{
+		got := effectiveFirewallRanges(management.Cluster{
 			AllowAllTraffic: util.Ptr(false),
 			FirewallRanges:  util.Ptr([]string{"10.0.0.0/8", "192.168.1.1/32"}),
 		})
@@ -32,7 +32,7 @@ func TestEffectiveFirewallRanges(t *testing.T) {
 
 	t.Run("no inbound", func(t *testing.T) {
 		t.Parallel()
-		got := effectiveFirewallRanges(management.WorkspaceGroup{
+		got := effectiveFirewallRanges(management.Cluster{
 			AllowAllTraffic: util.Ptr(false),
 			FirewallRanges:  util.Ptr([]string{}),
 		})
@@ -50,7 +50,7 @@ func TestFirewallRangesConverged(t *testing.T) {
 
 	t.Run("same set different order", func(t *testing.T) {
 		t.Parallel()
-		require.True(t, firewallRangesConverged(configured, management.WorkspaceGroup{
+		require.True(t, firewallRangesConverged(configured, management.Cluster{
 			FirewallRanges: util.Ptr([]string{"10.0.0.0/8", "192.168.1.1/32"}),
 		}))
 	})
@@ -59,7 +59,7 @@ func TestFirewallRangesConverged(t *testing.T) {
 		t.Parallel()
 		require.True(t, firewallRangesConverged(
 			[]types.String{types.StringValue(unrestrictedCIDR)},
-			management.WorkspaceGroup{AllowAllTraffic: util.Ptr(true)},
+			management.Cluster{AllowAllTraffic: util.Ptr(true)},
 		))
 	})
 
@@ -70,13 +70,13 @@ func TestFirewallRangesConverged(t *testing.T) {
 				types.StringValue("10.0.0.0/8"),
 				types.StringValue(unrestrictedCIDR),
 			},
-			management.WorkspaceGroup{AllowAllTraffic: util.Ptr(true)},
+			management.Cluster{AllowAllTraffic: util.Ptr(true)},
 		))
 	})
 
 	t.Run("no inbound", func(t *testing.T) {
 		t.Parallel()
-		require.True(t, firewallRangesConverged(nil, management.WorkspaceGroup{
+		require.True(t, firewallRangesConverged(nil, management.Cluster{
 			AllowAllTraffic: util.Ptr(false),
 			FirewallRanges:  util.Ptr([]string{}),
 		}))
@@ -84,7 +84,7 @@ func TestFirewallRangesConverged(t *testing.T) {
 
 	t.Run("genuine drift", func(t *testing.T) {
 		t.Parallel()
-		require.False(t, firewallRangesConverged(configured, management.WorkspaceGroup{
+		require.False(t, firewallRangesConverged(configured, management.Cluster{
 			FirewallRanges: util.Ptr([]string{"10.0.0.0/8"}),
 		}))
 	})
@@ -100,7 +100,7 @@ func TestFirewallRangesForState(t *testing.T) {
 
 	t.Run("preserves configured order when set matches", func(t *testing.T) {
 		t.Parallel()
-		got := firewallRangesForState(configured, management.WorkspaceGroup{
+		got := firewallRangesForState(configured, management.Cluster{
 			FirewallRanges: util.Ptr([]string{"10.0.0.0/8", "192.168.1.1/32"}),
 		})
 		require.Equal(t, configured, got)
@@ -108,7 +108,7 @@ func TestFirewallRangesForState(t *testing.T) {
 
 	t.Run("reports api ranges on drift", func(t *testing.T) {
 		t.Parallel()
-		got := firewallRangesForState(configured, management.WorkspaceGroup{
+		got := firewallRangesForState(configured, management.Cluster{
 			FirewallRanges: util.Ptr([]string{"10.0.0.0/8"}),
 		})
 		require.Equal(t, []types.String{types.StringValue("10.0.0.0/8")}, got)
@@ -117,7 +117,7 @@ func TestFirewallRangesForState(t *testing.T) {
 	t.Run("preserves unrestricted spelling", func(t *testing.T) {
 		t.Parallel()
 		configuredUnrestricted := []types.String{types.StringValue(unrestrictedCIDR)}
-		got := firewallRangesForState(configuredUnrestricted, management.WorkspaceGroup{
+		got := firewallRangesForState(configuredUnrestricted, management.Cluster{
 			AllowAllTraffic: util.Ptr(true),
 		})
 		require.Equal(t, configuredUnrestricted, got)
@@ -125,7 +125,7 @@ func TestFirewallRangesForState(t *testing.T) {
 
 	t.Run("imported empty allowlist is non-nil", func(t *testing.T) {
 		t.Parallel()
-		got := firewallRangesForState(nil, management.WorkspaceGroup{
+		got := firewallRangesForState(nil, management.Cluster{
 			AllowAllTraffic: util.Ptr(false),
 			FirewallRanges:  util.Ptr([]string{}),
 		})

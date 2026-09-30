@@ -48,7 +48,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample that creates a cluster via `/v2/clusters` (workspace + workspace group in one call):
 
 ```hcl
 provider "singlestoredb" {
@@ -57,41 +57,42 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
+resource "singlestoredb_cluster" "this" {
+  name            = "cluster-1"
+  project_name    = "Standard Project"
+  size            = "S-00"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
-}
-
-resource "singlestoredb_workspace" "this" {
-  name               = "workspace-1"
-  workspace_group_id = singlestoredb_workspace_group.example.id
-  size               = "S-00"
-  suspended          = false
+  suspended       = false
 }
 
 output "endpoint" {
-  value = singlestoredb_workspace.this.endpoint
+  value = singlestoredb_cluster.this.endpoint
 }
 
 output "admin_password" {
-  value     = singlestoredb_workspace_group.example.admin_password
+  value     = singlestoredb_cluster.this.admin_password
   sensitive = true
+}
+
+output "group_id" {
+  value = singlestoredb_cluster.this.group_id
 }
 ```
 
+Legacy `singlestoredb_workspace_group` / `singlestoredb_workspace` resources remain available and now call `/v2/clusters` under the hood.
+
 To try this example, follow these steps:
 
-1. **Create the workspace:**
+1. **Create the cluster:**
 
    ```shell
    terraform apply
    ```
 
-2. **Connect to the new workspace:**
+2. **Connect to the new cluster:**
 
    ```shell
    export endpoint=$(terraform output -raw endpoint)
@@ -99,7 +100,7 @@ To try this example, follow these steps:
    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
    ```
 
-3. **Terminate the workspace:**
+3. **Terminate the cluster:**
 
    ```shell
    terraform destroy
