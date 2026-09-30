@@ -45,6 +45,7 @@ func TestCRUDPrivateConnection(t *testing.T) { //nolint:cyclop
 		ClusterID:       util.Ptr(workspaceID),
 		ProjectID:       projectID,
 		DeploymentType:  util.Ptr(management.PRODUCTION),
+		Endpoint:        util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
 		SizeConfig:      &management.SizeConfig{Size: util.Ptr("S-00"), ScaleFactor: util.Ptr[float32](1)},
 	}
 
@@ -64,7 +65,6 @@ func TestCRUDPrivateConnection(t *testing.T) { //nolint:cyclop
 
 	clusterExists := true
 	postClusters := 0
-	adoptPatches := 0
 	patchAttempts := 0
 	pcCreated := false
 
@@ -103,26 +103,7 @@ func TestCRUDPrivateConnection(t *testing.T) { //nolint:cyclop
 			_, err := w.Write(testutil.MustJSON(cluster))
 			require.NoError(t, err)
 		case r.URL.Path == clusterPath && r.Method == http.MethodPatch:
-			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
-			var input management.Cluster
-			require.NoError(t, json.Unmarshal(body, &input))
-			if input.Name == config.TestWorkspaceName && adoptPatches == 0 {
-				adoptPatches++
-				cluster.Name = config.TestWorkspaceName
-				cluster.Endpoint = util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
-				cluster.SizeConfig = &management.SizeConfig{
-					Size:        util.Ptr(config.TestInitialWorkspaceSize),
-					ScaleFactor: util.Ptr[float32](1),
-				}
-				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-				}{ClusterID: workspaceID}))
-				require.NoError(t, err)
-
-				return
-			}
-			_, err = w.Write(testutil.MustJSON(struct {
+			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: workspaceID}))
 			require.NoError(t, err)
@@ -209,7 +190,6 @@ func TestCRUDPrivateConnection(t *testing.T) { //nolint:cyclop
 	})
 
 	require.True(t, pcCreated)
-	require.Equal(t, 1, adoptPatches)
 	require.GreaterOrEqual(t, patchAttempts, 2)
 }
 

@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -60,7 +59,6 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 
 	clusterExists := true
 	postCount := 0
-	adoptPatches := 0
 	updatePatches := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -120,23 +118,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 			require.NoError(t, err)
 			var input management.Cluster
 			require.NoError(t, json.Unmarshal(body, &input))
-			if input.Name == config.TestWorkspaceName && adoptPatches == 0 {
-				adoptPatches++
-				require.Nil(t, input.Kai, "adopt PATCH must omit default kai=false to avoid mongoproxy teardown")
-				// /v2/clusters often ignores Name on PATCH; keep the starter name and only
-				// apply size so Create must preserve the planned workspace name in state.
-				cluster.SizeConfig = &management.SizeConfig{
-					Size:        util.Ptr(config.TestInitialWorkspaceSize),
-					ScaleFactor: util.Ptr[float32](1),
-					CacheConfig: util.Ptr[float32](1),
-				}
-				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-				}{ClusterID: clusterID}))
-				require.NoError(t, err)
-
-				return
-			}
+			require.Nil(t, input.Kai, "PATCH must omit default kai=false to avoid mongoproxy teardown")
 			updatePatches++
 			if updatePatches == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -247,7 +229,6 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 		},
 	})
 
-	require.Equal(t, 1, adoptPatches)
 	require.GreaterOrEqual(t, updatePatches, 2)
 	require.False(t, clusterExists)
 }
@@ -269,7 +250,9 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
-					isConnectableUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
+					// Prefer Data API over MySQL: GH runners often time out on :3306 even when
+					// the workspace allowlist and admin password are correct.
+					testutil.IsDataAPIReadyUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.max_scale_factor", fmt.Sprintf("%.0f", updatedMaxScaleFactor)),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
@@ -277,21 +260,4 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 			},
 		},
 	})
-}
-
-func isConnectableUsingGroupPassword(workspaceAddr, groupAddr string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		ws, ok := s.RootModule().Resources[workspaceAddr]
-		if !ok {
-			return fmt.Errorf("resource %s not found", workspaceAddr)
-		}
-		wg, ok := s.RootModule().Resources[groupAddr]
-		if !ok {
-			return fmt.Errorf("resource %s not found", groupAddr)
-		}
-		endpoint := ws.Primary.Attributes["endpoint"]
-		password := wg.Primary.Attributes["admin_password"]
-
-		return testutil.IsConnectableWithAdminPassword(password)(endpoint)
-	}
 }

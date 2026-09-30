@@ -152,7 +152,7 @@ func kaiPatchIfChanged(plan types.Bool, current *bool) *bool {
 // configured workspace. /v2/clusters cannot attach a second cluster to an existing
 // GroupID, so this keeps password/firewall/group identity aligned for the classic
 // workspace_group → workspace flow.
-func adoptStarterCluster(
+func adoptStarterCluster( //nolint:cyclop
 	ctx context.Context,
 	c management.ClientWithResponsesInterface,
 	starter management.Cluster,
@@ -166,27 +166,44 @@ func adoptStarterCluster(
 	}
 
 	id := *starter.ClusterID
+	// Name is required on the Cluster PATCH shape but /v2/clusters often ignores renames.
+	// Only send fields that actually differ from the starter to avoid long PENDING states
+	// (e.g. rewriting default SizeConfig/AutoSuspend on an already-ready S-00 cluster).
 	patch := management.Cluster{
-		Name:        plan.Name.ValueString(),
-		SizeConfig:  toSizeConfig(plan),
-		AutoSuspend: toClusterAutoSuspend(plan),
-		AutoScale:   toCreateAutoScale(plan),
+		Name: plan.Name.ValueString(),
+	}
+	needsPatch := false
+	desiredSize := plan.Size.ValueString()
+	sizeChanged := sizeConfigNeedsPatch(starter, plan)
+	if sizeChanged {
+		patch.SizeConfig = toSizeConfig(plan)
+		needsPatch = true
+	}
+	if autoScale := toCreateAutoScale(plan); autoScale != nil {
+		patch.AutoScale = autoScale
+		needsPatch = true
+	}
+	if autoSuspendNeedsPatch(starter, plan) {
+		patch.AutoSuspend = toClusterAutoSuspend(plan)
+		needsPatch = true
 	}
 	// kai_enabled defaults to false in the schema. Sending "kai": false on PATCH makes
 	// /v2/clusters try to tear down mongoproxy and can 500 when it was never provisioned.
 	if kai := kaiPatchIfChanged(plan.KaiEnabled, starter.Kai); kai != nil {
 		patch.Kai = kai
+		needsPatch = true
 	}
-	updateResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patch)
-	if serr := util.StatusOK(updateResponse, err); serr != nil {
-		return management.Cluster{}, serr
+	if needsPatch {
+		updateResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patch)
+		if serr := util.StatusOK(updateResponse, err); serr != nil {
+			return management.Cluster{}, serr
+		}
 	}
 
-	desiredSize := plan.Size.ValueString()
 	conditions := []waitCondition{
 		waitConditionState(management.ClusterStateACTIVE),
 	}
-	if desiredSize != "" && desiredSize != clusterSize(starter) {
+	if sizeChanged && desiredSize != "" && desiredSize != clusterSize(starter) {
 		conditions = append(conditions,
 			waitConditionSize(desiredSize),
 			waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
@@ -194,4 +211,45 @@ func adoptStarterCluster(
 	}
 
 	return wait(ctx, c, id, config.WorkspaceCreationTimeout, conditions...)
+}
+
+func sizeConfigNeedsPatch(starter management.Cluster, plan workspaceResourceModel) bool { //nolint:cyclop
+	if plan.Size.ValueString() != "" && plan.Size.ValueString() != clusterSize(starter) {
+		return true
+	}
+
+	starterCache, starterScale := float32(1), float32(1)
+	if starter.SizeConfig != nil {
+		if starter.SizeConfig.CacheConfig != nil {
+			starterCache = *starter.SizeConfig.CacheConfig
+		}
+		if starter.SizeConfig.ScaleFactor != nil {
+			starterScale = *starter.SizeConfig.ScaleFactor
+		}
+	}
+
+	planCache, planScale := float32(1), float32(1)
+	if !plan.CacheConfig.IsNull() && !plan.CacheConfig.IsUnknown() {
+		planCache = plan.CacheConfig.ValueFloat32()
+	}
+	if !plan.ScaleFactor.IsNull() && !plan.ScaleFactor.IsUnknown() {
+		planScale = plan.ScaleFactor.ValueFloat32()
+	}
+
+	return planCache != starterCache || planScale != starterScale
+}
+
+func autoSuspendNeedsPatch(starter management.Cluster, plan workspaceResourceModel) bool {
+	desired := toClusterAutoSuspend(plan)
+	if desired == nil || desired.SuspendType == nil {
+		return false
+	}
+	if *desired.SuspendType == management.DISABLED {
+		if starter.AutoSuspend == nil || starter.AutoSuspend.SuspendType == nil ||
+			*starter.AutoSuspend.SuspendType == management.DISABLED {
+			return false
+		}
+	}
+
+	return true
 }
