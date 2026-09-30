@@ -222,7 +222,7 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *workspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *workspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) { //nolint:cyclop
 	var plan workspaceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -288,15 +288,14 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 
 			return
 		}
-		result := toWorkspaceResourceModel(w)
-		result.WorkspaceGroupID = plan.WorkspaceGroupID
+		result := withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(w), plan)
 		diags = resp.State.Set(ctx, &result)
 		resp.Diagnostics.Append(diags...)
 
 		return
 	}
 
-	if _, exists := findClusterByName(groupClusters, plan.Name.ValueString()); exists {
+	if clusterNameExists(groupClusters, plan.Name.ValueString()) {
 		resp.Diagnostics.AddError(
 			"Workspace already exists in the workspace group",
 			fmt.Sprintf("A workspace named %q already exists in workspace group %s.", plan.Name.ValueString(), groupID),
@@ -346,11 +345,10 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	result := toWorkspaceResourceModel(w)
 	// /v2/clusters create currently ignores GroupID and returns a new group ID. Keep the
-	// configured workspace_group_id so the classic workspace_group → workspace Terraform
-	// relationship remains stable for callers.
-	result.WorkspaceGroupID = plan.WorkspaceGroupID
+	// configured workspace_group_id (and name) so the classic workspace_group → workspace
+	// Terraform relationship remains stable for callers.
+	result := withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(w), plan)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -397,8 +395,14 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	configuredGroupID := state.WorkspaceGroupID
+	configuredName := state.Name
 	state = toWorkspaceResourceModel(*workspace.JSON200)
 	state.WorkspaceGroupID = configuredGroupID
+	// /v2/clusters may keep the workspace_group starter name after adopt; preserve the
+	// Terraform-configured workspace name to avoid perpetual drift.
+	if util.IsConfiguredString(configuredName) {
+		state.Name = configuredName
+	}
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

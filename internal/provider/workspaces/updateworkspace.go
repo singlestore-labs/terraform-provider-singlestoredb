@@ -87,7 +87,7 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 		return workspaceResourceModel{}, werr
 	}
 
-	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
+	return withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(workspace), plan), nil
 }
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -104,7 +104,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return workspaceResourceModel{}, werr
 	}
 
-	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
+	return withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(workspace), plan), nil
 }
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
@@ -121,11 +121,16 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return workspaceResourceModel{}, werr
 	}
 
-	return withConfiguredWorkspaceGroupID(toWorkspaceResourceModel(workspace), plan), nil
+	return withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(workspace), plan), nil
 }
 
-func withConfiguredWorkspaceGroupID(model, configured workspaceResourceModel) workspaceResourceModel {
+// withConfiguredWorkspaceIdentity keeps Terraform-configured name and workspace_group_id
+// when /v2/clusters reports the starter cluster name or a different group id.
+func withConfiguredWorkspaceIdentity(model, configured workspaceResourceModel) workspaceResourceModel {
 	model.WorkspaceGroupID = configured.WorkspaceGroupID
+	if util.IsConfiguredString(configured.Name) {
+		model.Name = configured.Name
+	}
 
 	return model
 }

@@ -15,6 +15,7 @@
 - Workspace create copies sibling firewall allowlists via `allowAllTraffic` → `0.0.0.0/0` so unrestricted groups are not recreated as deny-all.
 - Examples omit configured `admin_password` so `/v2/clusters` can generate one; Terraform state then holds the working password (configured sensitive values cannot diverge from plan after apply).
 - Workspace adopt omits unchanged default `kai_enabled=false` on PATCH so `/v2/clusters` does not attempt a mongoproxy teardown.
+- Workspace adopt keeps the configured `name` in Terraform state when `/v2/clusters` leaves the starter cluster name unchanged.
 - Role grants with `resource_type = "Cluster"` continue to accept `singlestoredb_workspace_group.id`; identity-roles responses that use `ClusterGroup` are normalized back to `Cluster`.
 - `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
 - Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.

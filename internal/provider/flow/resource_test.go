@@ -94,7 +94,7 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2) {
+func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2) { //nolint:cyclop
 	t.Helper()
 
 	// Under /v2/clusters the workspace adopts this sole starter cluster.

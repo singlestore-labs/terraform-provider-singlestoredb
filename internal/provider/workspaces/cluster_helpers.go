@@ -103,17 +103,6 @@ func toSizeConfig(plan workspaceResourceModel) *management.SizeConfig {
 	}
 }
 
-// findClusterInGroup returns a representative cluster from the workspace group.
-func findClusterInGroup(clusters []management.Cluster, groupID otypes.UUID) (management.Cluster, bool) {
-	for _, c := range clusters {
-		if c.GroupID != nil && *c.GroupID == groupID {
-			return c, true
-		}
-	}
-
-	return management.Cluster{}, false
-}
-
 func filterClustersByGroupID(clusters []management.Cluster, groupID otypes.UUID) []management.Cluster {
 	result := make([]management.Cluster, 0)
 	for _, c := range clusters {
@@ -125,14 +114,14 @@ func filterClustersByGroupID(clusters []management.Cluster, groupID otypes.UUID)
 	return result
 }
 
-func findClusterByName(clusters []management.Cluster, name string) (management.Cluster, bool) {
+func clusterNameExists(clusters []management.Cluster, name string) bool {
 	for _, c := range clusters {
 		if strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
-			return c, true
+			return true
 		}
 	}
 
-	return management.Cluster{}, false
+	return false
 }
 
 // soleAdoptableCluster returns the group's only cluster when it is still the
@@ -141,7 +130,7 @@ func soleAdoptableCluster(groupClusters []management.Cluster, workspaceName stri
 	if len(groupClusters) != 1 {
 		return management.Cluster{}, false
 	}
-	if _, exists := findClusterByName(groupClusters, workspaceName); exists {
+	if clusterNameExists(groupClusters, workspaceName) {
 		return management.Cluster{}, false
 	}
 

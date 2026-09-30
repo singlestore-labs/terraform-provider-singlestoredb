@@ -123,7 +123,8 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 			if input.Name == config.TestWorkspaceName && adoptPatches == 0 {
 				adoptPatches++
 				require.Nil(t, input.Kai, "adopt PATCH must omit default kai=false to avoid mongoproxy teardown")
-				cluster.Name = config.TestWorkspaceName
+				// /v2/clusters often ignores Name on PATCH; keep the starter name and only
+				// apply size so Create must preserve the planned workspace name in state.
 				cluster.SizeConfig = &management.SizeConfig{
 					Size:        util.Ptr(config.TestInitialWorkspaceSize),
 					ScaleFactor: util.Ptr[float32](1),
