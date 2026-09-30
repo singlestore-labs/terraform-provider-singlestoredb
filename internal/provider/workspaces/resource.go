@@ -280,6 +280,8 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 	// /v2/clusters create requires region/provider/firewallRanges even when attaching to an
 	// existing group; copy those from a sibling workspace in the group so the classic
 	// workspace_group → workspace flow stays unchanged for callers.
+	// Do not copy ExpiresAt: the list API often returns a non-RFC3339 spelling that
+	// /v2/clusters rejects on create, and workspace create never set expiration under v1.
 	firewallRanges := util.Deref(sibling.FirewallRanges)
 	workspaceCreateResponse, err := r.PostV2ClustersWithResponse(ctx, management.PostV2ClustersJSONRequestBody{
 		Name:           plan.Name.ValueString(),
@@ -289,7 +291,6 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		Region:         sibling.Region,
 		FirewallRanges: &firewallRanges,
 		DeploymentType: sibling.DeploymentType,
-		ExpiresAt:      sibling.ExpiresAt,
 		Kai:            util.MaybeBool(plan.KaiEnabled),
 		SizeConfig:     toSizeConfig(plan),
 		AutoSuspend:    toClusterAutoSuspend(plan),

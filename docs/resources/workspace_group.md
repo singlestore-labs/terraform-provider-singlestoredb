@@ -36,7 +36,7 @@ resource "singlestoredb_workspace_group" "this" {
 ### Required
 
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
-- `name` (String) Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit).
+- `name` (String) Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created.
 
 ### Optional
 
@@ -49,7 +49,7 @@ resource "singlestoredb_workspace_group" "this" {
 - `project_name` (String) The name of the project to which the workspace group is assigned. This value cannot be changed after the workspace group is created; to use a different project, create a new workspace group associated with the desired project and migrate any dependent resources. Use the `singlestoredb_projects` data source to get the available project names.
 - `region_id` (String, Deprecated) The unique identifier of the region where the workspace group is to be created.
 - `region_name` (String) The region code name used to resolve region.
-- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))
+- `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. This value cannot be changed after the workspace group is created. (see [below for nested schema](#nestedatt--update_window))
 
 ### Read-Only
 
