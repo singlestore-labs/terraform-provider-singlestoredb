@@ -18,6 +18,7 @@ data "singlestoredb_regions_v2" "r" {}
 
 resource "singlestoredb_workspace_group" "g" {
   name            = "test-role-to-team-group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"]
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = data.singlestoredb_regions_v2.r.regions.0.provider

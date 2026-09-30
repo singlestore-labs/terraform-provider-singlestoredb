@@ -66,8 +66,8 @@ func (d *workspaceGroupsDataSourceList) Schema(_ context.Context, _ datasource.S
 
 // Read refreshes the Terraform state with the latest data.
 func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	workspaceGroups, err := d.GetV1WorkspaceGroupsWithResponse(ctx, &management.GetV1WorkspaceGroupsParams{})
-	if serr := util.StatusOK(workspaceGroups, err); serr != nil {
+	clusters, serr := listClusters(ctx, d.ClientWithResponsesInterface)
+	if serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -76,9 +76,12 @@ func (d *workspaceGroupsDataSourceList) Read(ctx context.Context, req datasource
 		return
 	}
 
+	groups := uniqueGroupsByGroupID(clusters)
 	result := workspaceGroupsListDataSourceModel{
-		ID:              types.StringValue(config.TestIDValue),
-		WorkspaceGroups: util.Map(util.Deref(workspaceGroups.JSON200), toWorkspaceGroupDataSourceModel),
+		ID: types.StringValue(config.TestIDValue),
+		WorkspaceGroups: util.Map(groups, func(c management.Cluster) workspaceGroupDataSourceModel {
+			return toWorkspaceGroupDataSourceModel(ctx, d.ClientWithResponsesInterface, c)
+		}),
 	}
 
 	diags := resp.State.Set(ctx, &result)
@@ -94,25 +97,29 @@ func (d *workspaceGroupsDataSourceList) Configure(_ context.Context, req datasou
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toWorkspaceGroupDataSourceModel(workspaceGroup management.WorkspaceGroup) workspaceGroupDataSourceModel {
-	return workspaceGroupDataSourceModel{
-		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+func toWorkspaceGroupDataSourceModel(ctx context.Context, c management.ClientWithResponsesInterface, workspaceGroup management.Cluster) workspaceGroupDataSourceModel {
+	model := workspaceGroupDataSourceModel{
+		ID:                       util.MaybeUUIDStringValue(workspaceGroup.GroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectName:              util.MaybeStringValue(workspaceGroup.ProjectName),
-		State:                    util.WorkspaceGroupStateStringValue(workspaceGroup.State),
-		FirewallRanges:           util.FirewallRanges(workspaceGroup.FirewallRanges),
+		ProjectName:              resolveProjectName(ctx, c, workspaceGroup.ProjectID),
+		State:                    util.ClusterStateStringValue(clusterState(workspaceGroup)),
+		FirewallRanges:           util.FirewallRanges(util.Ptr(effectiveFirewallRanges(workspaceGroup))),
 		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
-		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
+		CreatedAt:                clusterCreatedAtString(workspaceGroup),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
-		RegionID:                 util.UUIDStringValue(workspaceGroup.RegionID),
-		CloudProvider:            types.StringValue(string(workspaceGroup.Provider)),
-		RegionName:               types.StringValue(workspaceGroup.RegionName),
+		RegionID:                 types.StringNull(),
 		UpdateWindow:             toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBoolValue(workspaceGroup.OptInPreviewFeature),
-		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.HighAvailabilityTwoZones),
+		HighAvailabilityTwoZones: util.MaybeBoolValue(workspaceGroup.MultiAZ),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 	}
+	if workspaceGroup.Provider != nil {
+		model.CloudProvider = types.StringValue(string(*workspaceGroup.Provider))
+	}
+	model.RegionName = util.MaybeStringValue(workspaceGroup.Region)
+
+	return model
 }
 
 func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {

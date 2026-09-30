@@ -106,7 +106,7 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	teamCreateResponse, err := r.PostV1TeamsWithResponse(ctx, management.PostV1TeamsJSONRequestBody{
+	teamCreateResponse, err := r.PostV2TeamsWithResponse(ctx, management.PostV2TeamsJSONRequestBody{
 		Name:        util.ToString(plan.Name),
 		Description: util.MaybeString(plan.Description),
 	})
@@ -126,7 +126,7 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	team, err := r.GetV1TeamsTeamIDWithResponse(ctx, id)
+	team, err := r.GetV2TeamsTeamIDWithResponse(ctx, id)
 
 	if serr := util.StatusOK(team, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -170,7 +170,7 @@ func (r *teamResource) addInitialMembers(ctx context.Context, diags *diag.Diagno
 		return true
 	}
 
-	teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
+	teamPatchResponse, err := r.PatchV2TeamsTeamIDWithResponse(ctx, id, management.PatchV2TeamsTeamIDJSONRequestBody{
 		AddMemberUserEmails: &memberEmails,
 		AddMemberTeamIDs:    &teamIDs,
 	})
@@ -192,7 +192,7 @@ func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	team, err := r.GetV1TeamsTeamIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	team, err := r.GetV2TeamsTeamIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 
 	if serr := util.StatusOK(team, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
@@ -242,7 +242,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	if shouldUpdate(state, plan, addedUsers, removedUsers, addedTeams, removedTeams) {
-		teamPatchResponse, err := r.PatchV1TeamsTeamIDWithResponse(ctx, id, management.PatchV1TeamsTeamIDJSONRequestBody{
+		teamPatchResponse, err := r.PatchV2TeamsTeamIDWithResponse(ctx, id, management.PatchV2TeamsTeamIDJSONRequestBody{
 			Name:                   util.MaybeString(plan.Name),
 			Description:            util.MaybeString(plan.Description),
 			AddMemberUserEmails:    &addedUsers,
@@ -260,7 +260,7 @@ func (r *teamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		}
 	}
 
-	team, err := r.GetV1TeamsTeamIDWithResponse(ctx, id)
+	team, err := r.GetV2TeamsTeamIDWithResponse(ctx, id)
 	if serr := util.StatusOK(team, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
@@ -309,7 +309,7 @@ func (r *teamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	teamDeleteResponse, err := r.DeleteV1TeamsTeamIDWithResponse(ctx,
+	teamDeleteResponse, err := r.DeleteV2TeamsTeamIDWithResponse(ctx,
 		uuid.MustParse(state.ID.ValueString()),
 	)
 	if serr := util.StatusOK(teamDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {

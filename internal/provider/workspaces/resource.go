@@ -105,7 +105,7 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		},
 		map[string]attr.Value{
 			"suspend_after_seconds": basetypes.NewFloat32Null(),
-			"suspend_type":          basetypes.NewStringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+			"suspend_type":          basetypes.NewStringValue(string(management.DISABLED)),
 		},
 	)
 	resp.Schema = schema.Schema{
@@ -210,9 +210,9 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Optional:            true,
 						Computed:            true,
 						MarkdownDescription: "The auto suspend mode for the workspace can have the values `IDLE`, `SCHEDULED`, or `DISABLED` (to create the workspace with no auto suspend settings). Default is `DISABLED`.",
-						Default:             stringdefault.StaticString(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+						Default:             stringdefault.StaticString(string(management.DISABLED)),
 						Validators: []validator.String{
-							stringvalidator.OneOf(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED), string(management.WorkspaceCreateAutoSuspendSuspendTypeIDLE), string(management.WorkspaceCreateAutoSuspendSuspendTypeSCHEDULED)),
+							stringvalidator.OneOf(string(management.DISABLED), string(management.IDLE), string(management.SCHEDULED)),
 						},
 					},
 				},
@@ -258,15 +258,33 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	workspaceCreateResponse, err := r.PostV1WorkspacesWithResponse(ctx, management.PostV1WorkspacesJSONRequestBody{
-		Name:             plan.Name.ValueString(),
-		Size:             util.MaybeString(plan.Size),
-		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
-		EnableKai:        util.MaybeBool(plan.KaiEnabled),
-		CacheConfig:      util.MaybeFloat32(plan.CacheConfig),
-		ScaleFactor:      util.MaybeFloat32(plan.ScaleFactor),
-		AutoSuspend:      toCreateAutoSuspend(plan),
-		AutoScale:        toCreateAutoScale(plan),
+	groupID := uuid.MustParse(plan.WorkspaceGroupID.ValueString())
+
+	clustersResp, err := r.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(clustersResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	projectID, found := findClusterProjectID(util.Deref(clustersResp.JSON200), groupID)
+	if !found {
+		resp.Diagnostics.AddError(
+			"Cannot resolve project ID for workspace group",
+			"No existing cluster was found in the workspace group. Create the workspace group with the singlestoredb_cluster resource (or ensure the group already contains a cluster) before creating additional workspaces.",
+		)
+
+		return
+	}
+
+	workspaceCreateResponse, err := r.PostV2ClustersWithResponse(ctx, management.PostV2ClustersJSONRequestBody{
+		Name:        plan.Name.ValueString(),
+		GroupID:     util.Ptr(groupID),
+		ProjectID:   projectID,
+		Kai:         util.MaybeBool(plan.KaiEnabled),
+		SizeConfig:  toSizeConfig(plan),
+		AutoSuspend: toClusterAutoSuspend(plan),
+		AutoScale:   toCreateAutoScale(plan),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -277,8 +295,8 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.WorkspaceID, config.WorkspaceCreationTimeout,
-		waitConditionState(management.WorkspaceStateACTIVE),
+	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.ClusterID, config.WorkspaceCreationTimeout,
+		waitConditionState(management.ClusterStateACTIVE),
 	)
 	if werr != nil {
 		resp.Diagnostics.AddError(
@@ -305,8 +323,8 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	workspace, err := r.GetV1WorkspacesWorkspaceIDWithResponse(ctx, id,
-		&management.GetV1WorkspacesWorkspaceIDParams{},
+	workspace, err := r.GetV2ClustersClusterIDWithResponse(ctx, id,
+		&management.GetV2ClustersClusterIDParams{},
 	)
 	if serr := util.StatusOK(workspace, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -317,16 +335,17 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	if workspace.JSON200.State == management.WorkspaceStateTERMINATED {
+	stateValue := clusterState(*workspace.JSON200)
+	if stateValue == management.ClusterStateTERMINATED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspace.JSON200.State != management.WorkspaceStateACTIVE &&
-		workspace.JSON200.State != management.WorkspaceStateSUSPENDED {
+	if stateValue != management.ClusterStateACTIVE &&
+		stateValue != management.ClusterStateSUSPENDED {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace %s state is %s while it should be %s or %s", state.ID.ValueString(), workspace.JSON200.State, management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED),
+			fmt.Sprintf("Workspace %s state is %s while it should be %s or %s", state.ID.ValueString(), stateValue, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED),
 			"An unexpected workspace state.\n\n"+
 				config.ContactSupportLaterErrorDetail,
 		)
@@ -385,7 +404,7 @@ func (r *workspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	workspaceDeleteResponse, err := r.DeleteV1WorkspacesWorkspaceIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	workspaceDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(workspaceDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -461,39 +480,29 @@ func (r *workspaceResource) ImportState(ctx context.Context, req resource.Import
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceModel {
+func toWorkspaceResourceModel(workspace management.Cluster) workspaceResourceModel {
 	model := workspaceResourceModel{
-		ID:               util.UUIDStringValue(workspace.WorkspaceID),
-		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
+		ID:               clusterIDValue(workspace),
+		WorkspaceGroupID: groupIDValue(workspace),
 		Name:             types.StringValue(workspace.Name),
-		Size:             types.StringValue(workspace.Size),
-		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
-		CreatedAt:        types.StringValue(workspace.CreatedAt),
+		Size:             types.StringValue(clusterSize(workspace)),
+		Suspended:        types.BoolValue(clusterState(workspace) == management.ClusterStateSUSPENDED),
+		CreatedAt:        clusterCreatedAtString(workspace),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
-		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
-		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		KaiEnabled:       types.BoolValue(util.Deref(workspace.Kai)),
+		CacheConfig:      types.Float32PointerValue(clusterCacheConfig(workspace)),
+		ScaleFactor:      types.Float32PointerValue(clusterScaleFactor(workspace)),
 		AutoScale:        toAutoScaleResourceModel(workspace),
 		AutoSuspend:      toAutoSuspendResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
 	}
+	if model.ScaleFactor.IsNull() || model.ScaleFactor.IsUnknown() {
+		model.ScaleFactor = types.Float32Value(1)
+	}
 
 	return model
-}
-
-func toCreateAutoSuspend(plan workspaceResourceModel) *struct {
-	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-	SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-} {
-	return &struct {
-		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-		SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-	}{
-		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
-		SuspendType:         util.WorkspaceCreateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
-	}
 }
 
 func toCreateAutoScale(plan workspaceResourceModel) *management.AutoScale {
@@ -507,22 +516,24 @@ func toCreateAutoScale(plan workspaceResourceModel) *management.AutoScale {
 	}
 }
 
-func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendResourceModel {
-	if ws.AutoSuspend == nil {
+func toAutoSuspendResourceModel(ws management.Cluster) *workspaceAutoSuspendResourceModel {
+	if ws.AutoSuspend == nil || ws.AutoSuspend.SuspendType == nil {
 		return &workspaceAutoSuspendResourceModel{
-			SuspendType: types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+			SuspendType: types.StringValue(string(management.DISABLED)),
 		}
 	}
+
 	var suspendAfterSeconds *float32
-	if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeIDLE {
-		suspendAfterSeconds = ws.AutoSuspend.IdleAfterSeconds
-	} else if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeSCHEDULED {
-		suspendAfterSeconds = ws.AutoSuspend.ScheduledAfterSeconds
+	switch *ws.AutoSuspend.SuspendType {
+	case management.IDLE:
+		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.IdleAfterSeconds)
+	case management.SCHEDULED:
+		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.ScheduledAfterSeconds)
 	}
 
 	return &workspaceAutoSuspendResourceModel{
 		SuspendAfterSeconds: types.Float32PointerValue(suspendAfterSeconds),
-		SuspendType:         util.StringValueOrNull(&ws.AutoSuspend.SuspendType),
+		SuspendType:         util.StringValueOrNull(ws.AutoSuspend.SuspendType),
 	}
 }
 
@@ -539,7 +550,7 @@ func toAutoScale(plan workspaceResourceModel) *management.AutoScale {
 	}
 }
 
-func toAutoScaleResourceModel(ws management.Workspace) *autoScaleResourceModel {
+func toAutoScaleResourceModel(ws management.Cluster) *autoScaleResourceModel {
 	if ws.AutoScale == nil {
 		return &autoScaleResourceModel{
 			MaxScaleFactor: types.Float32Value(scaleX1),
@@ -587,7 +598,7 @@ func validateSuspendedAndConfigChanges(state, plan *workspaceResourceModel) *uti
 }
 
 func validateAutoSuspendConfig(plan *workspaceResourceModel) *util.SummaryWithDetailError {
-	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED))) &&
+	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.DISABLED))) &&
 		!plan.AutoSuspend.SuspendAfterSeconds.IsNull() {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid auto_suspend configuration.",

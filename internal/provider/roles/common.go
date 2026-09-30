@@ -237,7 +237,7 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	var jsonRoles *[]management.IdentityRole
 	switch entityType {
 	case EntityTypeTeam:
-		rolesResponse, err := r.GetV1TeamsTeamIDIdentityRolesWithResponse(ctx, uuid.MustParse(entityIDstr), &management.GetV1TeamsTeamIDIdentityRolesParams{
+		rolesResponse, err := r.GetV2TeamsTeamIDIdentityRolesWithResponse(ctx, uuid.MustParse(entityIDstr), &management.GetV2TeamsTeamIDIdentityRolesParams{
 			ResourceType: resourceType,
 		})
 		if serr := util.StatusOK(rolesResponse, err); serr != nil {
@@ -245,7 +245,7 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 		}
 		jsonRoles = rolesResponse.JSON200
 	case EntityTypeUser:
-		rolesResponse, err := r.GetV1UsersUserIDIdentityRolesWithResponse(ctx, uuid.MustParse(entityIDstr), &management.GetV1UsersUserIDIdentityRolesParams{
+		rolesResponse, err := r.GetV2UsersUserIDIdentityRolesWithResponse(ctx, uuid.MustParse(entityIDstr), &management.GetV2UsersUserIDIdentityRolesParams{
 			ResourceType: resourceType,
 		})
 
@@ -374,7 +374,7 @@ func modifyAccessControlsForResource(ctx context.Context, r management.ClientWit
 }
 
 func applyOrganizationAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV1OrganizationsOrganizationIDAccessControlsWithResponse(ctx, resourceID, management.PatchV1OrganizationsOrganizationIDAccessControlsJSONRequestBody{
+	response, err := r.PatchV2OrganizationsOrganizationIDAccessControlsWithResponse(ctx, resourceID, management.PatchV2OrganizationsOrganizationIDAccessControlsJSONRequestBody{
 		Grants:  grants,
 		Revokes: revokes,
 	})
@@ -386,7 +386,7 @@ func applyOrganizationAccessControls(ctx context.Context, r management.ClientWit
 }
 
 func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, resourceID, management.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsJSONRequestBody{
+	response, err := r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, resourceID, management.PatchV2ClustersClusterIDAccessControlsJSONRequestBody{
 		Grants:  grants,
 		Revokes: revokes,
 	})
@@ -398,7 +398,7 @@ func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientW
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV1TeamsTeamIDAccessControlsWithResponse(ctx, resourceID, management.PatchV1TeamsTeamIDAccessControlsJSONRequestBody{
+	response, err := r.PatchV2TeamsTeamIDAccessControlsWithResponse(ctx, resourceID, management.PatchV2TeamsTeamIDAccessControlsJSONRequestBody{
 		Grants:  grants,
 		Revokes: revokes,
 	})
@@ -410,7 +410,7 @@ func applyTeamAccessControls(ctx context.Context, r management.ClientWithRespons
 }
 
 func applySecretAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV1SecretsSecretIDAccessControlsWithResponse(ctx, resourceID, management.PatchV1SecretsSecretIDAccessControlsJSONRequestBody{
+	response, err := r.PatchV2SecretsSecretIDAccessControlsWithResponse(ctx, resourceID, management.PatchV2SecretsSecretIDAccessControlsJSONRequestBody{
 		Grants:  grants,
 		Revokes: revokes,
 	})

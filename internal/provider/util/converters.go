@@ -103,28 +103,25 @@ func FirewallRanges(frs *[]string) []types.String {
 	return Map(Deref(frs), types.StringValue)
 }
 
-func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.String {
-	return types.StringValue(string(wgs))
+func ClusterStateStringValue(cs management.ClusterState) types.String {
+	return types.StringValue(string(cs))
 }
 
-func WorkspaceStateString(wgs types.String) *management.WorkspaceState {
-	for _, s := range []management.WorkspaceState{
-		management.WorkspaceStateACTIVE,
-		management.WorkspaceStateFAILED,
-		management.WorkspaceStatePENDING,
-		management.WorkspaceStateSUSPENDED,
-		management.WorkspaceStateTERMINATED,
+func ClusterStateString(cs types.String) *management.ClusterState {
+	for _, s := range []management.ClusterState{
+		management.ClusterStateACTIVE,
+		management.ClusterStateFAILED,
+		management.ClusterStatePENDING,
+		management.ClusterStateSUSPENDED,
+		management.ClusterStateTERMINATED,
+		management.ClusterStateUNKNOWN,
 	} {
-		if strings.EqualFold(wgs.ValueString(), string(s)) {
+		if strings.EqualFold(cs.ValueString(), string(s)) {
 			return &s
 		}
 	}
 
 	return nil
-}
-
-func WorkspaceStateStringValue(ws management.WorkspaceState) types.String {
-	return types.StringValue(string(ws))
 }
 
 func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
@@ -135,10 +132,10 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	return convert(*input)
 }
 
-func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateType, error) {
-	for _, s := range []management.PrivateConnectionCreateType{
-		management.PrivateConnectionCreateTypeINBOUND,
-		management.PrivateConnectionCreateTypeOUTBOUND,
+func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateV2Type, error) {
+	for _, s := range []management.PrivateConnectionCreateV2Type{
+		management.PrivateConnectionCreateV2TypeINBOUND,
+		management.PrivateConnectionCreateV2TypeOUTBOUND,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return s, nil
@@ -156,6 +153,16 @@ func MaybeFloat32(f types.Float32) *float32 {
 	return Ptr(f.ValueFloat32())
 }
 
+func MaybeInt(i types.Int64) *int {
+	if i.IsNull() || i.IsUnknown() {
+		return nil
+	}
+
+	v := int(i.ValueInt64())
+
+	return &v
+}
+
 func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.AutoScaleSensitivity {
 	for _, s := range []management.AutoScaleSensitivity{
 		management.LOW,
@@ -170,22 +177,8 @@ func WorkspaceAutoScaleSensitivityString(wgs types.String) *management.AutoScale
 	return nil
 }
 
-func WorkspaceCreateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceCreateAutoSuspendSuspendType {
-	for _, s := range []management.WorkspaceCreateAutoSuspendSuspendType{
-		management.WorkspaceCreateAutoSuspendSuspendTypeIDLE,
-		management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED,
-		management.WorkspaceCreateAutoSuspendSuspendTypeSCHEDULED,
-	} {
-		if strings.EqualFold(wgs.ValueString(), string(s)) {
-			return &s
-		}
-	}
-
-	return nil
-}
-
-func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceUpdateAutoSuspendSuspendType {
-	for _, s := range []management.WorkspaceUpdateAutoSuspendSuspendType{
+func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspendType {
+	for _, s := range []management.AutoSuspendSuspendType{
 		management.IDLE,
 		management.DISABLED,
 		management.SCHEDULED,
@@ -198,23 +191,10 @@ func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.W
 	return nil
 }
 
-func WorkspaceGroupCreateDeploymentTypeString(wgs types.String) *management.WorkspaceGroupCreateDeploymentType {
-	for _, s := range []management.WorkspaceGroupCreateDeploymentType{
-		management.WorkspaceGroupCreateDeploymentTypePRODUCTION,
-		management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION,
-	} {
-		if strings.EqualFold(wgs.ValueString(), string(s)) {
-			return &s
-		}
-	}
-
-	return nil
-}
-
-func WorkspaceGroupUpdateDeploymentTypeString(wgs types.String) *management.WorkspaceGroupUpdateDeploymentType {
-	for _, s := range []management.WorkspaceGroupUpdateDeploymentType{
-		management.WorkspaceGroupUpdateDeploymentTypePRODUCTION,
-		management.WorkspaceGroupUpdateDeploymentTypeNONPRODUCTION,
+func ClusterDeploymentTypeString(wgs types.String) *management.ClusterDeploymentType {
+	for _, s := range []management.ClusterDeploymentType{
+		management.PRODUCTION,
+		management.NONPRODUCTION,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return &s

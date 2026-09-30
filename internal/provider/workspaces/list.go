@@ -86,9 +86,7 @@ func (d *workspacesDataSourceList) Read(ctx context.Context, req datasource.Read
 		return
 	}
 
-	workspaces, err := d.GetV1WorkspacesWithResponse(ctx, &management.GetV1WorkspacesParams{
-		WorkspaceGroupID: id,
-	})
+	workspaces, err := d.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
 	if serr := util.StatusOK(workspaces, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -98,7 +96,8 @@ func (d *workspacesDataSourceList) Read(ctx context.Context, req datasource.Read
 		return
 	}
 
-	resultWorkspaces, merr := util.MapWithError(util.Deref(workspaces.JSON200), toWorkspaceDataSourceModel)
+	filtered := filterClustersByGroupID(util.Deref(workspaces.JSON200), id)
+	resultWorkspaces, merr := util.MapWithError(filtered, toWorkspaceDataSourceModel)
 	if merr != nil {
 		resp.Diagnostics.AddError(merr.Summary, merr.Detail)
 

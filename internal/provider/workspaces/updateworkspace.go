@@ -38,37 +38,48 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 
-	worspaceUpdate := management.WorkspaceUpdate{}
+	clusterUpdate := management.Cluster{
+		Name: plan.Name.ValueString(),
+	}
 
+	sizeConfig := &management.SizeConfig{}
+	sizeChanged := false
 	if !plan.Size.Equal(state.Size) {
-		worspaceUpdate.Size = util.Ptr(desiredSize)
+		sizeConfig.Size = util.Ptr(desiredSize)
+		sizeChanged = true
 	}
 
 	if !plan.CacheConfig.Equal(state.CacheConfig) {
-		worspaceUpdate.CacheConfig = util.MaybeFloat32(plan.CacheConfig)
+		sizeConfig.CacheConfig = util.MaybeFloat32(plan.CacheConfig)
+		sizeChanged = true
 	}
 
 	if !plan.ScaleFactor.Equal(state.ScaleFactor) {
-		worspaceUpdate.ScaleFactor = util.MaybeFloat32(plan.ScaleFactor)
+		sizeConfig.ScaleFactor = util.MaybeFloat32(plan.ScaleFactor)
+		sizeChanged = true
+	}
+
+	if sizeChanged {
+		clusterUpdate.SizeConfig = sizeConfig
 	}
 
 	if !plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) ||
 		!plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) {
-		worspaceUpdate.AutoScale = toAutoScale(plan)
+		clusterUpdate.AutoScale = toAutoScale(plan)
 	}
 
 	if !plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) ||
 		!plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds) {
-		worspaceUpdate.AutoSuspend = toUpdateAutoSuspend(plan)
+		clusterUpdate.AutoSuspend = toClusterAutoSuspend(plan)
 	}
 
-	workspaceUpdateResponse, err := c.PatchV1WorkspacesWorkspaceIDWithResponse(ctx, id, worspaceUpdate)
+	workspaceUpdateResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, clusterUpdate)
 	if serr := util.StatusOK(workspaceUpdateResponse, err); serr != nil {
 		return workspaceResourceModel{}, serr
 	}
 
 	workspace, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
-		waitConditionState(management.WorkspaceStateACTIVE),
+		waitConditionState(management.ClusterStateACTIVE),
 		waitConditionSize(desiredSize),
 		waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
 	)
@@ -81,13 +92,13 @@ func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithRes
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
-	workspaceResumeResponse, err := c.PostV1WorkspacesWorkspaceIDResumeWithResponse(ctx, id, management.WorkspaceResume{})
+	workspaceResumeResponse, err := c.PostV2ClustersClusterIDResumeWithResponse(ctx, id, management.ClusterResume{})
 	if serr := util.StatusOK(workspaceResumeResponse, err); serr != nil {
 		return workspaceResourceModel{}, serr
 	}
 
 	workspace, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
-		waitConditionState(management.WorkspaceStateACTIVE),
+		waitConditionState(management.ClusterStateACTIVE),
 	)
 	if werr != nil {
 		return workspaceResourceModel{}, werr
@@ -98,30 +109,17 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
 	id := uuid.MustParse(plan.ID.ValueString())
-	workspaceSuspendResponse, err := c.PostV1WorkspacesWorkspaceIDSuspendWithResponse(ctx, id)
+	workspaceSuspendResponse, err := c.PostV2ClustersClusterIDSuspendWithResponse(ctx, id)
 	if serr := util.StatusOK(workspaceSuspendResponse, err); serr != nil {
 		return workspaceResourceModel{}, serr
 	}
 
 	workspace, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
-		waitConditionState(management.WorkspaceStateSUSPENDED),
+		waitConditionState(management.ClusterStateSUSPENDED),
 	)
 	if werr != nil {
 		return workspaceResourceModel{}, werr
 	}
 
 	return toWorkspaceResourceModel(workspace), nil
-}
-
-func toUpdateAutoSuspend(plan workspaceResourceModel) *struct {
-	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-	SuspendType         *management.WorkspaceUpdateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-} {
-	return &struct {
-		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-		SuspendType         *management.WorkspaceUpdateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-	}{
-		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
-		SuspendType:         util.WorkspaceUpdateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
-	}
 }

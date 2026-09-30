@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Added
+
+- New `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources for the Management API `/v2/clusters` endpoint. A cluster creates a workspace and its workspace group in a single API call.
+- `cluster_id` attribute on `singlestoredb_private_connection` (preferred) and `singlestoredb_flow` for the Management API v2 cluster terminology.
+
+### Changed
+
+- Bump `github.com/singlestore-labs/singlestore-go/management` from v1.2.158 to v1.2.176. The Management API client now targets v2 endpoints; `/v1/workspaces` and `/v1/workspaceGroups` are replaced by `/v2/clusters`.
+- `singlestoredb_workspace_group` and `singlestoredb_workspace` now use `/v2/clusters` under the hood. Workspace group create provisions a cluster (workspace + group); `project_name` is effectively required because the API requires a project ID.
+- `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
+- Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.
+
+### Breaking
+
+- `singlestoredb_flow`: replace `workspace_id` with `cluster_id` (same UUID value; cluster is the Management API v2 name for a workspace).
+- `singlestoredb_private_connection`: prefer `cluster_id`; `workspace_id` and `workspace_group_id` remain as deprecated aliases.
+- `singlestoredb_regions` nested `id` (region UUID) is no longer available; use `region_name` / `provider` instead.
+
 ## v0.1.19 - 2026-07-31
 
 ### Fixed

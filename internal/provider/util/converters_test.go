@@ -84,20 +84,15 @@ func TestFirewallRanges(t *testing.T) {
 	require.Equal(t, []types.String{types.StringValue(a), types.StringValue(b)}, result)
 }
 
-func TestWorkspaceGroupStateStringValue(t *testing.T) {
-	state := management.WorkspaceGroupStateACTIVE
-	require.Equal(t, string(state), util.WorkspaceGroupStateStringValue(state).ValueString())
+func TestClusterStateStringValue(t *testing.T) {
+	state := management.ClusterStateACTIVE
+	require.Equal(t, string(state), util.ClusterStateStringValue(state).ValueString())
 }
 
-func TestWorkspaceStateString(t *testing.T) {
-	require.Nil(t, util.WorkspaceStateString(types.StringValue("something")))
-	active := string(management.WorkspaceStateACTIVE)
-	require.Equal(t, management.WorkspaceStateACTIVE, util.Deref(util.WorkspaceStateString(types.StringValue(active))))
-}
-
-func TestWorkspaceStateStringValue(t *testing.T) {
-	state := management.WorkspaceStateACTIVE
-	require.Equal(t, string(state), util.WorkspaceStateStringValue(state).ValueString())
+func TestClusterStateString(t *testing.T) {
+	require.Nil(t, util.ClusterStateString(types.StringValue("something")))
+	active := string(management.ClusterStateACTIVE)
+	require.Equal(t, management.ClusterStateACTIVE, util.Deref(util.ClusterStateString(types.StringValue(active))))
 }
 
 func mustUUIDSet(t *testing.T, ids ...string) types.Set {

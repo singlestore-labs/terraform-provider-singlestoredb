@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -221,8 +222,8 @@ func readByID(data workspaceGroupDataSourceModel, ctx context.Context, d *worksp
 		return
 	}
 
-	workspaceGroup, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
-	if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+	workspaceGroup, serr := getClusterInGroup(ctx, d.ClientWithResponsesInterface, id)
+	if serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -231,34 +232,34 @@ func readByID(data workspaceGroupDataSourceModel, ctx context.Context, d *worksp
 		return
 	}
 
-	if workspaceGroup.JSON200.TerminatedAt != nil {
+	if workspaceGroup.TerminatedAt != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.IDAttribute),
-			fmt.Sprintf("Workspace group with the specified ID existed, but got terminated at %s", *workspaceGroup.JSON200.TerminatedAt),
+			fmt.Sprintf("Workspace group with the specified ID existed, but got terminated at %s", workspaceGroup.TerminatedAt.Format(time.RFC3339)),
 			"Make sure to set the workspace group ID of the workspace group that exists.",
 		)
 
 		return
 	}
 
-	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateFAILED {
+	if clusterState(workspaceGroup) == management.ClusterStateFAILED {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", workspaceGroup.JSON200.State),
+			fmt.Sprintf("Workspace group with the specified ID exists, but is at the %s state", clusterState(workspaceGroup)),
 			config.ContactSupportErrorDetail,
 		)
 
 		return
 	}
 
-	result := toWorkspaceGroupDataSourceModel(*workspaceGroup.JSON200)
+	result := toWorkspaceGroupDataSourceModel(ctx, d.ClientWithResponsesInterface, workspaceGroup)
 
 	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
 
 func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *workspaceGroupsDataSourceGet, resp *datasource.ReadResponse) {
-	workspaceGroups, err := d.GetV1WorkspaceGroupsWithResponse(ctx, &management.GetV1WorkspaceGroupsParams{})
-	if serr := util.StatusOK(workspaceGroups, err); serr != nil {
+	clusters, serr := listClusters(ctx, d.ClientWithResponsesInterface)
+	if serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -267,7 +268,8 @@ func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *work
 		return
 	}
 
-	result := util.Filter(util.Deref(workspaceGroups.JSON200), func(wg management.WorkspaceGroup) bool {
+	groups := uniqueGroupsByGroupID(clusters)
+	result := util.Filter(groups, func(wg management.Cluster) bool {
 		return strings.EqualFold(strings.TrimSpace(wg.Name), strings.TrimSpace(data.Name.ValueString()))
 	})
 
@@ -289,6 +291,6 @@ func readByName(data workspaceGroupDataSourceModel, ctx context.Context, d *work
 		return
 	}
 
-	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(result[0])))
+	diags := resp.State.Set(ctx, util.Ptr(toWorkspaceGroupDataSourceModel(ctx, d.ClientWithResponsesInterface, result[0])))
 	resp.Diagnostics.Append(diags...)
 }

@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework-validators v0.16.0
 	github.com/hashicorp/terraform-plugin-go v0.25.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.35.0
-	github.com/singlestore-labs/singlestore-go/management v1.2.158
+	github.com/singlestore-labs/singlestore-go/management v1.2.176
 	github.com/stretchr/testify v1.11.1
 )
 

@@ -3,7 +3,6 @@ package workspacegroups
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -151,9 +150,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "The deployment type that will be applied to all the workspaces within the workspace group. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.",
-				Default:             stringdefault.StaticString(string(management.WorkspaceGroupCreateDeploymentTypePRODUCTION)),
+				Default:             stringdefault.StaticString(string(management.PRODUCTION)),
 				Validators: []validator.String{
-					stringvalidator.OneOf(string(management.WorkspaceGroupCreateDeploymentTypePRODUCTION), string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION)),
+					stringvalidator.OneOf(string(management.PRODUCTION), string(management.NONPRODUCTION)),
 				},
 			},
 			"opt_in_preview_feature": schema.BoolAttribute{
@@ -224,38 +223,49 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	var regionID *uuid.UUID
-	if regionIDIsSet {
-		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
+	if util.IsConfiguredString(plan.RegionID) && !util.IsConfiguredString(plan.CloudProvider) {
+		resp.Diagnostics.AddError(
+			"region_id is deprecated and unsupported by the v2 clusters API",
+			"Provide cloud_provider and region_name instead of region_id.",
+		)
+
+		return
 	}
 
-	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
-	var projectID *uuid.UUID
-	if projectNameIsSet {
-		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(err.Summary, err.Detail)
+	if !util.IsConfiguredString(plan.ProjectName) {
+		resp.Diagnostics.AddError(
+			"project_name is required",
+			"The v2 clusters API requires a project ID. Set project_name to an existing project.",
+		)
 
-			return
-		}
-		projectID = resolvedProjectID
+		return
 	}
 
-	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
-		AdminPassword:            util.MaybeNonEmptyString(plan.AdminPassword),
-		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
-		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
-		Name:                     plan.Name.ValueString(),
-		ProjectID:                projectID,
-		RegionID:                 regionID,
-		Provider:                 util.WorkspaceGroupCloudProviderString(plan.CloudProvider.ValueString()),
-		RegionName:               util.MaybeString(plan.RegionName),
-		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
-		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
-		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
-		UpdateWindow:             toManagementUpdateWindow(ctx, plan.UpdateWindow),
-	})
+	projectID, perr := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+	if perr != nil {
+		resp.Diagnostics.AddError(perr.Summary, perr.Detail)
+
+		return
+	}
+
+	createBody := management.PostV2ClustersJSONRequestBody{
+		AdminPassword:       util.MaybeNonEmptyString(plan.AdminPassword),
+		ExpiresAt:           util.MaybeString(plan.ExpiresAt),
+		FirewallRanges:      util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+		Name:                plan.Name.ValueString(),
+		ProjectID:           *projectID,
+		Provider:            util.WorkspaceGroupCloudProviderString(plan.CloudProvider.ValueString()),
+		Region:              util.MaybeString(plan.RegionName),
+		DeploymentType:      util.ClusterDeploymentTypeString(plan.DeploymentType),
+		OptInPreviewFeature: util.MaybeBool(plan.OptInPreviewFeature),
+		MultiAZ:             util.MaybeBool(plan.HighAvailabilityTwoZones),
+		UpdateWindow:        toManagementUpdateWindow(ctx, plan.UpdateWindow),
+		SizeConfig: &management.SizeConfig{
+			Size: util.Ptr(defaultStarterSize),
+		},
+	}
+
+	workspaceGroupCreateResponse, err := r.PostV2ClustersWithResponse(ctx, createBody)
 	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -265,7 +275,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	id := workspaceGroupCreateResponse.JSON200.WorkspaceGroupID
+	id := workspaceGroupCreateResponse.JSON200.GroupID
 	wg, werr := verifyStatusAndGetWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, config.WorkspaceGroupCreationTimeout, waitConditionFirewallRanges(plan.FirewallRanges))
 	if werr != nil {
 		resp.Diagnostics.AddError(
@@ -276,10 +286,10 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
+	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
-	), regionIDIsSet, plan.FirewallRanges)
+	), false, plan.FirewallRanges)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -287,13 +297,10 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 
 func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
 	providerAndRegionNameAreSet := util.IsConfiguredString(plan.CloudProvider) && util.IsConfiguredString(plan.RegionName)
-	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-
-	if regionIDIsSet && (providerAndRegionNameAreSet) ||
-		!regionIDIsSet && (!providerAndRegionNameAreSet) {
+	if !providerAndRegionNameAreSet {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid region configuration",
-			Detail:  "Either 'region_id' must be set or both 'cloud_provider' and 'region_name' must be provided.",
+			Detail:  "Both 'cloud_provider' and 'region_name' must be provided. The deprecated 'region_id' attribute is not supported by the v2 clusters API.",
 		}
 	}
 
@@ -301,7 +308,7 @@ func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.S
 }
 
 func validateCreateOptInPreviewFeatureParameter(plan workspaceGroupResourceModel) *util.SummaryWithDetailError {
-	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
+	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.NONPRODUCTION) {
 		return &util.SummaryWithDetailError{
 			Summary: "Wrong configuration for opt_in_preview_feature and deployment_type",
 			Detail:  "The enabled opt_in_preview_feature configuration is suitable only for the 'NON-PRODUCTION' deployment_type.",
@@ -320,11 +327,13 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-		uuid.MustParse(state.ID.ValueString()),
-		&management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{},
-	)
-	if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+	workspaceGroup, serr := getClusterInGroup(ctx, r.ClientWithResponsesInterface, uuid.MustParse(state.ID.ValueString()))
+	if serr != nil {
+		if strings.Contains(serr.Summary, "not found") {
+			resp.State.RemoveResource(ctx)
+
+			return
+		}
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -333,15 +342,16 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	if workspaceGroup.JSON200.State == management.WorkspaceGroupStateTERMINATED {
+	stateValue := clusterState(workspaceGroup)
+	if stateValue == management.ClusterStateTERMINATED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
+	if isFatalWorkspaceGroupState(stateValue) {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace group %s state is %s while it should be %s or %s", state.ID.ValueString(), workspaceGroup.JSON200.State, management.WorkspaceGroupStateACTIVE, management.WorkspaceGroupStatePENDING),
+			fmt.Sprintf("Workspace group %s state is %s while it should be %s or %s", state.ID.ValueString(), stateValue, management.ClusterStateACTIVE, management.ClusterStatePENDING),
 			"An unexpected workspace group state.\n\n"+
 				config.ContactSupportLaterErrorDetail,
 		)
@@ -350,7 +360,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := util.IsConfiguredString(state.RegionID)
-	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
+	state = toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, workspaceGroup, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -387,13 +397,26 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	id := uuid.MustParse(plan.ID.ValueString())
-	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
-		management.WorkspaceGroupUpdate{
+	cluster, cerr := getClusterInGroup(ctx, r.ClientWithResponsesInterface, id)
+	if cerr != nil {
+		resp.Diagnostics.AddError(cerr.Summary, cerr.Detail)
+
+		return
+	}
+
+	if cluster.ClusterID == nil {
+		resp.Diagnostics.AddError("Missing cluster ID", "The workspace group cluster response did not include a cluster ID.")
+
+		return
+	}
+
+	workspaceGroupUpdateResponse, err := r.PatchV2ClustersClusterIDWithResponse(ctx, *cluster.ClusterID,
+		management.Cluster{
+			Name:           plan.Name.ValueString(),
 			AdminPassword:  workspaceGroupPatchAdminPassword(plan, state),
 			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
-			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
-			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
+			DeploymentType: util.ClusterDeploymentTypeString(plan.DeploymentType),
 			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
 		},
 	)
@@ -417,7 +440,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
+	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -435,17 +458,27 @@ func (r *workspaceGroupResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	workspaceGroupDeleteResponse, err := r.DeleteV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-		uuid.MustParse(state.ID.ValueString()),
-		&management.DeleteV1WorkspaceGroupsWorkspaceGroupIDParams{Force: util.Ptr(true)}, // Deleting even if workspaces in the group.
-	)
-	if serr := util.StatusOK(workspaceGroupDeleteResponse, err); serr != nil {
-		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
-		)
+	groupID := uuid.MustParse(state.ID.ValueString())
+	clusters, serr := listClusters(ctx, r.ClientWithResponsesInterface)
+	if serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
+	}
+
+	for _, cluster := range filterClustersByGroupID(clusters, groupID) {
+		if cluster.ClusterID == nil {
+			continue
+		}
+		workspaceGroupDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, *cluster.ClusterID)
+		if serr := util.StatusOK(workspaceGroupDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
+			resp.Diagnostics.AddError(
+				serr.Summary,
+				serr.Detail,
+			)
+
+			return
+		}
 	}
 }
 
@@ -526,15 +559,14 @@ func handleRegionMigrationState(ctx context.Context, r *workspaceGroupResource, 
 	}
 
 	if shouldMigrateToRegionNameAndProvider {
-		workspaceGroup, err := r.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx,
-			uuid.MustParse(state.ID.ValueString()),
-			&management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{},
-		)
-		if serr := util.StatusOK(workspaceGroup, err); serr != nil {
+		workspaceGroup, serr := getClusterInGroup(ctx, r.ClientWithResponsesInterface, uuid.MustParse(state.ID.ValueString()))
+		if serr != nil {
 			return serr
 		}
-		state.CloudProvider = types.StringValue(string(workspaceGroup.JSON200.Provider))
-		state.RegionName = types.StringValue(workspaceGroup.JSON200.RegionName)
+		if workspaceGroup.Provider != nil {
+			state.CloudProvider = types.StringValue(string(*workspaceGroup.Provider))
+		}
+		state.RegionName = util.MaybeStringValue(workspaceGroup.Region)
 	}
 
 	return nil
@@ -607,7 +639,7 @@ func validateModifyImmutableWorkspaceGroupFlags(plan, state *workspaceGroupResou
 		}
 	}
 
-	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.WorkspaceGroupCreateDeploymentTypeNONPRODUCTION) {
+	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.NONPRODUCTION) {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the workspace group when the opt_in_preview_feature is enabled.",
 			Detail: "Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. " +
@@ -628,33 +660,35 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 // configuredFirewallRanges is the allowlist Terraform holds for the resource, either
 // from the plan or from the prior state. It decides how the reported ranges are
 // spelled, see firewallRangesForState.
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
+func toWorkspaceGroupResourceModel(ctx context.Context, c management.ClientWithResponsesInterface, workspaceGroup management.Cluster, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
+	projectName := resolveProjectName(ctx, c, workspaceGroup.ProjectID)
 	result := workspaceGroupResourceModel{
-		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
+		ID:                       util.MaybeUUIDStringValue(workspaceGroup.GroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
-		ProjectName:              util.StringValueOrNull(workspaceGroup.ProjectName),
+		ProjectName:              projectName,
 		FirewallRanges:           firewallRangesForState(configuredFirewallRanges, workspaceGroup),
-		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
+		CreatedAt:                clusterCreatedAtString(workspaceGroup),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		AdminPassword:            types.StringValue(adminPassword),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
-		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
+		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.MultiAZ != nil && *workspaceGroup.MultiAZ),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 	if regionIDIsSet {
-		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
-	} else {
-		result.CloudProvider = normalizeCloudProvider(workspaceGroup.Provider)
-		result.RegionName = types.StringValue(workspaceGroup.RegionName)
+		// region_id is deprecated and no longer returned by the API; keep prior state if present.
+		result.RegionID = types.StringNull()
+	} else if workspaceGroup.Provider != nil {
+		result.CloudProvider = normalizeCloudProvider(*workspaceGroup.Provider)
+		result.RegionName = util.MaybeStringValue(workspaceGroup.Region)
 	}
 
 	return result
 }
 
 func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
+	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
 	if serr := util.StatusOK(projectsResponse, err); serr != nil {
 		return nil, serr
 	}
@@ -709,54 +743,47 @@ func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringV
 }
 
 // waitCondition return nil if it is satisfied.
-type waitCondition func(management.WorkspaceGroup) error
+type waitCondition func(management.Cluster) error
 
-func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, timeout time.Duration, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
-	result := management.WorkspaceGroup{}
+func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id uuid.UUID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
+	result := management.Cluster{}
 
-	workspaceGroupStateHistory := make([]management.WorkspaceGroupState, 0, config.WorkspaceGroupConsistencyThreshold)
+	workspaceGroupStateHistory := make([]management.ClusterState, 0, config.WorkspaceGroupConsistencyThreshold)
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
-		workspaceGroup, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
-		if err != nil { // Not status code OK does not get here, not retrying for that reason.
-			ferr := fmt.Errorf("failed to get workspace group %s: %w", id, err)
-
-			return retry.NonRetryableError(ferr)
+		workspaceGroup, serr := getClusterInGroup(ctx, c, id)
+		if serr != nil {
+			return retry.RetryableError(fmt.Errorf("failed to get workspace group %s: %s", id, serr.Detail))
 		}
 
-		if code := workspaceGroup.StatusCode(); code != http.StatusOK {
-			err := fmt.Errorf("failed to get workspace group %s: status code %s", id, http.StatusText(code))
+		state := clusterState(workspaceGroup)
+		workspaceGroupStateHistory = append(workspaceGroupStateHistory, state)
 
-			return retry.RetryableError(err)
-		}
-
-		workspaceGroupStateHistory = append(workspaceGroupStateHistory, workspaceGroup.JSON200.State)
-
-		if isFatalWorkspaceGroupState(workspaceGroup.JSON200.State) {
-			err := fmt.Errorf("workspace group %s create or update failed; %s", workspaceGroup.JSON200.WorkspaceGroupID, config.ContactSupportErrorDetail)
+		if isFatalWorkspaceGroupState(state) {
+			err := fmt.Errorf("workspace group %s create or update failed; %s", util.Deref(workspaceGroup.GroupID), config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
 
-		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.WorkspaceGroupStateACTIVE, management.WorkspaceGroupStatePENDING) {
-			err = fmt.Errorf("workspace group %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
-				id, workspaceGroup.JSON200.State, config.WorkspaceGroupConsistencyThreshold,
+		if !util.CheckLastN(workspaceGroupStateHistory, config.WorkspaceGroupConsistencyThreshold, management.ClusterStateACTIVE, management.ClusterStatePENDING) {
+			err := fmt.Errorf("workspace group %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
+				id, state, config.WorkspaceGroupConsistencyThreshold,
 			)
 
 			return retry.RetryableError(err)
 		}
 
-		for _, c := range conditions {
-			if err := c(*workspaceGroup.JSON200); err != nil {
+		for _, cond := range conditions {
+			if err := cond(workspaceGroup); err != nil {
 				return retry.RetryableError(err)
 			}
 		}
 
-		result = *workspaceGroup.JSON200
+		result = workspaceGroup
 
 		return nil
 	}); err != nil {
-		return management.WorkspaceGroup{}, &util.SummaryWithDetailError{
+		return management.Cluster{}, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for a workspace group %s to be ready", id),
 			Detail:  fmt.Sprintf("Workspace group is not ready: %s", err),
 		}
@@ -765,21 +792,21 @@ func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWi
 	return result, nil
 }
 
-func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
-	return state == management.WorkspaceGroupStateFAILED || state == management.WorkspaceGroupStateTERMINATED
+func isFatalWorkspaceGroupState(state management.ClusterState) bool {
+	return state == management.ClusterStateFAILED || state == management.ClusterStateTERMINATED
 }
 
 // waitConditionFirewallRanges holds until the Management API reports the configured
 // allowlist. Firewall changes are applied asynchronously, so for a while after a
 // create or update the API still reports the previous ranges.
 func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
-	return func(w management.WorkspaceGroup) error {
+	return func(w management.Cluster) error {
 		if firewallRangesConverged(firewallRanges, w) {
 			return nil
 		}
 
 		return fmt.Errorf("workspace group %s firewall ranges are [%s] but should be [%s]",
-			w.WorkspaceGroupID,
+			util.Deref(w.GroupID),
 			util.Join(effectiveFirewallRanges(w), ", "),
 			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
 		)
