@@ -169,7 +169,7 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *privateConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *privateConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) { //nolint:cyclop
 	var plan PrivateConnectionModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -267,7 +267,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) { //nolint:cyclop
 	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -317,7 +317,7 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *privateConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *privateConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) { //nolint:cyclop
 	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)

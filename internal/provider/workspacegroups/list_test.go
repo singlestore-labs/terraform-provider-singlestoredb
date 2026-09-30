@@ -56,10 +56,10 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			_, err := w.Write(testutil.MustJSON(workspaceGroups))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:
@@ -101,7 +101,7 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 						strconv.FormatBool(util.Deref(workspaceGroups[1].AllowAllTraffic)),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.expires_at",
-						util.Deref(workspaceGroups[1].ExpiresAt),
+						util.NormalizeTimestampString(util.Deref(workspaceGroups[1].ExpiresAt)),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.firewall_ranges.0", "0.0.0.0/0"),

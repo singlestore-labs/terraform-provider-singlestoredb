@@ -64,7 +64,7 @@ func (d *privateConnectionsDataSourceList) Schema(_ context.Context, _ datasourc
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) { //nolint:cyclop
 	var data privateConnectionsListDataSourceModel
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)

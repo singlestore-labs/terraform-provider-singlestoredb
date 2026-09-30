@@ -31,7 +31,7 @@ var (
 	starterClusterID    = uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
 )
 
-func TestCRUDPrivateConnection(t *testing.T) {
+func TestCRUDPrivateConnection(t *testing.T) { //nolint:cyclop
 	starterCluster := management.Cluster{
 		AllowAllTraffic: util.Ptr(false),
 		CreatedAt:       util.Ptr(time.Now().UTC()),
@@ -87,10 +87,10 @@ func TestCRUDPrivateConnection(t *testing.T) {
 				Name: "Standard Project", ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{starterCluster, workspace}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
 			postClusters++
 			id := starterClusterID
 			gid := workspaceGroupID
@@ -98,14 +98,14 @@ func TestCRUDPrivateConnection(t *testing.T) {
 				id = workspaceID
 			}
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
-				GroupID   uuid.UUID `json:"groupID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{ClusterID: id, GroupID: gid}))
 			require.NoError(t, err)
-		case r.URL.Path == strings.Join([]string{"/v2/clusters", workspaceID.String()}, "/") && r.Method == http.MethodGet:
+		case r.URL.Path == strings.Join([]string{pathV2Clusters, workspaceID.String()}, "/") && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(workspace))
 			require.NoError(t, err)
-		case r.URL.Path == strings.Join([]string{"/v2/clusters", starterClusterID.String()}, "/") && r.Method == http.MethodGet:
+		case r.URL.Path == strings.Join([]string{pathV2Clusters, starterClusterID.String()}, "/") && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(starterCluster))
 			require.NoError(t, err)
 		case r.URL.Path == "/v2/privateConnections" && r.Method == http.MethodPost:
@@ -116,7 +116,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 			require.NoError(t, json.Unmarshal(body, &input))
 			require.Equal(t, workspaceID, input.ClusterID)
 			_, err = w.Write(testutil.MustJSON(struct {
-				PrivateConnectionID uuid.UUID `json:"privateConnectionID"`
+				PrivateConnectionID uuid.UUID `json:"privateConnectionID"` //nolint:tagliatelle // API uses privateConnectionID.
 			}{PrivateConnectionID: privateConnectionID}))
 			require.NoError(t, err)
 		case r.URL.Path == pcPath && r.Method == http.MethodGet:
@@ -126,6 +126,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 			patchAttempts++
 			if patchAttempts == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
+
 				return
 			}
 			body, err := io.ReadAll(r.Body)
@@ -135,17 +136,17 @@ func TestCRUDPrivateConnection(t *testing.T) {
 			require.Equal(t, updateAllowedList, util.Deref(input.AllowList))
 			privateConnection.AllowList = input.AllowList
 			_, err = w.Write(testutil.MustJSON(struct {
-				PrivateConnectionID uuid.UUID `json:"privateConnectionID"`
+				PrivateConnectionID uuid.UUID `json:"privateConnectionID"` //nolint:tagliatelle // API uses privateConnectionID.
 			}{PrivateConnectionID: privateConnectionID}))
 			require.NoError(t, err)
 		case r.URL.Path == pcPath && r.Method == http.MethodDelete:
 			_, err := w.Write(testutil.MustJSON(struct {
-				PrivateConnectionID uuid.UUID `json:"privateConnectionID"`
+				PrivateConnectionID uuid.UUID `json:"privateConnectionID"` //nolint:tagliatelle // API uses privateConnectionID.
 			}{PrivateConnectionID: privateConnectionID}))
 			require.NoError(t, err)
-		case strings.HasPrefix(r.URL.Path, "/v2/clusters/") && r.Method == http.MethodDelete:
+		case strings.HasPrefix(r.URL.Path, pathV2Clusters+"/") && r.Method == http.MethodDelete:
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{}))
 			require.NoError(t, err)
 		default:

@@ -29,7 +29,7 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	return state, nil
 }
 
-func hasGeneralConfigChanged(state, plan clusterResourceModel) bool {
+func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:cyclop
 	return !plan.Size.Equal(state.Size) ||
 		!plan.CacheConfig.Equal(state.CacheConfig) ||
 		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
@@ -63,7 +63,7 @@ func equalFirewallRangesLists(a, b []types.String) bool {
 	return true
 }
 
-func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
+func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) { //nolint:cyclop
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 

@@ -36,7 +36,7 @@ resource "singlestoredb_workspace_group" "this" {
 ### Required
 
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
-- `name` (String) Name of the workspace group.
+- `name` (String) Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit).
 
 ### Optional
 

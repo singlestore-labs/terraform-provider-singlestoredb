@@ -1,8 +1,6 @@
 package workspaces
 
 import (
-	"time"
-
 	otypes "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
@@ -53,16 +51,6 @@ func clusterLastResumedAtString(c management.Cluster) types.String {
 	return util.MaybeTimeValue(c.LastResumedAt)
 }
 
-func clusterTerminatedAtString(c management.Cluster) *string {
-	if c.TerminatedAt == nil {
-		return nil
-	}
-
-	s := c.TerminatedAt.Format(time.RFC3339)
-
-	return &s
-}
-
 func float32ToIntPtr(f *float32) *int {
 	if f == nil {
 		return nil
@@ -96,6 +84,7 @@ func toClusterAutoSuspend(plan workspaceResourceModel) *management.AutoSuspend {
 			as.IdleAfterSeconds = seconds
 		case management.SCHEDULED:
 			as.ScheduledAfterSeconds = seconds
+		case management.DISABLED:
 		}
 	}
 

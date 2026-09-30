@@ -90,7 +90,10 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the workspace group.",
+				MarkdownDescription: "Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit).",
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32), //nolint:mnd
+				},
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
@@ -668,7 +671,7 @@ func toWorkspaceGroupResourceModel(ctx context.Context, c management.ClientWithR
 		ProjectName:              projectName,
 		FirewallRanges:           firewallRangesForState(configuredFirewallRanges, workspaceGroup),
 		CreatedAt:                clusterCreatedAtString(workspaceGroup),
-		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		ExpiresAt:                util.MaybeExpiresAtStringValue(workspaceGroup.ExpiresAt),
 		AdminPassword:            types.StringValue(adminPassword),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),

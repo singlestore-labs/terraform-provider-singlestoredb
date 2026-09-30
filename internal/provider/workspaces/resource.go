@@ -529,6 +529,7 @@ func toAutoSuspendResourceModel(ws management.Cluster) *workspaceAutoSuspendReso
 		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.IdleAfterSeconds)
 	case management.SCHEDULED:
 		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.ScheduledAfterSeconds)
+	case management.DISABLED:
 	}
 
 	return &workspaceAutoSuspendResourceModel{

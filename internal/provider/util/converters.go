@@ -49,6 +49,38 @@ func MaybeStringValue(s *string) types.String {
 	return maybeElse(s, types.StringValue, types.StringNull)
 }
 
+// MaybeExpiresAtStringValue maps an API expiresAt value onto Terraform state.
+// The Management API /v2/clusters endpoint often returns Go's default time.String()
+// format (e.g. "2222-01-01 00:00:00 +0000 UTC"); normalize to RFC3339 so state
+// matches configured timestamps and avoids inconsistent-result-after-apply errors.
+func MaybeExpiresAtStringValue(s *string) types.String {
+	if s == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(NormalizeTimestampString(*s))
+}
+
+// NormalizeTimestampString parses common Management API timestamp spellings and
+// returns RFC3339. Unrecognized values are returned unchanged (e.g. durations).
+func NormalizeTimestampString(value string) string {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02T15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+
+	return value
+}
+
 func MaybeTimeValue(s *time.Time) types.String {
 	if s == nil {
 		return types.StringNull()

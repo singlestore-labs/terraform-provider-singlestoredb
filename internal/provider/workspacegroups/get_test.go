@@ -47,10 +47,10 @@ func TestReadsWorkspaceGroupByID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:
@@ -179,11 +179,11 @@ func TestReadsWorkspaceGroupByName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			workspaceGroups := []management.Cluster{workspaceGroup}
 			_, err := w.Write(testutil.MustJSON(workspaceGroups))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:
@@ -219,11 +219,11 @@ func TestWorkspaceGroupByNameNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			workspaceGroups := []management.Cluster{}
 			_, err := w.Write(testutil.MustJSON(workspaceGroups))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:
@@ -269,11 +269,11 @@ func TestWorkspaceGroupByNameMultipleFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			workspaceGroups := []management.Cluster{workspaceGroup1, workspaceGroup2}
 			_, err := w.Write(testutil.MustJSON(workspaceGroups))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:
@@ -365,11 +365,11 @@ func TestWorkspaceGroupByNameCaseInsensitive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch r.URL.Path {
-		case "/v2/clusters":
+		case pathV2Clusters:
 			workspaceGroups := []management.Cluster{workspaceGroup}
 			_, err := w.Write(testutil.MustJSON(workspaceGroups))
 			require.NoError(t, err)
-		case "/v2/projects":
+		case pathV2Projects:
 			_, err := w.Write(testutil.MustJSON([]management.Project{}))
 			require.NoError(t, err)
 		default:

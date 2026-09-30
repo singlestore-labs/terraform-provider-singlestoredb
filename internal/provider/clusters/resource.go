@@ -137,7 +137,10 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the cluster.",
+				MarkdownDescription: "Name of the cluster. Must be between 1 and 32 characters.",
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32), //nolint:mnd
+				},
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
@@ -517,7 +520,7 @@ func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
-func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) { //nolint:cyclop
 	var state *clusterResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -743,7 +746,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		Kai:                 types.BoolValue(util.Deref(cluster.Kai)),
 		AdminPassword:       types.StringValue(adminPassword),
 		FirewallRanges:      firewallRangesForState(configuredFirewallRanges, cluster),
-		ExpiresAt:           util.MaybeStringValue(cluster.ExpiresAt),
+		ExpiresAt:           util.MaybeExpiresAtStringValue(cluster.ExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
 		DeploymentType:      util.StringValueOrNull(cluster.DeploymentType),
@@ -823,6 +826,7 @@ func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 			result.IdleAfterSeconds = seconds
 		case management.SCHEDULED:
 			result.ScheduledAfterSeconds = seconds
+		case management.DISABLED:
 		}
 	}
 
@@ -842,6 +846,7 @@ func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResource
 		suspendAfterSeconds = cluster.AutoSuspend.IdleAfterSeconds
 	case management.SCHEDULED:
 		suspendAfterSeconds = cluster.AutoSuspend.ScheduledAfterSeconds
+	case management.DISABLED:
 	}
 
 	return &autoSuspendResourceModel{

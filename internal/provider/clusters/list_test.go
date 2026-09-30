@@ -28,7 +28,7 @@ func TestReadsClusters(t *testing.T) {
 	size1 := "S-1"
 	sf := float32(1)
 	cc := float32(1)
-	endpoint := "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
+	endpoint := testEndpoint
 	clusterID1 := uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
 	clusterID2 := uuid.MustParse("f3a1a960-8591-4156-bb26-f53f0f8e35ce")
 	groupID := uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")

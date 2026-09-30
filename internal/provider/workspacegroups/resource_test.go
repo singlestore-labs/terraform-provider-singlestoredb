@@ -37,7 +37,7 @@ const (
 	pathV2Clusters = "/v2/clusters"
 )
 
-func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
+func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:cyclop
 	regionsv2 := []management.RegionV2{{
 		Provider:   management.CloudProviderAWS,
 		Region:     "US East 1 (N. Virginia)",
@@ -79,12 +79,14 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 		case r.URL.Path == pathV2Regions && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
+
 			return
 		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON([]management.Project{{
 				Name: projectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
+
 			return
 		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
 			if workspaceGroup.State != nil && *workspaceGroup.State == management.ClusterStatePENDING {
@@ -92,6 +94,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			}
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
 			require.NoError(t, err)
+
 			return
 		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
 			body, err := io.ReadAll(r.Body)
@@ -105,15 +108,17 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			require.Equal(t, projectID, input.ProjectID)
 			require.Equal(t, regionsv2[0].RegionName, util.Deref(input.Region))
 			_, err = w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
-				GroupID   uuid.UUID `json:"groupID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{ClusterID: clusterID, GroupID: workspaceGroupID}))
 			require.NoError(t, err)
+
 			return
 		case r.URL.Path == clusterPath && r.Method == http.MethodPatch:
 			patchAttempts++
 			if patchAttempts == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
+
 				return
 			}
 			body, err := io.ReadAll(r.Body)
@@ -127,7 +132,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			require.Equal(t, string(updatedDeploymentType), string(*input.DeploymentType))
 			require.NotNil(t, input.UpdateWindow)
 			_, err = w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 			workspaceGroup.ExpiresAt = &updatedExpiresAt
@@ -135,13 +140,15 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 			workspaceGroup.AllowAllTraffic = util.Ptr(false)
 			workspaceGroup.FirewallRanges = util.Ptr([]string{})
 			workspaceGroup.DeploymentType = &updatedDeploymentType
+
 			return
 		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
 			deleteCalled = true
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
+
 			return
 		}
 		t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
@@ -325,8 +332,8 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 			require.Equal(t, projectID, input.ProjectID)
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
-				GroupID   uuid.UUID `json:"groupID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{ClusterID: clusterID, GroupID: workspaceGroupID}))
 			require.NoError(t, err)
 		},
@@ -335,7 +342,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 			require.Equal(t, strings.Join([]string{pathV2Clusters, clusterID.String()}, "/"), r.URL.Path)
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 		},
@@ -349,10 +356,12 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 				Name: projectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
+
 			return
 		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
 			require.NoError(t, err)
+
 			return
 		}
 		require.NotEmpty(t, writeQueue, "unexpected %s %s", r.Method, r.URL.Path)
@@ -445,7 +454,7 @@ func TestWorkspaceGroupProjectNameMultipleProjectsFound(t *testing.T) {
 	})
 }
 
-func TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword(t *testing.T) {
+func TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword(t *testing.T) { //nolint:cyclop
 	workspaceGroupID := uuid.New()
 	clusterID := uuid.New()
 	projectID := uuid.New()
@@ -485,8 +494,8 @@ func TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword(t *testing.T) {
 			require.NoError(t, err)
 		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID     uuid.UUID `json:"clusterID"`
-				GroupID       uuid.UUID `json:"groupID"`
+				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 				AdminPassword string    `json:"adminPassword"`
 			}{ClusterID: clusterID, GroupID: workspaceGroupID, AdminPassword: generatedPassword}))
 			require.NoError(t, err)
@@ -499,12 +508,12 @@ func TestUpdateWithoutAdminPasswordDoesNotSendEmptyPassword(t *testing.T) {
 			require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
 			workspaceGroup.ExpiresAt = &updatedExpiresAt
 			_, err = w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 		case r.URL.Path == strings.Join([]string{pathV2Clusters, clusterID.String()}, "/") && r.Method == http.MethodDelete:
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
 			require.NoError(t, err)
 		default:

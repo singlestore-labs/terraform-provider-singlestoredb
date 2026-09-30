@@ -56,6 +56,7 @@ func newTestWorkspaceGroup() management.Cluster {
 
 func newTestWorkspace() management.Cluster {
 	createdAt, _ := time.Parse(time.RFC3339Nano, "2023-02-28T05:33:06.3003Z")
+
 	return management.Cluster{
 		CreatedAt:     util.Ptr(createdAt),
 		Name:          config.TestWorkspaceName,
@@ -149,6 +150,7 @@ func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup, workspace}))
 			require.NoError(t, err)
+
 			return true
 		},
 		createGetHandler(t, strings.Join([]string{"/v2/clusters", testWorkspaceGroupID.String()}, "/"), workspaceGroup),

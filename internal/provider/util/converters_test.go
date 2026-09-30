@@ -47,6 +47,18 @@ func TestToString(t *testing.T) {
 	require.Equal(t, s, util.ToString(types.StringValue(s)))
 }
 
+func TestNormalizeTimestampString(t *testing.T) {
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00Z"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01 00:00:00 +0000 UTC"))
+	require.Equal(t, "2026-09-30T10:20:12Z", util.NormalizeTimestampString("2026-09-30 10:20:12 +0000 UTC"))
+	require.Equal(t, "3h30m", util.NormalizeTimestampString("3h30m")) // duration passthrough
+}
+
+func TestMaybeExpiresAtStringValue(t *testing.T) {
+	require.True(t, util.MaybeExpiresAtStringValue(nil).IsNull())
+	require.Equal(t, "2222-01-01T00:00:00Z", util.MaybeExpiresAtStringValue(util.Ptr("2222-01-01 00:00:00 +0000 UTC")).ValueString())
+}
+
 func TestMaybeStringValue(t *testing.T) {
 	require.Equal(t, types.StringNull(), util.MaybeStringValue(nil))
 	s := "fizz"

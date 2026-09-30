@@ -18,6 +18,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const pathV2Clusters = "/v2/clusters"
+
 func TestReadPrivateConnections(t *testing.T) {
 	WorkspaceGroupID := uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")
 
@@ -60,10 +62,10 @@ func TestReadPrivateConnections(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch {
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(clusters))
 			require.NoError(t, err)
-		case r.URL.Path == fmt.Sprintf("/v2/clusters/%s/privateConnections", clusterID):
+		case r.URL.Path == fmt.Sprintf("%s/%s/privateConnections", pathV2Clusters, clusterID):
 			_, err := w.Write(testutil.MustJSON(privateConnections))
 			require.NoError(t, err)
 		default:

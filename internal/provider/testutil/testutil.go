@@ -99,18 +99,33 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 	resource.Test(t, c)
 }
 
-// GenerateUniqueResourceName generates a unique resource name by appending a timestamp and random suffix.
-// This enables running multiple test suites in parallel without resource name conflicts.
+// GenerateUniqueResourceName generates a unique resource name by appending a short timestamp and random suffix.
+// Names are kept at or under 32 characters to satisfy Management API /v2/clusters name limits.
 func GenerateUniqueResourceName(baseName string) string {
-	timestamp := time.Now().UTC().Format("20060102-150405")
-	byteLen := 4
+	timestamp := time.Now().UTC().Format("150405") // HHMMSS
+	byteLen := 3
 	randomBytes := make([]byte, byteLen)
 	if _, err := rand.Read(randomBytes); err != nil {
 		panic(fmt.Sprintf("Failed to generate random bytes: %v", err))
 	}
-	randomSuffix := hex.EncodeToString(randomBytes)
+	randomSuffix := hex.EncodeToString(randomBytes) // 6 hex chars
 
-	return fmt.Sprintf("terraform-test-%s-%s-%s", baseName, timestamp, randomSuffix)
+	const (
+		prefixLen    = len("tf-")
+		sepCount     = 2
+		timestampLen = 6
+		suffixLen    = 6
+		maxNameLen   = 32
+	)
+	maxBase := maxNameLen - prefixLen - sepCount - timestampLen - suffixLen
+	if maxBase < 1 {
+		maxBase = 1
+	}
+	if len(baseName) > maxBase {
+		baseName = baseName[:maxBase]
+	}
+
+	return fmt.Sprintf("tf-%s-%s-%s", baseName, timestamp, randomSuffix)
 }
 
 func MustJSON(s interface{}) []byte {

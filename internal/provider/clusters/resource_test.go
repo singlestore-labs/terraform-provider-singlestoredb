@@ -34,13 +34,15 @@ const (
 	pathV2Regions  = "/v2/regions"
 	pathV2Projects = "/v2/projects"
 	pathV2Clusters = "/v2/clusters"
+	testRegion     = "us-east-1"
+	testEndpoint   = "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
 )
 
 func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	regionsv2 := []management.RegionV2{
 		{
 			Provider:   management.CloudProviderAWS,
-			RegionName: "us-east-1",
+			RegionName: testRegion,
 		},
 	}
 
@@ -51,9 +53,9 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	createdAt := time.Now().UTC()
 	stateActive := management.ClusterStateACTIVE
 	statePending := management.ClusterStatePENDING
-	endpoint := "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
+	endpoint := testEndpoint
 	provider := management.CloudProviderAWS
-	region := "us-east-1"
+	region := testRegion
 	size := config.TestInitialWorkspaceSize
 	scaleFactor := float32(1)
 	cacheConfig := float32(1)
@@ -155,8 +157,8 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		_, err = w.Write(testutil.MustJSON(
 			struct {
 				AdminPassword *string   `json:"adminPassword"`
-				ClusterID     uuid.UUID `json:"clusterID"`
-				GroupID       uuid.UUID `json:"groupID"`
+				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{
 				AdminPassword: util.Ptr(config.TestInitialAdminPassword),
 				ClusterID:     clusterID,
@@ -194,7 +196,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
 			struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{
 				ClusterID: clusterID,
 			},
@@ -214,7 +216,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(
 			struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{
 				ClusterID: clusterID,
 			},
@@ -308,7 +310,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	})
 }
 
-func TestClusterSuspendResume(t *testing.T) {
+func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
 	projectID := uuid.New()
@@ -316,9 +318,9 @@ func TestClusterSuspendResume(t *testing.T) {
 	createdAt := time.Now().UTC()
 	stateActive := management.ClusterStateACTIVE
 	stateSuspended := management.ClusterStateSUSPENDED
-	endpoint := "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
+	endpoint := testEndpoint
 	provider := management.CloudProviderAWS
-	region := "us-east-1"
+	region := testRegion
 	size := config.TestInitialWorkspaceSize
 	scaleFactor := float32(1)
 	cacheConfig := float32(1)
@@ -370,8 +372,8 @@ func TestClusterSuspendResume(t *testing.T) {
 		require.Equal(t, pathV2Clusters, r.URL.Path)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
-			GroupID   uuid.UUID `json:"groupID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 		}{ClusterID: clusterID, GroupID: groupID}))
 		require.NoError(t, err)
 	}
@@ -381,7 +383,7 @@ func TestClusterSuspendResume(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 		}{ClusterID: clusterID}))
 		require.NoError(t, err)
 		cluster.State = &stateSuspended
@@ -393,7 +395,7 @@ func TestClusterSuspendResume(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 		}{ClusterID: clusterID}))
 		require.NoError(t, err)
 		cluster.State = &stateActive
@@ -405,7 +407,7 @@ func TestClusterSuspendResume(t *testing.T) {
 		require.Equal(t, http.MethodDelete, r.Method)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 		}{ClusterID: clusterID}))
 		require.NoError(t, err)
 	}
@@ -471,7 +473,7 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	createdAt := time.Now().UTC()
 	stateActive := management.ClusterStateACTIVE
 	provider := management.CloudProviderAWS
-	region := "us-east-1"
+	region := testRegion
 	size := config.TestInitialWorkspaceSize
 	sf := float32(1)
 	cc := float32(1)
@@ -516,8 +518,8 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	clustersPostHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
-			GroupID   uuid.UUID `json:"groupID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 		}{ClusterID: clusterID, GroupID: groupID}))
 		require.NoError(t, err)
 	}
@@ -525,7 +527,7 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	clustersDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
-			ClusterID uuid.UUID `json:"clusterID"`
+			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 		}{ClusterID: clusterID}))
 		require.NoError(t, err)
 	}

@@ -32,7 +32,7 @@ var (
 	updatedSuspendType            = "IDLE"
 )
 
-func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
+func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 	newEndpoint := util.Ptr("svc-14a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
 
 	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
@@ -101,21 +101,22 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
 			require.NoError(t, json.Unmarshal(body, &input))
 			if postCount == 1 {
 				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"`
-					GroupID   uuid.UUID `json:"groupID"`
+					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+					GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 				}{ClusterID: starterClusterID, GroupID: workspaceGroupID}))
 			} else {
 				require.Nil(t, input.AutoScale, "AutoScale should be nil when max_scale_factor defaults to 1")
 				workspaceExists = true
 				_, err = w.Write(testutil.MustJSON(struct {
-					ClusterID uuid.UUID `json:"clusterID"`
-					GroupID   uuid.UUID `json:"groupID"`
+					ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+					GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 				}{ClusterID: workspaceID, GroupID: workspaceGroupID}))
 			}
 			require.NoError(t, err)
 		case r.URL.Path == workspacePath && r.Method == http.MethodGet:
 			if !workspaceExists {
 				w.WriteHeader(http.StatusNotFound)
+
 				return
 			}
 			_, err := w.Write(testutil.MustJSON(workspace))
@@ -127,20 +128,21 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
 			workspace.State = util.Ptr(management.ClusterStateSUSPENDED)
 			workspace.Endpoint = nil
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: workspaceID}))
 			require.NoError(t, err)
 		case r.URL.Path == strings.Join([]string{workspacePath, "resume"}, "/") && r.Method == http.MethodPost:
 			workspace.State = util.Ptr(management.ClusterStateACTIVE)
 			workspace.Endpoint = newEndpoint
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: workspaceID}))
 			require.NoError(t, err)
 		case r.URL.Path == workspacePath && r.Method == http.MethodPatch:
 			patchAttempts++
 			if patchAttempts == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
+
 				return
 			}
 			body, err := io.ReadAll(r.Body)
@@ -166,19 +168,19 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx
 				IdleAfterSeconds: util.Ptr(int(updatedSuspendSeconds)),
 			}
 			_, err = w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: workspaceID}))
 			require.NoError(t, err)
 		case r.URL.Path == workspacePath && r.Method == http.MethodDelete:
 			workspaceExists = false
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: workspaceID}))
 			require.NoError(t, err)
 		case r.URL.Path == starterPath && r.Method == http.MethodDelete:
 			starterExists = false
 			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"`
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: starterClusterID}))
 			require.NoError(t, err)
 		default:

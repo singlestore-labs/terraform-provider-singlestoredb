@@ -34,7 +34,7 @@ func hasGeneralConfigChanged(state, plan workspaceResourceModel) bool {
 		!plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) || !plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds)
 }
 
-func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) {
+func applyWorkspaceConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan workspaceResourceModel) (workspaceResourceModel, *util.SummaryWithDetailError) { //nolint:cyclop
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 

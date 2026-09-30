@@ -24,11 +24,11 @@ func TestReadsClusterByID(t *testing.T) {
 	createdAt := time.Date(2023, 2, 28, 5, 33, 6, 300300000, time.UTC)
 	state := management.ClusterStateACTIVE
 	provider := management.CloudProviderAWS
-	region := "us-east-1"
+	region := testRegion
 	size := "S-00"
 	sf := float32(1)
 	cc := float32(1)
-	endpoint := "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
+	endpoint := testEndpoint
 	idleAfter := 1200
 	suspendType := management.SCHEDULED
 

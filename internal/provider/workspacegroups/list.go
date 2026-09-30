@@ -106,7 +106,7 @@ func toWorkspaceGroupDataSourceModel(ctx context.Context, c management.ClientWit
 		FirewallRanges:           util.FirewallRanges(util.Ptr(effectiveFirewallRanges(workspaceGroup))),
 		AllowAllTraffic:          util.MaybeBoolValue(workspaceGroup.AllowAllTraffic),
 		CreatedAt:                clusterCreatedAtString(workspaceGroup),
-		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
+		ExpiresAt:                util.MaybeExpiresAtStringValue(workspaceGroup.ExpiresAt),
 		RegionID:                 types.StringNull(),
 		UpdateWindow:             toUpdateWindowDataSourceModel(workspaceGroup.UpdateWindow),
 		DeploymentType:           util.StringValueOrNull(workspaceGroup.DeploymentType),

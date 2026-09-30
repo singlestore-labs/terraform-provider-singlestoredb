@@ -51,7 +51,7 @@ output "group_id" {
 ### Required
 
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
-- `name` (String) Name of the cluster.
+- `name` (String) Name of the cluster. Must be between 1 and 32 characters.
 - `size` (String) The size of the cluster, specified in workspace size notation (S-00, S-0, S-1, S-2).
 
 ### Optional
