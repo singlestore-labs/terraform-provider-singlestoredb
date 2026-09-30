@@ -1,6 +1,8 @@
 package flow_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,7 +32,7 @@ var (
 	testFlowEndpoint      = "example.com"
 )
 
-func newTestWorkspaceGroup() management.Cluster {
+func newTestStarterCluster() management.Cluster {
 	return management.Cluster{
 		AllowAllTraffic: util.Ptr(false),
 		CreatedAt:       util.Ptr(time.Now().UTC()),
@@ -54,26 +56,6 @@ func newTestWorkspaceGroup() management.Cluster {
 	}
 }
 
-func newTestWorkspace() management.Cluster {
-	createdAt, _ := time.Parse(time.RFC3339Nano, "2023-02-28T05:33:06.3003Z")
-
-	return management.Cluster{
-		CreatedAt:     util.Ptr(createdAt),
-		Name:          config.TestWorkspaceName,
-		State:         util.Ptr(management.ClusterStateACTIVE),
-		ClusterID:     util.Ptr(testWorkspaceID),
-		GroupID:       util.Ptr(testWorkspaceGroupID),
-		ProjectID:     testWorkspaceGroupID,
-		LastResumedAt: nil,
-		Endpoint:      util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		SizeConfig: &management.SizeConfig{
-			Size:        util.Ptr(config.TestInitialWorkspaceSize),
-			ScaleFactor: util.Ptr[float32](1),
-			CacheConfig: util.Ptr[float32](1),
-		},
-	}
-}
-
 func newTestFlowInstance() management.FlowV2 {
 	return management.FlowV2{
 		FlowID:       testFlowInstanceID,
@@ -86,27 +68,6 @@ func newTestFlowInstance() management.FlowV2 {
 		UserName:     util.Ptr("admin"),
 		DatabaseName: util.Ptr("my_database"),
 	}
-}
-
-func createGetHandler(t *testing.T, expectedPath string, responseData any) func(w http.ResponseWriter, r *http.Request) bool {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != expectedPath || r.Method != http.MethodGet {
-			return false
-		}
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(responseData))
-		require.NoError(t, err)
-
-		return true
-	}
-}
-
-type routeKey struct {
-	path   string
-	method string
 }
 
 func writeJSONResponse(t *testing.T, w http.ResponseWriter, data any) {
@@ -136,83 +97,70 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2) {
 	t.Helper()
 
-	workspaceGroup := newTestWorkspaceGroup()
-	workspace := newTestWorkspace()
+	// Under /v2/clusters the workspace adopts this sole starter cluster.
+	cluster := newTestStarterCluster()
+	clusterExists := true
 	flowInstance := newTestFlowInstance()
-
-	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		createGetHandler(t, "/v2/projects", []management.Project{{Name: "Standard Project", ProjectID: testWorkspaceGroupID, Edition: management.STANDARD, CreatedAt: time.Now().UTC()}}),
-
-		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != "/v2/clusters" || r.Method != http.MethodGet {
-				return false
-			}
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup, workspace}))
-			require.NoError(t, err)
-
-			return true
-		},
-		createGetHandler(t, strings.Join([]string{"/v2/clusters", testWorkspaceGroupID.String()}, "/"), workspaceGroup),
-		createGetHandler(t, strings.Join([]string{"/v2/clusters", testWorkspaceID.String()}, "/"), workspace),
-		createGetHandler(t, strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/"), &flowInstance),
-	}
-
-	writeRoutes := map[routeKey]func(w http.ResponseWriter){
-		{"/v2/clusters", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				ClusterID uuid.UUID
-				GroupID   uuid.UUID
-			}{
-				ClusterID: testWorkspaceID,
-				GroupID:   testWorkspaceGroupID,
-			})
-		},
-		{"/v2/clusters", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				ClusterID uuid.UUID
-				GroupID   uuid.UUID
-			}{
-				ClusterID: testWorkspaceID,
-				GroupID:   testWorkspaceGroupID,
-			})
-		},
-		{"/v2/flow", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, newFlowIDResponse())
-		},
-		{strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, newFlowIDResponse())
-		},
-		{strings.Join([]string{"/v2/clusters", testWorkspaceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				ClusterID uuid.UUID
-			}{
-				ClusterID: testWorkspaceID,
-			})
-		},
-		{strings.Join([]string{"/v2/clusters", testWorkspaceGroupID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				ClusterID uuid.UUID
-			}{
-				ClusterID: testWorkspaceGroupID,
-			})
-		},
-	}
+	clusterPath := strings.Join([]string{"/v2/clusters", testWorkspaceID.String()}, "/")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, h := range readOnlyHandlers {
-			if h(w, r) {
+		switch {
+		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
+			writeJSONResponse(t, w, []management.Project{{
+				Name: "Standard Project", ProjectID: testWorkspaceGroupID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
+			}})
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+			clusters := []management.Cluster{}
+			if clusterExists {
+				clusters = append(clusters, cluster)
+			}
+			writeJSONResponse(t, w, clusters)
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{
+				ClusterID: testWorkspaceID,
+				GroupID:   testWorkspaceGroupID,
+			})
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
+			if !clusterExists {
+				w.WriteHeader(http.StatusNotFound)
+
 				return
 			}
+			writeJSONResponse(t, w, cluster)
+		case r.URL.Path == clusterPath && r.Method == http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var input management.Cluster
+			require.NoError(t, json.Unmarshal(body, &input))
+			if input.Name == config.TestWorkspaceName {
+				cluster.Name = config.TestWorkspaceName
+				cluster.Endpoint = util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
+				cluster.SizeConfig = &management.SizeConfig{
+					Size:        util.Ptr(config.TestInitialWorkspaceSize),
+					ScaleFactor: util.Ptr[float32](1),
+					CacheConfig: util.Ptr[float32](1),
+				}
+			}
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: testWorkspaceID})
+		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
+			clusterExists = false
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: testWorkspaceID})
+		case r.URL.Path == "/v2/flow" && r.Method == http.MethodPost:
+			writeJSONResponse(t, w, newFlowIDResponse())
+		case r.URL.Path == strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/") && r.Method == http.MethodGet:
+			writeJSONResponse(t, w, &flowInstance)
+		case r.URL.Path == strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/") && r.Method == http.MethodDelete:
+			writeJSONResponse(t, w, newFlowIDResponse())
+		default:
+			w.WriteHeader(http.StatusNotFound)
 		}
-
-		if handler, ok := writeRoutes[routeKey{r.URL.Path, r.Method}]; ok {
-			handler(w)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNotFound)
 	}))
 
 	t.Cleanup(server.Close)
