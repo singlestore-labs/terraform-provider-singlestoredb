@@ -48,7 +48,7 @@ output "this_workspace_group" {
 - `opt_in_preview_feature` (Boolean) Whether 'Opt-in to Preview Features & Updates' is enabled.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 - `project_name` (String) The name of the project to which the workspace group is assigned.
-- `region_id` (String) The unique identifier of the region where the workspace group is located.
+- `region_id` (String) Deprecated. /v2/clusters does not return a region UUID, so this attribute is empty. Use `cloud_provider` and `region_name`.
 - `region_name` (String) The region code name used to resolve region.
 - `state` (String) The state of the workspace group.
 - `update_window` (Attributes) Details of the scheduled update window for the workspace group. This is the time period during which any updates to the workspace group will occur. (see [below for nested schema](#nestedatt--update_window))

@@ -1,6 +1,8 @@
 package flow_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,42 +32,35 @@ var (
 	testFlowEndpoint      = "example.com"
 )
 
-func newTestWorkspaceGroup() management.WorkspaceGroup {
-	return management.WorkspaceGroup{
-		AllowAllTraffic:  util.Ptr(false),
-		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-		ExpiresAt:        util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
-		FirewallRanges:   util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
-		Name:             config.TestInitialWorkspaceGroupName,
-		RegionName:       "us-east-1",
-		Provider:         management.CloudProviderAWS,
-		State:            management.WorkspaceGroupStateACTIVE,
-		TerminatedAt:     nil,
-		UpdateWindow:     nil,
-		WorkspaceGroupID: testWorkspaceGroupID,
-		DeploymentType:   util.Ptr(management.WorkspaceGroupDeploymentTypePRODUCTION),
+func newTestStarterCluster() management.Cluster {
+	return management.Cluster{
+		AllowAllTraffic: util.Ptr(false),
+		CreatedAt:       util.Ptr(time.Now().UTC()),
+		ExpiresAt:       util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		FirewallRanges:  util.Ptr([]string{config.TestFirewallFirewallRangeAllTraffic}),
+		Name:            config.TestInitialWorkspaceGroupName,
+		Region:          util.Ptr("us-east-1"),
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		State:           util.Ptr(management.ClusterStateACTIVE),
+		TerminatedAt:    nil,
+		UpdateWindow:    nil,
+		GroupID:         util.Ptr(testWorkspaceGroupID),
+		ClusterID:       util.Ptr(testWorkspaceID),
+		ProjectID:       testWorkspaceGroupID, // placeholder project id for mocks
+		DeploymentType:  util.Ptr(management.PRODUCTION),
+		SizeConfig: &management.SizeConfig{
+			Size:        util.Ptr(config.TestInitialWorkspaceSize),
+			ScaleFactor: util.Ptr[float32](1),
+			CacheConfig: util.Ptr[float32](1),
+		},
 	}
 }
 
-func newTestWorkspace() management.Workspace {
-	return management.Workspace{
-		CreatedAt:        "2023-02-28T05:33:06.3003Z",
-		Name:             config.TestWorkspaceName,
-		State:            management.WorkspaceStateACTIVE,
-		WorkspaceID:      testWorkspaceID,
-		WorkspaceGroupID: testWorkspaceGroupID,
-		LastResumedAt:    nil,
-		Endpoint:         util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"),
-		Size:             config.TestInitialWorkspaceSize,
-		ScaleFactor:      util.Ptr[float32](1),
-	}
-}
-
-func newTestFlowInstance() management.Flow {
-	return management.Flow{
+func newTestFlowInstance() management.FlowV2 {
+	return management.FlowV2{
 		FlowID:       testFlowInstanceID,
 		Name:         testFlowInstanceName,
-		WorkspaceID:  util.Ptr(testWorkspaceID),
+		ClusterID:    util.Ptr(testWorkspaceID),
 		CreatedAt:    time.Now().UTC(),
 		Endpoint:     util.Ptr(testFlowEndpoint),
 		Size:         util.Ptr("F1"),
@@ -73,27 +68,6 @@ func newTestFlowInstance() management.Flow {
 		UserName:     util.Ptr("admin"),
 		DatabaseName: util.Ptr("my_database"),
 	}
-}
-
-func createGetHandler(t *testing.T, expectedPath string, responseData any) func(w http.ResponseWriter, r *http.Request) bool {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != expectedPath || r.Method != http.MethodGet {
-			return false
-		}
-
-		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(responseData))
-		require.NoError(t, err)
-
-		return true
-	}
-}
-
-type routeKey struct {
-	path   string
-	method string
 }
 
 func writeJSONResponse(t *testing.T, w http.ResponseWriter, data any) {
@@ -120,70 +94,73 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.Flow) {
+func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2) { //nolint:cyclop
 	t.Helper()
 
-	workspaceGroup := newTestWorkspaceGroup()
-	workspace := newTestWorkspace()
+	// Under /v2/clusters the workspace adopts this sole starter cluster.
+	cluster := newTestStarterCluster()
+	clusterExists := true
 	flowInstance := newTestFlowInstance()
-
-	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
-		createGetHandler(t, strings.Join([]string{"/v1/workspaceGroups", testWorkspaceGroupID.String()}, "/"), workspaceGroup),
-		createGetHandler(t, strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), workspace),
-		createGetHandler(t, strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), &flowInstance),
-	}
-
-	writeRoutes := map[routeKey]func(w http.ResponseWriter){
-		{"/v1/workspaceGroups", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: testWorkspaceGroupID,
-			})
-		},
-		{"/v1/workspaces", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				WorkspaceID uuid.UUID
-			}{
-				WorkspaceID: testWorkspaceID,
-			})
-		},
-		{"/v1/flow", http.MethodPost}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, newFlowIDResponse())
-		},
-		{strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, newFlowIDResponse())
-		},
-		{strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				WorkspaceID uuid.UUID
-			}{
-				WorkspaceID: testWorkspaceID,
-			})
-		},
-		{strings.Join([]string{"/v1/workspaceGroups", testWorkspaceGroupID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
-			writeJSONResponse(t, w, struct {
-				WorkspaceGroupID uuid.UUID
-			}{
-				WorkspaceGroupID: testWorkspaceGroupID,
-			})
-		},
-	}
+	clusterPath := strings.Join([]string{"/v2/clusters", testWorkspaceID.String()}, "/")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, h := range readOnlyHandlers {
-			if h(w, r) {
+		switch {
+		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
+			writeJSONResponse(t, w, []management.Project{{
+				Name: "Standard Project", ProjectID: testWorkspaceGroupID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
+			}})
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+			clusters := []management.Cluster{}
+			if clusterExists {
+				clusters = append(clusters, cluster)
+			}
+			writeJSONResponse(t, w, clusters)
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{
+				ClusterID: testWorkspaceID,
+				GroupID:   testWorkspaceGroupID,
+			})
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
+			if !clusterExists {
+				w.WriteHeader(http.StatusNotFound)
+
 				return
 			}
+			writeJSONResponse(t, w, cluster)
+		case r.URL.Path == clusterPath && r.Method == http.MethodPatch:
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var input management.Cluster
+			require.NoError(t, json.Unmarshal(body, &input))
+			if input.Name == config.TestWorkspaceName {
+				cluster.Name = config.TestWorkspaceName
+				cluster.Endpoint = util.Ptr("svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com")
+				cluster.SizeConfig = &management.SizeConfig{
+					Size:        util.Ptr(config.TestInitialWorkspaceSize),
+					ScaleFactor: util.Ptr[float32](1),
+					CacheConfig: util.Ptr[float32](1),
+				}
+			}
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: testWorkspaceID})
+		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
+			clusterExists = false
+			writeJSONResponse(t, w, struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: testWorkspaceID})
+		case r.URL.Path == "/v2/flow" && r.Method == http.MethodPost:
+			writeJSONResponse(t, w, newFlowIDResponse())
+		case r.URL.Path == strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/") && r.Method == http.MethodGet:
+			writeJSONResponse(t, w, &flowInstance)
+		case r.URL.Path == strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/") && r.Method == http.MethodDelete:
+			writeJSONResponse(t, w, newFlowIDResponse())
+		default:
+			w.WriteHeader(http.StatusNotFound)
 		}
-
-		if handler, ok := writeRoutes[routeKey{r.URL.Path, r.Method}]; ok {
-			handler(w)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNotFound)
 	}))
 
 	t.Cleanup(server.Close)
@@ -209,7 +186,7 @@ func TestCRUDFlowInstance(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", config.IDAttribute, testFlowInstanceID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "name", testFlowInstanceName),
-					resource.TestCheckResourceAttr("singlestoredb_flow.this", "workspace_id", testWorkspaceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "cluster_id", testWorkspaceID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "endpoint", testFlowEndpoint),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "size", "F1"),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
@@ -408,10 +385,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("uses API values when available", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			WorkspaceID:  util.Ptr(workspaceID),
+			ClusterID:    util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			Endpoint:     util.Ptr("new.example.com"),
 			Size:         util.Ptr("F1"),
@@ -429,10 +406,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("preserves prior user fields when API returns placeholder", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			WorkspaceID:  util.Ptr(workspaceID),
+			ClusterID:    util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			Endpoint:     util.Ptr("example.com"),
 			Size:         util.Ptr("F1"),
@@ -449,10 +426,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("leaves user fields unset without prior state", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
+		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			WorkspaceID:  util.Ptr(workspaceID),
+			ClusterID:    util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			UserName:     util.Ptr("Unknown"),
 			DatabaseName: util.Ptr("Unknown"),
@@ -476,7 +453,7 @@ func TestFlowInstanceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "size", "F1"),
 					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "endpoint"),
-					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "workspace_id"),
+					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "cluster_id"),
 				),
 			},
 		},

@@ -18,10 +18,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+const pathV2Clusters = "/v2/clusters"
+
 func TestReadPrivateConnections(t *testing.T) {
 	WorkspaceGroupID := uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")
 
-	privateConnections := []management.PrivateConnection{
+	privateConnections := []management.ClusterPrivateConnection{
 		{
 			ActiveAt:            util.Ptr("2025-01-21T11:11:38.145343Z"),
 			AllowList:           util.Ptr("12345"),
@@ -31,10 +33,9 @@ func TestReadPrivateConnections(t *testing.T) {
 			OutboundAllowList:   util.Ptr("127.0.0.0"),
 			PrivateConnectionID: uuid.MustParse("c73ef470-68e6-46ac-9e98-6d5c29e48ba5"),
 			ServiceName:         util.Ptr("test name"),
-			Status:              util.Ptr(management.PrivateConnectionStatusACTIVE),
-			Type:                util.Ptr(management.PrivateConnectionTypeOUTBOUND),
-			WorkspaceID:         util.Ptr(uuid.MustParse("fe10982b-c0b6-4c36-b8e7-ce56c5eb0636")),
-			WorkspaceGroupID:    WorkspaceGroupID,
+			Status:              util.Ptr(management.ClusterPrivateConnectionStatusACTIVE),
+			Type:                util.Ptr(management.ClusterPrivateConnectionTypeOUTBOUND),
+			ClusterID:           util.Ptr(uuid.MustParse("fe10982b-c0b6-4c36-b8e7-ce56c5eb0636")),
 		},
 		{
 			ActiveAt:            util.Ptr("2022-01-21T11:11:38.145343Z"),
@@ -43,18 +44,33 @@ func TestReadPrivateConnections(t *testing.T) {
 			OutboundAllowList:   nil,
 			PrivateConnectionID: uuid.MustParse("20d49abc-5900-4836-b896-2a29a59f183e"),
 			ServiceName:         util.Ptr("private"),
-			Status:              util.Ptr(management.PrivateConnectionStatusDELETED),
-			Type:                util.Ptr(management.PrivateConnectionTypeINBOUND),
-			WorkspaceID:         util.Ptr(uuid.MustParse("d92fc918-041e-4637-973e-10bbbb956a0a")),
-			WorkspaceGroupID:    WorkspaceGroupID,
+			Status:              util.Ptr(management.ClusterPrivateConnectionStatusDELETED),
+			Type:                util.Ptr(management.ClusterPrivateConnectionTypeINBOUND),
+			ClusterID:           util.Ptr(uuid.MustParse("d92fc918-041e-4637-973e-10bbbb956a0a")),
 		},
 	}
 
+	clusterID := uuid.MustParse("fe10982b-c0b6-4c36-b8e7-ce56c5eb0636")
+	clusters := []management.Cluster{{
+		ClusterID: util.Ptr(clusterID),
+		GroupID:   util.Ptr(WorkspaceGroupID),
+		Name:      "c",
+		ProjectID: WorkspaceGroupID,
+		State:     util.Ptr(management.ClusterStateACTIVE),
+	}}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1/workspaceGroups/%s/privateConnections", WorkspaceGroupID), r.URL.Path)
 		w.Header().Add("Content-Type", "json")
-		_, err := w.Write(testutil.MustJSON(privateConnections))
-		require.NoError(t, err)
+		switch {
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON(clusters))
+			require.NoError(t, err)
+		case r.URL.Path == fmt.Sprintf("%s/%s/privateConnections", pathV2Clusters, clusterID):
+			_, err := w.Write(testutil.MustJSON(privateConnections))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -79,8 +95,7 @@ func TestReadPrivateConnections(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.service_name", *privateConnections[0].ServiceName),
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.status", "ACTIVE"),
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.type", "OUTBOUND"),
-					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.workspace_id", "fe10982b-c0b6-4c36-b8e7-ce56c5eb0636"),
-					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.workspace_group_id", WorkspaceGroupID.String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_private_connections.all", "private_connections.0.cluster_id", util.Deref(privateConnections[0].ClusterID).String()),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_private_connections.all", "private_connections.1.endpoint"),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_private_connections.all", "private_connections.1.updated_at"),
 				),

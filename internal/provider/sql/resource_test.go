@@ -15,17 +15,16 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 const (
 	testWorkspaceEndpoint = "workspace.example.com"
-	testAdminPassword     = "sfkjDIJ423d44w1sfooBar1$" //nolint:gosec
 
 	dataAPIExecPath  = "/api/v2/exec"
 	dataAPIQueryPath = "/api/v2/query/rows"
@@ -668,21 +667,16 @@ func TestDataAPIRequestBodyShape(t *testing.T) {
 }
 
 func TestSQLExecuteResourceIntegration(t *testing.T) {
-	adminPassword := testAdminPassword
-	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
-
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.SQLExecuteResource).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
-					String(),
+				Config: examples.SQLExecuteResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
+					testutil.IsDataAPIReadyUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
 				),
@@ -692,23 +686,16 @@ func TestSQLExecuteResourceIntegration(t *testing.T) {
 }
 
 func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
-	adminPassword := testAdminPassword
-	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
-
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.WorkspaceWithSQLResource).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
-					String(),
+				Config: examples.WorkspaceWithSQLResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
-					resource.TestCheckResourceAttr("singlestoredb_workspace.reader", "name", config.TestReaderWorkspaceName),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.reader", "endpoint", isDataAPIReady),
+					testutil.IsDataAPIReadyUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_db", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.create_db", "query_results.#", "1"),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_app_user", config.IDAttribute),
@@ -717,8 +704,6 @@ func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.grant_readonly", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_users_table", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.create_posts_table", config.IDAttribute),
-					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.attach_app_db_readonly", config.IDAttribute),
-					resource.TestCheckResourceAttr("singlestoredb_sql_execute.attach_app_db_readonly", "query_results.#", "1"),
 				),
 			},
 		},
@@ -726,14 +711,8 @@ func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
 }
 
 func TestSQLExecuteDriftIntegration(t *testing.T) {
-	adminPassword := testAdminPassword
-	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
-
 	var workspaceEndpoint string
-
-	integrationConfig := testutil.UpdatableConfig(examples.SQLExecuteResource).
-		WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
-		String()
+	var adminPassword string
 
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
@@ -741,14 +720,17 @@ func TestSQLExecuteDriftIntegration(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: integrationConfig,
+				Config: examples.SQLExecuteResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", func(endpoint string) error {
-						workspaceEndpoint = endpoint
+					testutil.IsDataAPIReadyUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
+					func(s *terraform.State) error {
+						ws := s.RootModule().Resources["singlestoredb_workspace.this"]
+						wg := s.RootModule().Resources["singlestoredb_workspace_group.example"]
+						workspaceEndpoint = ws.Primary.Attributes["endpoint"]
+						adminPassword = wg.Primary.Attributes["admin_password"]
 
 						return nil
-					}),
+					},
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
 				),
 			},

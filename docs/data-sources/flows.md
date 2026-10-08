@@ -39,10 +39,10 @@ output "all_flows" {
 
 Read-Only:
 
+- `cluster_id` (String) The unique identifier of the workspace associated with the Flow instance.
 - `created_at` (String) The timestamp indicating when the Flow instance was initially created.
 - `deleted_at` (String) The timestamp indicating when the Flow instance was terminated. If the Flow instance is active, this attribute will not be set.
 - `endpoint` (String) The endpoint to connect to the Flow instance.
 - `id` (String) The unique identifier of the Flow instance. Either `id` or `name` must be specified.
 - `name` (String) The name of the Flow instance. Either `id` or `name` must be specified.
 - `size` (String) The size of the Flow instance (in Flow size notation), such as 'F1'.
-- `workspace_id` (String) The unique identifier of the workspace associated with the Flow instance.

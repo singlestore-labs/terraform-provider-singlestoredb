@@ -6,11 +6,11 @@ provider "singlestoredb" {
 
 resource "singlestoredb_workspace_group" "example" {
   name            = "group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "example" {
@@ -22,7 +22,7 @@ resource "singlestoredb_workspace" "example" {
 
 resource "singlestoredb_flow" "this" {
   name          = "my-flow-instance"
-  workspace_id  = singlestoredb_workspace.example.id
+  cluster_id    = singlestoredb_workspace.example.id
   user_name     = "admin"
   database_name = "my_database"
   size          = "F1"

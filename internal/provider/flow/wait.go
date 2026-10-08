@@ -20,13 +20,13 @@ const (
 )
 
 // waitCondition returns nil if it is satisfied.
-type waitCondition func(management.Flow) error
+type waitCondition func(management.FlowV2) error
 
-func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.FlowID, timeout time.Duration, conditions ...waitCondition) (management.Flow, *util.SummaryWithDetailError) {
-	result := management.Flow{}
+func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.FlowID, timeout time.Duration, conditions ...waitCondition) (management.FlowV2, *util.SummaryWithDetailError) {
+	result := management.FlowV2{}
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
-		flow, err := c.GetV1FlowFlowIDWithResponse(ctx, id)
+		flow, err := c.GetV2FlowFlowIDWithResponse(ctx, id)
 		if err != nil {
 			// The HTTP client may return errors due to 5xx responses after exhausting its retries.
 			// We should continue retrying here since the Flow instance may still be initializing.
@@ -69,7 +69,7 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 func waitConditionReady() waitCondition {
 	readinessHistory := make([]bool, 0, config.FlowInstanceConsistencyThreshold)
 
-	return func(f management.Flow) error {
+	return func(f management.FlowV2) error {
 		ready := util.Deref(f.Status) == flowStatusRunning &&
 			flowFieldAvailable(f.UserName) &&
 			flowFieldAvailable(f.DatabaseName) &&

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/clusters"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
@@ -63,7 +64,7 @@ func (p *singlestoreProvider) Metadata(_ context.Context, _ provider.MetadataReq
 // Schema defines the provider-level schema for configuration data.
 func (p *singlestoreProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB workspace groups and workspaces.",
+		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB clusters, workspace groups, and workspaces. `singlestoredb_workspace_group` and `singlestoredb_workspace` keep their existing arguments. See the migrate-workspace-to-cluster guide for how those resources behave with /v2/clusters and how to move them to `singlestoredb_cluster`.",
 		Attributes: map[string]schema.Attribute{
 			config.APIKeyAttribute: schema.StringAttribute{
 				MarkdownDescription: fmt.Sprintf("The SingleStore Management API key used for authentication. If not provided, the provider will attempt to read the key from the file specified in the '%s' attribute or from the environment variable '%s'. Generate your API key in the SingleStore Portal at %s.", config.APIKeyPathAttribute, config.EnvAPIKey, config.PortalAPIKeysPageRedirect),
@@ -183,6 +184,8 @@ func (p *singlestoreProvider) DataSources(_ context.Context) []func() datasource
 		flow.NewDataSourceGet,
 		projects.NewDataSourceList,
 		sql.NewDataSourceQuery,
+		clusters.NewDataSourceList,
+		clusters.NewDataSourceGet,
 	}
 }
 
@@ -202,6 +205,7 @@ func (p *singlestoreProvider) Resources(_ context.Context) []func() resource.Res
 		flow.NewResource,
 		projects.NewResource,
 		sql.NewResource,
+		clusters.NewResource,
 	}
 }
 

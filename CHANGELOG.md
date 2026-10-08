@@ -2,9 +2,37 @@
 
 ## Unreleased
 
+### Added
+
+- New `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources for the Management API `/v2/clusters` endpoint. A cluster creates a workspace and its workspace group in a single API call.
+- `cluster_id` attribute on `singlestoredb_private_connection` (preferred) and `singlestoredb_flow` for the Management API v2 cluster terminology.
+
+### Changed
+
+- Bump `github.com/singlestore-labs/singlestore-go/management` from v1.2.158 to v1.2.176. The Management API client now targets v2 endpoints; `/v1/workspaces` and `/v1/workspaceGroups` are replaced by `/v2/clusters`.
+- `singlestoredb_workspace_group` and `singlestoredb_workspace` remain first-class resources with the same arguments. They call `/v2/clusters` because the SDK no longer exposes `/v1/workspaces` and `/v1/workspaceGroups`. See [Migrating from workspace to cluster](docs/guides/migrate-workspace-to-cluster.md) for what stays the same, what the API no longer allows, and how to move an existing workspace to `singlestoredb_cluster` without recreating it.
+- Workspace group create provisions one starter cluster (size S-00). The first `singlestoredb_workspace` adopts that cluster so the admin password, firewall, and group ID stay aligned. A second workspace in the same apply is rejected. Do not add another workspace in a later apply: the provider cannot tell that apart from the first workspace, and it would adopt and update the existing cluster. A create that would land in a different group is deleted and returned as an error, because `/v2/clusters` does not attach it to the existing group.
+- `project_name` is required when creating a workspace group. `name` and `update_window` cannot be changed after create. New names must be 1–32 characters; an existing longer name can still be planned. New groups cannot use `region_id`; an existing `region_id` stays in state.
+- Workspace create copies sibling firewall allowlists via `allowAllTraffic` → `0.0.0.0/0` so unrestricted groups are not recreated as deny-all.
+- Examples omit configured `admin_password` so `/v2/clusters` can generate one; Terraform state then holds the working password (configured sensitive values cannot diverge from plan after apply).
+- Workspace adopt omits unchanged default `kai_enabled=false` on PATCH so `/v2/clusters` does not attempt a mongoproxy teardown.
+- Workspace adopt keeps the configured `name` in Terraform state when `/v2/clusters` leaves the starter cluster name unchanged.
+- Workspace adopt PATCHes only changed size/autoscale/kai fields so default S-00 workspaces do not enter long PENDING reconfigurations.
+- Role grants with `resource_type = "Cluster"` continue to accept `singlestoredb_workspace_group.id`; identity-roles responses that use `ClusterGroup` are normalized back to `Cluster`.
+- `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
+- Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
+- `singlestoredb_workspace_group` refresh keeps a configured `region_id`. `/v2/clusters` does not return a region UUID, and the previous read stored null, which dropped the value from state.
+- A missing workspace group (`Not Found`) is removed from state on read. The check did not match the status text, so a deleted group stayed in state and errored instead.
+
+### Breaking
+
+- `singlestoredb_flow`: replace `workspace_id` with `cluster_id` (same UUID value; cluster is the Management API v2 name for a workspace).
+- `singlestoredb_private_connection`: prefer `cluster_id`; `workspace_id` and `workspace_group_id` remain as deprecated aliases.
+- `singlestoredb_regions` nested `id` (region UUID) is no longer available; use `region_name` / `provider` instead.
 
 ## v0.1.19 - 2026-07-31
 

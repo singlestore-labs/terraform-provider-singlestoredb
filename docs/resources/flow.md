@@ -21,11 +21,11 @@ provider "singlestoredb" {
 
 resource "singlestoredb_workspace_group" "example" {
   name            = "group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "example" {
@@ -37,7 +37,7 @@ resource "singlestoredb_workspace" "example" {
 
 resource "singlestoredb_flow" "this" {
   name          = "my-flow-instance"
-  workspace_id  = singlestoredb_workspace.example.id
+  cluster_id    = singlestoredb_workspace.example.id
   user_name     = "admin"
   database_name = "my_database"
   size          = "F1"
@@ -53,11 +53,11 @@ output "flow_endpoint" {
 
 ### Required
 
+- `cluster_id` (String) The unique identifier of the cluster (workspace) to associate the Flow instance with.
 - `database_name` (String) The name of the SingleStore database to connect to.
 - `name` (String) The name of the Flow instance.
 - `size` (String) The size of the Flow instance (in Flow size notation), such as "F1", "F2", or "F3".
 - `user_name` (String) The username of the SingleStore database user to connect with.
-- `workspace_id` (String) The unique identifier of the workspace to associate the Flow instance with.
 
 ### Read-Only
 

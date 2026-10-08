@@ -3,6 +3,8 @@ package workspaces
 import (
 	"context"
 	"fmt"
+	"sync"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float32validator"
@@ -28,6 +30,10 @@ import (
 
 const (
 	ResourceName = "workspace"
+
+	// clusterNameMaxLen is the Management API /v2/clusters limit. Enforced on
+	// create only so an existing longer name can still be planned and updated.
+	clusterNameMaxLen = 32
 )
 
 var (
@@ -35,6 +41,11 @@ var (
 	_ resource.ResourceWithModifyPlan  = &workspaceResource{}
 	_ resource.ResourceWithImportState = &workspaceResource{}
 )
+
+// starterClaims records workspace groups whose starter cluster was adopted
+// during this provider process. Resource instances are created per operation,
+// so the claim has to live on the package to cover every workspace in one apply.
+var starterClaims sync.Map
 
 // workspaceResource is the resource implementation.
 type workspaceResource struct {
@@ -105,11 +116,11 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		},
 		map[string]attr.Value{
 			"suspend_after_seconds": basetypes.NewFloat32Null(),
-			"suspend_type":          basetypes.NewStringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+			"suspend_type":          basetypes.NewStringValue(string(management.DISABLED)),
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource enables the management of SingleStoreDB workspaces.",
+		MarkdownDescription: "This resource manages a SingleStoreDB workspace. Use it with `singlestoredb_workspace_group` as before. The group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster; use `singlestoredb_cluster` for each deployment. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -210,9 +221,9 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Optional:            true,
 						Computed:            true,
 						MarkdownDescription: "The auto suspend mode for the workspace can have the values `IDLE`, `SCHEDULED`, or `DISABLED` (to create the workspace with no auto suspend settings). Default is `DISABLED`.",
-						Default:             stringdefault.StaticString(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+						Default:             stringdefault.StaticString(string(management.DISABLED)),
 						Validators: []validator.String{
-							stringvalidator.OneOf(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED), string(management.WorkspaceCreateAutoSuspendSuspendTypeIDLE), string(management.WorkspaceCreateAutoSuspendSuspendTypeSCHEDULED)),
+							stringvalidator.OneOf(string(management.DISABLED), string(management.IDLE), string(management.SCHEDULED)),
 						},
 					},
 				},
@@ -222,11 +233,17 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *workspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *workspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) { //nolint:cyclop
 	var plan workspaceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := validateWorkspaceName(plan.Name.ValueString()); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
 		return
 	}
 
@@ -258,15 +275,82 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	workspaceCreateResponse, err := r.PostV1WorkspacesWithResponse(ctx, management.PostV1WorkspacesJSONRequestBody{
-		Name:             plan.Name.ValueString(),
-		Size:             util.MaybeString(plan.Size),
-		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
-		EnableKai:        util.MaybeBool(plan.KaiEnabled),
-		CacheConfig:      util.MaybeFloat32(plan.CacheConfig),
-		ScaleFactor:      util.MaybeFloat32(plan.ScaleFactor),
-		AutoSuspend:      toCreateAutoSuspend(plan),
-		AutoScale:        toCreateAutoScale(plan),
+	groupID := uuid.MustParse(plan.WorkspaceGroupID.ValueString())
+
+	clustersResp, err := r.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(clustersResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	allClusters := util.Deref(clustersResp.JSON200)
+	groupClusters := filterClustersByGroupID(allClusters, groupID)
+	if len(groupClusters) == 0 {
+		resp.Diagnostics.AddError(
+			"Cannot resolve workspace group details",
+			"No existing workspace was found in the workspace group. Create the workspace group (singlestoredb_workspace_group) before creating additional workspaces in it.",
+		)
+
+		return
+	}
+
+	// /v2/clusters ignores GroupID on create (each POST gets a new group). For the common
+	// workspace_group → workspace flow, adopt the group's sole starter cluster instead of
+	// creating an unreachable orphan cluster with a different admin password.
+	if starter, ok := soleAdoptableCluster(groupClusters, plan.Name.ValueString()); ok {
+		if !claimGroupStarter(groupID) {
+			resp.Diagnostics.AddError(
+				"Workspace group already has a workspace",
+				fmt.Sprintf("Workspace group %s already has a cluster, and another workspace in this apply adopted it. "+
+					"/v2/clusters has one cluster per group, so a second singlestoredb_workspace cannot be created in the same group. "+
+					"Use one workspace with the group, or use singlestoredb_cluster for each deployment. See the migrate-workspace-to-cluster guide.", groupID),
+			)
+
+			return
+		}
+		w, werr := adoptStarterCluster(ctx, r.ClientWithResponsesInterface, starter, plan)
+		if werr != nil {
+			releaseGroupStarter(groupID)
+			resp.Diagnostics.AddError(werr.Summary, werr.Detail)
+
+			return
+		}
+		result := withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(w), plan)
+		diags = resp.State.Set(ctx, &result)
+		resp.Diagnostics.Append(diags...)
+
+		return
+	}
+
+	if clusterNameExists(groupClusters, plan.Name.ValueString()) {
+		resp.Diagnostics.AddError(
+			"Workspace already exists in the workspace group",
+			fmt.Sprintf("A workspace named %q already exists in workspace group %s.", plan.Name.ValueString(), groupID),
+		)
+
+		return
+	}
+
+	sibling := groupClusters[0]
+	// POST /v2/clusters treats an empty firewallRanges list as deny-all. Siblings with
+	// unrestricted access report allowAllTraffic=true and an empty list — expand that
+	// back to 0.0.0.0/0 before create.
+	// Do not copy ExpiresAt: the list API often returns a non-RFC3339 spelling that
+	// /v2/clusters rejects on create, and workspace create never set expiration under v1.
+	firewallRanges := effectiveFirewallRanges(sibling)
+	workspaceCreateResponse, err := r.PostV2ClustersWithResponse(ctx, management.PostV2ClustersJSONRequestBody{
+		Name:           plan.Name.ValueString(),
+		GroupID:        util.Ptr(groupID),
+		ProjectID:      sibling.ProjectID,
+		Provider:       sibling.Provider,
+		Region:         sibling.Region,
+		FirewallRanges: &firewallRanges,
+		DeploymentType: sibling.DeploymentType,
+		Kai:            util.MaybeBool(plan.KaiEnabled),
+		SizeConfig:     toSizeConfig(plan),
+		AutoSuspend:    toClusterAutoSuspend(plan),
+		AutoScale:      toCreateAutoScale(plan),
 	})
 	if serr := util.StatusOK(workspaceCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -277,8 +361,8 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.WorkspaceID, config.WorkspaceCreationTimeout,
-		waitConditionState(management.WorkspaceStateACTIVE),
+	w, werr := wait(ctx, r.ClientWithResponsesInterface, workspaceCreateResponse.JSON200.ClusterID, config.WorkspaceCreationTimeout,
+		waitConditionState(management.ClusterStateACTIVE),
 	)
 	if werr != nil {
 		resp.Diagnostics.AddError(
@@ -289,7 +373,25 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	result := toWorkspaceResourceModel(w)
+	// /v2/clusters ignores GroupID and returns a new group. Do not pretend the new
+	// cluster joined the configured group: it would not share the admin password or firewall.
+	if w.GroupID != nil && *w.GroupID != groupID {
+		detail := fmt.Sprintf("Management API /v2/clusters created cluster %s in group %s instead of workspace group %s. "+
+			"The first singlestoredb_workspace adopts the group's starter cluster. Another workspace is a separate cluster. "+
+			"Use singlestoredb_cluster for each deployment. See the migrate-workspace-to-cluster guide.",
+			util.Deref(w.ClusterID), *w.GroupID, groupID)
+		if w.ClusterID != nil {
+			deleteResponse, deleteErr := r.DeleteV2ClustersClusterIDWithResponse(ctx, *w.ClusterID)
+			if serr := util.StatusOK(deleteResponse, deleteErr, util.ReturnNilOnNotFound); serr != nil {
+				detail += " The extra cluster could not be deleted automatically: " + serr.Detail
+			}
+		}
+		resp.Diagnostics.AddError("Cannot add another workspace to this workspace group", detail)
+
+		return
+	}
+
+	result := withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(w), plan)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -305,8 +407,8 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	workspace, err := r.GetV1WorkspacesWorkspaceIDWithResponse(ctx, id,
-		&management.GetV1WorkspacesWorkspaceIDParams{},
+	workspace, err := r.GetV2ClustersClusterIDWithResponse(ctx, id,
+		&management.GetV2ClustersClusterIDParams{},
 	)
 	if serr := util.StatusOK(workspace, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -317,16 +419,17 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	if workspace.JSON200.State == management.WorkspaceStateTERMINATED {
+	stateValue := clusterState(*workspace.JSON200)
+	if stateValue == management.ClusterStateTERMINATED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got terminated externally, deleting it from the state file to recreate.
 	}
 
-	if workspace.JSON200.State != management.WorkspaceStateACTIVE &&
-		workspace.JSON200.State != management.WorkspaceStateSUSPENDED {
+	if stateValue != management.ClusterStateACTIVE &&
+		stateValue != management.ClusterStateSUSPENDED {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace %s state is %s while it should be %s or %s", state.ID.ValueString(), workspace.JSON200.State, management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED),
+			fmt.Sprintf("Workspace %s state is %s while it should be %s or %s", state.ID.ValueString(), stateValue, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED),
 			"An unexpected workspace state.\n\n"+
 				config.ContactSupportLaterErrorDetail,
 		)
@@ -334,7 +437,15 @@ func (r *workspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	configuredGroupID := state.WorkspaceGroupID
+	configuredName := state.Name
 	state = toWorkspaceResourceModel(*workspace.JSON200)
+	state.WorkspaceGroupID = configuredGroupID
+	// /v2/clusters may keep the workspace_group starter name after adopt; preserve the
+	// Terraform-configured workspace name to avoid perpetual drift.
+	if util.IsConfiguredString(configuredName) {
+		state.Name = configuredName
+	}
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -385,7 +496,7 @@ func (r *workspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	workspaceDeleteResponse, err := r.DeleteV1WorkspacesWorkspaceIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	workspaceDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(workspaceDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -393,6 +504,12 @@ func (r *workspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		)
 
 		return
+	}
+
+	if groupID, parseErr := uuid.Parse(state.WorkspaceGroupID.ValueString()); parseErr == nil {
+		// Allow a later create in this process to adopt the starter again after
+		// this workspace is gone (for example, a replace in the same apply).
+		releaseGroupStarter(groupID)
 	}
 }
 
@@ -461,39 +578,29 @@ func (r *workspaceResource) ImportState(ctx context.Context, req resource.Import
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toWorkspaceResourceModel(workspace management.Workspace) workspaceResourceModel {
+func toWorkspaceResourceModel(workspace management.Cluster) workspaceResourceModel {
 	model := workspaceResourceModel{
-		ID:               util.UUIDStringValue(workspace.WorkspaceID),
-		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
+		ID:               clusterIDValue(workspace),
+		WorkspaceGroupID: groupIDValue(workspace),
 		Name:             types.StringValue(workspace.Name),
-		Size:             types.StringValue(workspace.Size),
-		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
-		CreatedAt:        types.StringValue(workspace.CreatedAt),
+		Size:             types.StringValue(clusterSize(workspace)),
+		Suspended:        types.BoolValue(clusterState(workspace) == management.ClusterStateSUSPENDED),
+		CreatedAt:        clusterCreatedAtString(workspace),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-		KaiEnabled:       types.BoolValue(util.Deref(workspace.KaiEnabled)),
-		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
-		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		KaiEnabled:       types.BoolValue(util.Deref(workspace.Kai)),
+		CacheConfig:      types.Float32PointerValue(clusterCacheConfig(workspace)),
+		ScaleFactor:      types.Float32PointerValue(clusterScaleFactor(workspace)),
 		AutoScale:        toAutoScaleResourceModel(workspace),
 		AutoSuspend:      toAutoSuspendResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
 	}
+	if model.ScaleFactor.IsNull() || model.ScaleFactor.IsUnknown() {
+		model.ScaleFactor = types.Float32Value(1)
+	}
 
 	return model
-}
-
-func toCreateAutoSuspend(plan workspaceResourceModel) *struct {
-	SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-	SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-} {
-	return &struct {
-		SuspendAfterSeconds *float32                                          `json:"suspendAfterSeconds,omitempty"`
-		SuspendType         *management.WorkspaceCreateAutoSuspendSuspendType `json:"suspendType,omitempty"`
-	}{
-		SuspendAfterSeconds: util.MaybeFloat32(plan.AutoSuspend.SuspendAfterSeconds),
-		SuspendType:         util.WorkspaceCreateAutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType),
-	}
 }
 
 func toCreateAutoScale(plan workspaceResourceModel) *management.AutoScale {
@@ -507,22 +614,25 @@ func toCreateAutoScale(plan workspaceResourceModel) *management.AutoScale {
 	}
 }
 
-func toAutoSuspendResourceModel(ws management.Workspace) *workspaceAutoSuspendResourceModel {
-	if ws.AutoSuspend == nil {
+func toAutoSuspendResourceModel(ws management.Cluster) *workspaceAutoSuspendResourceModel {
+	if ws.AutoSuspend == nil || ws.AutoSuspend.SuspendType == nil {
 		return &workspaceAutoSuspendResourceModel{
-			SuspendType: types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED)),
+			SuspendType: types.StringValue(string(management.DISABLED)),
 		}
 	}
+
 	var suspendAfterSeconds *float32
-	if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeIDLE {
-		suspendAfterSeconds = ws.AutoSuspend.IdleAfterSeconds
-	} else if ws.AutoSuspend.SuspendType == management.WorkspaceAutoSuspendSuspendTypeSCHEDULED {
-		suspendAfterSeconds = ws.AutoSuspend.ScheduledAfterSeconds
+	switch *ws.AutoSuspend.SuspendType {
+	case management.IDLE:
+		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.IdleAfterSeconds)
+	case management.SCHEDULED:
+		suspendAfterSeconds = intToFloat32Ptr(ws.AutoSuspend.ScheduledAfterSeconds)
+	case management.DISABLED:
 	}
 
 	return &workspaceAutoSuspendResourceModel{
 		SuspendAfterSeconds: types.Float32PointerValue(suspendAfterSeconds),
-		SuspendType:         util.StringValueOrNull(&ws.AutoSuspend.SuspendType),
+		SuspendType:         util.StringValueOrNull(ws.AutoSuspend.SuspendType),
 	}
 }
 
@@ -539,7 +649,7 @@ func toAutoScale(plan workspaceResourceModel) *management.AutoScale {
 	}
 }
 
-func toAutoScaleResourceModel(ws management.Workspace) *autoScaleResourceModel {
+func toAutoScaleResourceModel(ws management.Cluster) *autoScaleResourceModel {
 	if ws.AutoScale == nil {
 		return &autoScaleResourceModel{
 			MaxScaleFactor: types.Float32Value(scaleX1),
@@ -587,7 +697,7 @@ func validateSuspendedAndConfigChanges(state, plan *workspaceResourceModel) *uti
 }
 
 func validateAutoSuspendConfig(plan *workspaceResourceModel) *util.SummaryWithDetailError {
-	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.WorkspaceCreateAutoSuspendSuspendTypeDISABLED))) &&
+	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.DISABLED))) &&
 		!plan.AutoSuspend.SuspendAfterSeconds.IsNull() {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid auto_suspend configuration.",
@@ -596,6 +706,28 @@ func validateAutoSuspendConfig(plan *workspaceResourceModel) *util.SummaryWithDe
 	}
 
 	return nil
+}
+
+func validateWorkspaceName(name string) *util.SummaryWithDetailError {
+	n := utf8.RuneCountInString(name)
+	if n < 1 || n > clusterNameMaxLen {
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid workspace name",
+			Detail:  fmt.Sprintf("A new workspace name must be between 1 and %d characters (Management API /v2/clusters limit).", clusterNameMaxLen),
+		}
+	}
+
+	return nil
+}
+
+func claimGroupStarter(groupID uuid.UUID) bool {
+	_, loaded := starterClaims.LoadOrStore(groupID, struct{}{})
+
+	return !loaded
+}
+
+func releaseGroupStarter(groupID uuid.UUID) {
+	starterClaims.Delete(groupID)
 }
 
 func validateAutoScaleConfig(plan *workspaceResourceModel) *util.SummaryWithDetailError {

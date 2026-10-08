@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/clusters"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
@@ -128,6 +129,18 @@ func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) Attribut
 
 func (uc UpdatableConfig) WithSQLQueryDataSource(sqlQueryName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(sql.DataSourceName), sqlQueryName})
+}
+
+func (uc UpdatableConfig) WithClusterGetDataSource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceGetName), clusterName})
+}
+
+func (uc UpdatableConfig) WithClusterListDataSource(clusterListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceListName), clusterListName})
+}
+
+func (uc UpdatableConfig) WithClusterResource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(clusters.ResourceName), clusterName})
 }
 
 // WithAPIKey extends the config with the API key if the key is not empty.

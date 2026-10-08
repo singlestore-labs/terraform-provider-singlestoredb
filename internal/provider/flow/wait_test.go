@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func readyFlowInstance() management.Flow {
-	return management.Flow{
+func readyFlowInstance() management.FlowV2 {
+	return management.FlowV2{
 		FlowID:       uuid.New(),
 		Status:       util.Ptr("Running"),
 		UserName:     util.Ptr("admin"),

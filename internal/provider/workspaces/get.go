@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -213,26 +214,29 @@ func newWorkspaceDataSourceSchemaAttributes(conf workspaceDataSourceSchemaConfig
 	}
 }
 
-func toWorkspaceDataSourceModel(workspace management.Workspace) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
+func toWorkspaceDataSourceModel(workspace management.Cluster) (workspaceDataSourceModel, *util.SummaryWithDetailError) {
 	model := workspaceDataSourceModel{
-		ID:               util.UUIDStringValue(workspace.WorkspaceID),
-		WorkspaceGroupID: util.UUIDStringValue(workspace.WorkspaceGroupID),
+		ID:               clusterIDValue(workspace),
+		WorkspaceGroupID: groupIDValue(workspace),
 		Name:             types.StringValue(workspace.Name),
-		State:            util.WorkspaceStateStringValue(workspace.State),
-		Size:             types.StringValue(workspace.Size),
-		Suspended:        types.BoolValue(workspace.State == management.WorkspaceStateSUSPENDED),
-		CreatedAt:        types.StringValue(workspace.CreatedAt),
+		State:            util.ClusterStateStringValue(clusterState(workspace)),
+		Size:             types.StringValue(clusterSize(workspace)),
+		Suspended:        types.BoolValue(clusterState(workspace) == management.ClusterStateSUSPENDED),
+		CreatedAt:        clusterCreatedAtString(workspace),
 		Endpoint:         util.MaybeStringValue(workspace.Endpoint),
-		LastResumedAt:    util.MaybeStringValue(workspace.LastResumedAt),
-		KaiEnabled:       util.MaybeBoolValue(workspace.KaiEnabled),
-		CacheConfig:      types.Float32PointerValue(workspace.CacheConfig),
-		ScaleFactor:      types.Float32PointerValue(workspace.ScaleFactor),
+		LastResumedAt:    clusterLastResumedAtString(workspace),
+		KaiEnabled:       util.MaybeBoolValue(workspace.Kai),
+		CacheConfig:      types.Float32PointerValue(clusterCacheConfig(workspace)),
+		ScaleFactor:      types.Float32PointerValue(clusterScaleFactor(workspace)),
 		AutoScale:        toAutoScaleResourceModel(workspace),
 		DeploymentType:   util.StringValueOrNull(workspace.DeploymentType),
 		AutoSuspend:      toAutoSuspendResourceModel(workspace),
 	}
 	if model.CacheConfig.IsNull() || model.CacheConfig.IsUnknown() {
 		model.CacheConfig = types.Float32Value(1)
+	}
+	if model.ScaleFactor.IsNull() || model.ScaleFactor.IsUnknown() {
+		model.ScaleFactor = types.Float32Value(1)
 	}
 
 	return model, nil
@@ -250,7 +254,7 @@ func readByID(data workspaceDataSourceModel, ctx context.Context, d *workspacesD
 		return
 	}
 
-	workspace, err := d.GetV1WorkspacesWorkspaceIDWithResponse(ctx, id, &management.GetV1WorkspacesWorkspaceIDParams{})
+	workspace, err := d.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
 	if serr := util.StatusOK(workspace, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -263,16 +267,16 @@ func readByID(data workspaceDataSourceModel, ctx context.Context, d *workspacesD
 	if workspace.JSON200.TerminatedAt != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root(config.IDAttribute),
-			fmt.Sprintf("Workspace with the specified ID existed, but got terminated at %s", *workspace.JSON200.TerminatedAt),
+			fmt.Sprintf("Workspace with the specified ID existed, but got terminated at %s", workspace.JSON200.TerminatedAt.Format(time.RFC3339)),
 			"Make sure to set the workspace ID of the workspace that exists.",
 		)
 
 		return
 	}
 
-	if workspace.JSON200.State == management.WorkspaceStateFAILED {
+	if clusterState(*workspace.JSON200) == management.ClusterStateFAILED {
 		resp.Diagnostics.AddError(
-			fmt.Sprintf("Workspace with the specified ID exists, but is at the %s state", workspace.JSON200.State),
+			fmt.Sprintf("Workspace with the specified ID exists, but is at the %s state", clusterState(*workspace.JSON200)),
 			config.ContactSupportErrorDetail,
 		)
 
@@ -291,9 +295,8 @@ func readByID(data workspaceDataSourceModel, ctx context.Context, d *workspacesD
 }
 
 func readByName(data workspaceDataSourceModel, ctx context.Context, d *workspacesDataSourceGet, resp *datasource.ReadResponse) {
-	// First, get all workspace groups
-	workspaceGroups, err := d.GetV1WorkspaceGroupsWithResponse(ctx, &management.GetV1WorkspaceGroupsParams{})
-	if serr := util.StatusOK(workspaceGroups, err); serr != nil {
+	clusters, err := d.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(clusters, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -302,28 +305,12 @@ func readByName(data workspaceDataSourceModel, ctx context.Context, d *workspace
 		return
 	}
 
-	var foundWorkspaces []management.Workspace
+	var foundWorkspaces []management.Cluster
 	targetName := strings.TrimSpace(data.Name.ValueString())
 
-	// For each workspace group, get all workspaces and search for matches
-	for _, workspaceGroup := range util.Deref(workspaceGroups.JSON200) {
-		workspaces, err := d.GetV1WorkspacesWithResponse(ctx, &management.GetV1WorkspacesParams{
-			WorkspaceGroupID: workspaceGroup.WorkspaceGroupID,
-		})
-		if serr := util.StatusOK(workspaces, err); serr != nil {
-			resp.Diagnostics.AddError(
-				serr.Summary,
-				serr.Detail,
-			)
-
-			return
-		}
-
-		// Filter workspaces by name (case-insensitive)
-		for _, workspace := range util.Deref(workspaces.JSON200) {
-			if strings.EqualFold(strings.TrimSpace(workspace.Name), targetName) {
-				foundWorkspaces = append(foundWorkspaces, workspace)
-			}
+	for _, workspace := range util.Deref(clusters.JSON200) {
+		if strings.EqualFold(strings.TrimSpace(workspace.Name), targetName) {
+			foundWorkspaces = append(foundWorkspaces, workspace)
 		}
 	}
 

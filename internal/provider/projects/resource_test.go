@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const projectsPath = "/v1/projects"
+const projectsPath = "/v2/projects"
 
 var testProject = management.Project{
 	ProjectID: uuid.MustParse("ad2eb3f8-ef7c-4eb5-b530-6f0930db9ff8"),
