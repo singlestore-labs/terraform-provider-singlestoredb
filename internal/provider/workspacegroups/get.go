@@ -167,7 +167,7 @@ func newWorkspaceGroupDataSourceSchemaAttributes(conf workspaceGroupDataSourceSc
 		},
 		"region_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The unique identifier of the region where the workspace group is located.",
+			MarkdownDescription: "Deprecated. /v2/clusters does not return a region UUID, so this attribute is empty. Use `cloud_provider` and `region_name`.",
 		},
 		"cloud_provider": schema.StringAttribute{
 			Computed:            true,

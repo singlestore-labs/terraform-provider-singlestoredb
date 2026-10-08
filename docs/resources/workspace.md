@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This resource enables the management of SingleStoreDB workspaces.
+  This resource manages a SingleStoreDB workspace. Use it with singlestoredb_workspace_group as before. The group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and workspace_group_id stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster; use singlestoredb_cluster for each deployment. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to singlestoredb_cluster first. See the migrate-workspace-to-cluster guide.
 ---
 
 # singlestoredb_workspace (Resource)
 
-This resource enables the management of SingleStoreDB workspaces.
+This resource manages a SingleStoreDB workspace. Use it with `singlestoredb_workspace_group` as before. The group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster; use `singlestoredb_cluster` for each deployment. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.
 
 ## Example Usage
 

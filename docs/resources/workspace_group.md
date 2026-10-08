@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace_group Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB workspace groups with this resource.
+  Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires project_name. Pair it with one singlestoredb_workspace, which adopts that cluster. name and update_window cannot be changed after create. New groups set cloud_provider and region_name; a group that already uses region_id keeps that value. See the migrate-workspace-to-cluster guide.
 ---
 
 # singlestoredb_workspace_group (Resource)
 
-Manage SingleStoreDB workspace groups with this resource.
+Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.
 
 ## Example Usage
 
@@ -35,7 +35,7 @@ resource "singlestoredb_workspace_group" "this" {
 ### Required
 
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
-- `name` (String) Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created.
+- `name` (String) Name of the workspace group. A new name must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created. Existing longer names remain in state and can still be updated.
 
 ### Optional
 

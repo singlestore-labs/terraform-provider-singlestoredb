@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -29,6 +30,10 @@ import (
 
 const (
 	ResourceName = "workspace_group"
+
+	// clusterNameMaxLen is the Management API /v2/clusters limit. It is enforced
+	// on create only so an existing longer name can still be planned and updated.
+	clusterNameMaxLen = 32
 )
 
 var (
@@ -79,7 +84,7 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the schema for the resource.
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB workspace groups with this resource.",
+		MarkdownDescription: "Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -90,10 +95,7 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Name of the workspace group. Must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created.",
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 32), //nolint:mnd
-				},
+				MarkdownDescription: "Name of the workspace group. A new name must be between 1 and 32 characters (Management API /v2/clusters limit). This value cannot be changed after the workspace group is created. Existing longer names remain in state and can still be updated.",
 			},
 			"project_name": schema.StringAttribute{
 				Optional:            true,
@@ -214,6 +216,21 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	if err := validateWorkspaceGroupName(plan.Name.ValueString()); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
+	if util.IsConfiguredString(plan.RegionID) {
+		resp.Diagnostics.AddError(
+			"region_id is deprecated and unsupported by the v2 clusters API",
+			"Provide cloud_provider and region_name instead of region_id when creating a workspace group. An existing workspace group that already uses region_id keeps that value.",
+		)
+
+		return
+	}
+
 	if err := validateRequiredRegionParameters(&plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
@@ -222,15 +239,6 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 
 	if err := validateCreateOptInPreviewFeatureParameter(plan); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
-
-		return
-	}
-
-	if util.IsConfiguredString(plan.RegionID) && !util.IsConfiguredString(plan.CloudProvider) {
-		resp.Diagnostics.AddError(
-			"region_id is deprecated and unsupported by the v2 clusters API",
-			"Provide cloud_provider and region_name instead of region_id.",
-		)
 
 		return
 	}
@@ -292,7 +300,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, util.AdminPasswordForState(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword),
-	), false, plan.FirewallRanges)
+	), plan.RegionID, plan.FirewallRanges)
 	// Keep the configured name: workspaces may rename the starter cluster when adopting it.
 	result.Name = plan.Name
 
@@ -300,12 +308,25 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(diags...)
 }
 
+func validateWorkspaceGroupName(name string) *util.SummaryWithDetailError {
+	n := utf8.RuneCountInString(name)
+	if n < 1 || n > clusterNameMaxLen {
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid workspace group name",
+			Detail:  fmt.Sprintf("A new workspace group name must be between 1 and %d characters (Management API /v2/clusters limit).", clusterNameMaxLen),
+		}
+	}
+
+	return nil
+}
+
 func validateRequiredRegionParameters(plan *workspaceGroupResourceModel) *util.SummaryWithDetailError {
+	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
 	providerAndRegionNameAreSet := util.IsConfiguredString(plan.CloudProvider) && util.IsConfiguredString(plan.RegionName)
-	if !providerAndRegionNameAreSet {
+	if regionIDIsSet && providerAndRegionNameAreSet || !regionIDIsSet && !providerAndRegionNameAreSet {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid region configuration",
-			Detail:  "Both 'cloud_provider' and 'region_name' must be provided. The deprecated 'region_id' attribute is not supported by the v2 clusters API.",
+			Detail:  "Either 'region_id' must be set or both 'cloud_provider' and 'region_name' must be provided.",
 		}
 	}
 
@@ -334,7 +355,9 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 
 	workspaceGroup, serr := getClusterInGroup(ctx, r.ClientWithResponsesInterface, uuid.MustParse(state.ID.ValueString()))
 	if serr != nil {
-		if strings.Contains(serr.Summary, "not found") {
+		// Summary is http.StatusText(404) ("Not Found"). A case-sensitive
+		// "not found" check never matched, so a missing group stayed in state.
+		if isNotFound(serr) {
 			resp.State.RemoveResource(ctx)
 
 			return
@@ -364,9 +387,9 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 		return // A workspace group may be, e.g., PENDING during update windows when all the update activity is prohibited.
 	}
 
-	regionIDIsSet := util.IsConfiguredString(state.RegionID)
+	priorRegionID := state.RegionID
 	configuredName := state.Name
-	state = toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, workspaceGroup, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
+	state = toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, workspaceGroup, state.AdminPassword.ValueString(), priorRegionID, state.FirewallRanges)
 	// Workspaces may rename the starter cluster when adopting it under /v2/clusters.
 	// On import, state has no prior name — keep the API name instead.
 	if util.IsConfiguredString(configuredName) {
@@ -452,8 +475,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
+	result := toWorkspaceGroupResourceModel(ctx, r.ClientWithResponsesInterface, wg, plan.AdminPassword.ValueString(), plan.RegionID, plan.FirewallRanges)
 	result.Name = plan.Name
 
 	diags = resp.State.Set(ctx, &result)
@@ -689,7 +711,7 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 // configuredFirewallRanges is the allowlist Terraform holds for the resource, either
 // from the plan or from the prior state. It decides how the reported ranges are
 // spelled, see firewallRangesForState.
-func toWorkspaceGroupResourceModel(ctx context.Context, c management.ClientWithResponsesInterface, workspaceGroup management.Cluster, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
+func toWorkspaceGroupResourceModel(ctx context.Context, c management.ClientWithResponsesInterface, workspaceGroup management.Cluster, adminPassword string, priorRegionID types.String, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
 	projectName := resolveProjectName(ctx, c, workspaceGroup.ProjectID)
 	result := workspaceGroupResourceModel{
 		ID:                       util.MaybeUUIDStringValue(workspaceGroup.GroupID),
@@ -705,15 +727,34 @@ func toWorkspaceGroupResourceModel(ctx context.Context, c management.ClientWithR
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
 		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
-	if regionIDIsSet {
-		// region_id is deprecated and no longer returned by the API; keep prior state if present.
-		result.RegionID = types.StringNull()
-	} else if workspaceGroup.Provider != nil {
+	applyWorkspaceGroupRegion(&result, workspaceGroup, priorRegionID)
+
+	return result
+}
+
+// applyWorkspaceGroupRegion keeps a configured region_id. /v2/clusters does not
+// return a region UUID, so replacing it with null drops the value on refresh.
+// cloud_provider and region_name stay unset in that case, matching the previous
+// exclusive region configuration. Otherwise the provider and region code come
+// from the cluster.
+func applyWorkspaceGroupRegion(result *workspaceGroupResourceModel, workspaceGroup management.Cluster, priorRegionID types.String) {
+	if util.IsConfiguredString(priorRegionID) {
+		result.RegionID = priorRegionID
+
+		return
+	}
+	if workspaceGroup.Provider != nil {
 		result.CloudProvider = normalizeCloudProvider(*workspaceGroup.Provider)
 		result.RegionName = util.MaybeStringValue(workspaceGroup.Region)
 	}
+}
 
-	return result
+func isNotFound(err *util.SummaryWithDetailError) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(err.Summary), "not found")
 }
 
 func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {

@@ -82,7 +82,9 @@ output "group_id" {
 }
 ```
 
-Legacy `singlestoredb_workspace_group` / `singlestoredb_workspace` resources remain available and now call `/v2/clusters` under the hood.
+`singlestoredb_workspace_group` and `singlestoredb_workspace` stay supported with the same arguments. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it.
+
+To manage that object as a single resource, use `singlestoredb_cluster`. The state move, attribute map, and the behavior that stays the same are in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 To try this example, follow these steps:
 

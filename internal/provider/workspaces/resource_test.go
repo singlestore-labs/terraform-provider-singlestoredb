@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -257,6 +259,196 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_scale.sensitivity", updatedSensitivity),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "auto_suspend.suspend_type", "DISABLED"),
 				),
+			},
+		},
+	})
+}
+
+func TestSecondWorkspaceInSameApplyIsRejected(t *testing.T) {
+	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	projectID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	clusterID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+	cluster := management.Cluster{
+		AllowAllTraffic: util.Ptr(true),
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
+		FirewallRanges:  util.Ptr([]string{}),
+		Name:            config.TestInitialWorkspaceGroupName,
+		Region:          util.Ptr("us-east-1"),
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		State:           util.Ptr(management.ClusterStateACTIVE),
+		GroupID:         util.Ptr(workspaceGroupID),
+		ClusterID:       util.Ptr(clusterID),
+		ProjectID:       projectID,
+		DeploymentType:  util.Ptr(management.PRODUCTION),
+		Endpoint:        util.Ptr("svc-example.svc.singlestore.com"),
+		SizeConfig:      &management.SizeConfig{Size: util.Ptr("S-00"), ScaleFactor: util.Ptr[float32](1), CacheConfig: util.Ptr[float32](1)},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		switch {
+		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Project{{
+				Name: config.TestInitialProjectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
+			}}))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Cluster{cluster}))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+				AdminPassword string    `json:"adminPassword"`
+			}{ClusterID: clusterID, GroupID: workspaceGroupID, AdminPassword: config.TestInitialAdminPassword}))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters/"+clusterID.String() && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON(cluster))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters/"+clusterID.String() && r.Method == http.MethodDelete:
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: clusterID}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "example" {
+  name            = %q
+  project_name    = %q
+  firewall_ranges = [%q]
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+  admin_password  = %q
+}
+resource "singlestoredb_workspace" "first" {
+  name               = "workspace-1"
+  workspace_group_id = singlestoredb_workspace_group.example.id
+  size               = "S-00"
+}
+resource "singlestoredb_workspace" "second" {
+  name               = "workspace-2"
+  workspace_group_id = singlestoredb_workspace_group.example.id
+  size               = "S-00"
+}
+`, config.TestInitialWorkspaceGroupName, config.TestInitialProjectName, config.TestInitialFirewallRange, config.TestInitialAdminPassword),
+				ExpectError: regexp.MustCompile("Workspace group already has a workspace"),
+			},
+		},
+	})
+}
+
+func TestCreateWorkspaceRejectsDifferentGroup(t *testing.T) {
+	groupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	otherGroupID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	projectID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	existing1 := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	existing2 := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+	createdID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+	var deleted atomic.Bool
+
+	base := management.Cluster{
+		AllowAllTraffic: util.Ptr(true),
+		CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
+		Region:          util.Ptr("us-east-1"),
+		Provider:        util.Ptr(management.CloudProviderAWS),
+		State:           util.Ptr(management.ClusterStateACTIVE),
+		GroupID:         util.Ptr(groupID),
+		ProjectID:       projectID,
+		DeploymentType:  util.Ptr(management.PRODUCTION),
+		SizeConfig:      &management.SizeConfig{Size: util.Ptr("S-00"), ScaleFactor: util.Ptr[float32](1), CacheConfig: util.Ptr[float32](1)},
+	}
+	first := base
+	first.Name = "one"
+	first.ClusterID = util.Ptr(existing1)
+	second := base
+	second.Name = "two"
+	second.ClusterID = util.Ptr(existing2)
+	created := base
+	created.Name = "workspace-2"
+	created.ClusterID = util.Ptr(createdID)
+	created.GroupID = util.Ptr(otherGroupID)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		switch {
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Cluster{first, second}))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{ClusterID: createdID, GroupID: otherGroupID}))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters/"+createdID.String() && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON(created))
+			require.NoError(t, err)
+		case r.URL.Path == "/v2/clusters/"+createdID.String() && r.Method == http.MethodDelete:
+			deleted.Store(true)
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: createdID}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace" "extra" {
+  name               = "workspace-2"
+  workspace_group_id = %q
+  size               = "S-00"
+}
+`, groupID),
+				ExpectError: regexp.MustCompile("Cannot add another workspace to this workspace group"),
+			},
+		},
+	})
+
+	require.True(t, deleted.Load(), "the cluster created in another group must be deleted")
+}
+
+func TestCreateWorkspaceRejectsLongName(t *testing.T) {
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey:        testutil.UnusedAPIKey,
+		APIServiceURL: "http://unused",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace" "this" {
+  name               = %q
+  workspace_group_id = "3ca3d359-021d-45ed-86cb-38b8d14ac507"
+  size               = "S-00"
+}
+`, strings.Repeat("n", 33)),
+				ExpectError: regexp.MustCompile("32"),
 			},
 		},
 	})

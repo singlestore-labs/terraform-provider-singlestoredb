@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster (workspace + workspace group created in one call) with this resource.
+  Manage a SingleStoreDB cluster (one workspace and its workspace group) with this resource. This is the Management API /v2/clusters resource. To move an existing singlestoredb_workspace_group and singlestoredb_workspace without recreating the deployment, see the migrate-workspace-to-cluster guide.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster (workspace + workspace group created in one call) with this resource.
+Manage a SingleStoreDB cluster (one workspace and its workspace group) with this resource. This is the Management API /v2/clusters resource. To move an existing `singlestoredb_workspace_group` and `singlestoredb_workspace` without recreating the deployment, see the migrate-workspace-to-cluster guide.
 
 ## Example Usage
 

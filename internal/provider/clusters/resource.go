@@ -126,7 +126,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a SingleStoreDB cluster (workspace + workspace group created in one call) with this resource.",
+		MarkdownDescription: "Manage a SingleStoreDB cluster (one workspace and its workspace group) with this resource. This is the Management API /v2/clusters resource. To move an existing `singlestoredb_workspace_group` and `singlestoredb_workspace` without recreating the deployment, see the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

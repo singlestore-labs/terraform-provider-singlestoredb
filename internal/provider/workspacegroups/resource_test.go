@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -568,6 +569,128 @@ resource "singlestoredb_workspace_group" "this" {
 }
 `, config.TestInitialWorkspaceGroupName, config.TestInitialProjectName, config.TestInitialFirewallRange, config.TestInitialWorkspaceGroupExpiresAt),
 				Check: resource.TestCheckResourceAttrSet("singlestoredb_workspace_group.this", "admin_password"),
+			},
+		},
+	})
+}
+
+func TestWorkspaceGroupCreateKeepsExistingRegionRules(t *testing.T) {
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey:        testutil.UnusedAPIKey,
+		APIServiceURL: "http://unused",
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: `
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "this" {
+  name            = "group"
+  project_name    = "Standard Project"
+  firewall_ranges = ["0.0.0.0/0"]
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+  region_id       = "3c0c0d99-3c09-45ac-a01f-5ab62afd35cf"
+}
+`,
+				ExpectError: regexp.MustCompile("region_id is deprecated"),
+			},
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+resource "singlestoredb_workspace_group" "this" {
+  name            = %q
+  project_name    = "Standard Project"
+  firewall_ranges = ["0.0.0.0/0"]
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+}
+`, strings.Repeat("n", 33)),
+				ExpectError: regexp.MustCompile("32"),
+			},
+		},
+	})
+}
+
+func TestWorkspaceGroupReadRemovesMissingGroup(t *testing.T) {
+	workspaceGroupID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	clusterID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+	projectID := uuid.New()
+	createdAt := time.Now().UTC()
+	var hideLists atomic.Bool
+
+	workspaceGroup := management.Cluster{
+		CreatedAt:      util.Ptr(createdAt),
+		ExpiresAt:      util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		FirewallRanges: util.Ptr([]string{config.TestInitialFirewallRange}),
+		Name:           config.TestInitialWorkspaceGroupName,
+		Region:         util.Ptr("us-east-1"),
+		Provider:       util.Ptr(management.CloudProviderAWS),
+		State:          util.Ptr(management.ClusterStateACTIVE),
+		GroupID:        util.Ptr(workspaceGroupID),
+		ClusterID:      util.Ptr(clusterID),
+		ProjectID:      projectID,
+		DeploymentType: &defaultDeploymentType,
+		SizeConfig:     &management.SizeConfig{Size: util.Ptr("S-00")},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		switch {
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Project{{
+				Name: config.TestInitialProjectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
+			}}))
+			require.NoError(t, err)
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
+			if hideLists.CompareAndSwap(true, false) {
+				_, err := w.Write(testutil.MustJSON([]management.Cluster{}))
+				require.NoError(t, err)
+
+				return
+			}
+			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
+			require.NoError(t, err)
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+				AdminPassword string    `json:"adminPassword"`
+			}{ClusterID: clusterID, GroupID: workspaceGroupID, AdminPassword: config.TestInitialAdminPassword}))
+			require.NoError(t, err)
+		case strings.HasSuffix(r.URL.Path, clusterID.String()) && r.Method == http.MethodDelete:
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: clusterID}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	configWithPassword := testutil.UpdatableConfig(examples.WorkspaceGroupsResource).
+		WithWorkspaceGroupResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
+		String()
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: configWithPassword,
+				Check: resource.TestCheckResourceAttr(
+					"singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String(),
+				),
+			},
+			{
+				PreConfig: func() { hideLists.Store(true) },
+				Config:    configWithPassword,
+				Check: resource.TestCheckResourceAttr(
+					"singlestoredb_workspace_group.this", config.IDAttribute, workspaceGroupID.String(),
+				),
 			},
 		},
 	})

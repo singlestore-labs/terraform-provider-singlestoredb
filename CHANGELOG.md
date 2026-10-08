@@ -10,8 +10,9 @@
 ### Changed
 
 - Bump `github.com/singlestore-labs/singlestore-go/management` from v1.2.158 to v1.2.176. The Management API client now targets v2 endpoints; `/v1/workspaces` and `/v1/workspaceGroups` are replaced by `/v2/clusters`.
-- `singlestoredb_workspace_group` and `singlestoredb_workspace` remain first-class resources with the same Terraform UX; they now call `/v2/clusters` under the hood because the SDK no longer exposes `/v1/workspaces` and `/v1/workspaceGroups`. Workspace group create provisions a starter workspace in the group; `project_name` is effectively required because the API requires a project ID. `name` and `update_window` cannot be updated after create (not supported by `/v2/clusters` PATCH).
-- Because `/v2/clusters` ignores `GroupID` on create, the first `singlestoredb_workspace` in a group adopts the group's starter cluster (rename/resize) instead of creating a second unreachable cluster. Additional workspaces in the same group still POST a new cluster and do not share the group's admin password.
+- `singlestoredb_workspace_group` and `singlestoredb_workspace` remain first-class resources with the same arguments. They call `/v2/clusters` because the SDK no longer exposes `/v1/workspaces` and `/v1/workspaceGroups`. See [Migrating from workspace to cluster](docs/guides/migrate-workspace-to-cluster.md) for what stays the same, what the API no longer allows, and how to move an existing workspace to `singlestoredb_cluster` without recreating it.
+- Workspace group create provisions one starter cluster (size S-00). The first `singlestoredb_workspace` adopts that cluster so the admin password, firewall, and group ID stay aligned. A second workspace in the same apply is rejected. Do not add another workspace in a later apply: the provider cannot tell that apart from the first workspace, and it would adopt and update the existing cluster. A create that would land in a different group is deleted and returned as an error, because `/v2/clusters` does not attach it to the existing group.
+- `project_name` is required when creating a workspace group. `name` and `update_window` cannot be changed after create. New names must be 1–32 characters; an existing longer name can still be planned. New groups cannot use `region_id`; an existing `region_id` stays in state.
 - Workspace create copies sibling firewall allowlists via `allowAllTraffic` → `0.0.0.0/0` so unrestricted groups are not recreated as deny-all.
 - Examples omit configured `admin_password` so `/v2/clusters` can generate one; Terraform state then holds the working password (configured sensitive values cannot diverge from plan after apply).
 - Workspace adopt omits unchanged default `kai_enabled=false` on PATCH so `/v2/clusters` does not attempt a mongoproxy teardown.
@@ -20,6 +21,11 @@
 - Role grants with `resource_type = "Cluster"` continue to accept `singlestoredb_workspace_group.id`; identity-roles responses that use `ClusterGroup` are normalized back to `Cluster`.
 - `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
 - Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.
+
+### Fixed
+
+- `singlestoredb_workspace_group` refresh keeps a configured `region_id`. `/v2/clusters` does not return a region UUID, and the previous read stored null, which dropped the value from state.
+- A missing workspace group (`Not Found`) is removed from state on read. The check did not match the status text, so a deleted group stayed in state and errored instead.
 
 ### Breaking
 

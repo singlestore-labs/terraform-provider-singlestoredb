@@ -3,6 +3,8 @@ package workspaces
 import (
 	"context"
 	"fmt"
+	"sync"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float32validator"
@@ -28,6 +30,10 @@ import (
 
 const (
 	ResourceName = "workspace"
+
+	// clusterNameMaxLen is the Management API /v2/clusters limit. Enforced on
+	// create only so an existing longer name can still be planned and updated.
+	clusterNameMaxLen = 32
 )
 
 var (
@@ -35,6 +41,11 @@ var (
 	_ resource.ResourceWithModifyPlan  = &workspaceResource{}
 	_ resource.ResourceWithImportState = &workspaceResource{}
 )
+
+// starterClaims records workspace groups whose starter cluster was adopted
+// during this provider process. Resource instances are created per operation,
+// so the claim has to live on the package to cover every workspace in one apply.
+var starterClaims sync.Map
 
 // workspaceResource is the resource implementation.
 type workspaceResource struct {
@@ -109,7 +120,7 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource enables the management of SingleStoreDB workspaces.",
+		MarkdownDescription: "This resource manages a SingleStoreDB workspace. Use it with `singlestoredb_workspace_group` as before. The group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster; use `singlestoredb_cluster` for each deployment. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -230,6 +241,12 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
+	if err := validateWorkspaceName(plan.Name.ValueString()); err != nil {
+		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
 	if plan.Suspended.ValueBool() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("suspended"),
@@ -282,8 +299,19 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 	// workspace_group → workspace flow, adopt the group's sole starter cluster instead of
 	// creating an unreachable orphan cluster with a different admin password.
 	if starter, ok := soleAdoptableCluster(groupClusters, plan.Name.ValueString()); ok {
+		if !claimGroupStarter(groupID) {
+			resp.Diagnostics.AddError(
+				"Workspace group already has a workspace",
+				fmt.Sprintf("Workspace group %s already has a cluster, and another workspace in this apply adopted it. "+
+					"/v2/clusters has one cluster per group, so a second singlestoredb_workspace cannot be created in the same group. "+
+					"Use one workspace with the group, or use singlestoredb_cluster for each deployment. See the migrate-workspace-to-cluster guide.", groupID),
+			)
+
+			return
+		}
 		w, werr := adoptStarterCluster(ctx, r.ClientWithResponsesInterface, starter, plan)
 		if werr != nil {
+			releaseGroupStarter(groupID)
 			resp.Diagnostics.AddError(werr.Summary, werr.Detail)
 
 			return
@@ -345,9 +373,24 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// /v2/clusters create currently ignores GroupID and returns a new group ID. Keep the
-	// configured workspace_group_id (and name) so the classic workspace_group → workspace
-	// Terraform relationship remains stable for callers.
+	// /v2/clusters ignores GroupID and returns a new group. Do not pretend the new
+	// cluster joined the configured group: it would not share the admin password or firewall.
+	if w.GroupID != nil && *w.GroupID != groupID {
+		detail := fmt.Sprintf("Management API /v2/clusters created cluster %s in group %s instead of workspace group %s. "+
+			"The first singlestoredb_workspace adopts the group's starter cluster. Another workspace is a separate cluster. "+
+			"Use singlestoredb_cluster for each deployment. See the migrate-workspace-to-cluster guide.",
+			util.Deref(w.ClusterID), *w.GroupID, groupID)
+		if w.ClusterID != nil {
+			deleteResponse, deleteErr := r.DeleteV2ClustersClusterIDWithResponse(ctx, *w.ClusterID)
+			if serr := util.StatusOK(deleteResponse, deleteErr, util.ReturnNilOnNotFound); serr != nil {
+				detail += " The extra cluster could not be deleted automatically: " + serr.Detail
+			}
+		}
+		resp.Diagnostics.AddError("Cannot add another workspace to this workspace group", detail)
+
+		return
+	}
+
 	result := withConfiguredWorkspaceIdentity(toWorkspaceResourceModel(w), plan)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -461,6 +504,12 @@ func (r *workspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		)
 
 		return
+	}
+
+	if groupID, parseErr := uuid.Parse(state.WorkspaceGroupID.ValueString()); parseErr == nil {
+		// Allow a later create in this process to adopt the starter again after
+		// this workspace is gone (for example, a replace in the same apply).
+		releaseGroupStarter(groupID)
 	}
 }
 
@@ -657,6 +706,28 @@ func validateAutoSuspendConfig(plan *workspaceResourceModel) *util.SummaryWithDe
 	}
 
 	return nil
+}
+
+func validateWorkspaceName(name string) *util.SummaryWithDetailError {
+	n := utf8.RuneCountInString(name)
+	if n < 1 || n > clusterNameMaxLen {
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid workspace name",
+			Detail:  fmt.Sprintf("A new workspace name must be between 1 and %d characters (Management API /v2/clusters limit).", clusterNameMaxLen),
+		}
+	}
+
+	return nil
+}
+
+func claimGroupStarter(groupID uuid.UUID) bool {
+	_, loaded := starterClaims.LoadOrStore(groupID, struct{}{})
+
+	return !loaded
+}
+
+func releaseGroupStarter(groupID uuid.UUID) {
+	starterClaims.Delete(groupID)
 }
 
 func validateAutoScaleConfig(plan *workspaceResourceModel) *util.SummaryWithDetailError {
