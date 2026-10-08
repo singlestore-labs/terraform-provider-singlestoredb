@@ -112,6 +112,7 @@ var (
 		EnvAPIKey,
 	)
 	CreditsErrorDetail                       = "Make sure your account has enough credits to perform this operation."
+	AccessNotAuthorizedErrorDetail           = "The authenticated account is not authorized to perform this operation."
 	ContactSupportErrorDetail                = fmt.Sprintf("Contact SingleStore support %s.", SupportURL)
 	ContactSupportLaterErrorDetail           = fmt.Sprintf("If nothing changes in a few hours, contact SingleStore support %s.", SupportURL)
 	CreateProviderIssueErrorDetail           = fmt.Sprintf("Internal error took place. Please, report the issue %s.", ProviderNewIssueURL)

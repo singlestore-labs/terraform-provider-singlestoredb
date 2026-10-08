@@ -24,6 +24,7 @@
 
 ### Fixed
 
+- Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
 - `singlestoredb_workspace_group` refresh keeps a configured `region_id`. `/v2/clusters` does not return a region UUID, and the previous read stored null, which dropped the value from state.
 - A missing workspace group (`Not Found`) is removed from state on read. The check did not match the status text, so a deleted group stayed in state and errored instead.
 
