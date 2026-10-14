@@ -5,7 +5,7 @@
 ### Added
 
 - New `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources for the Management API `/v2/clusters` endpoint. A cluster creates a workspace and its workspace group in a single API call.
-- `cluster_id` attribute on `singlestoredb_private_connection` (preferred) and `singlestoredb_flow` for the Management API v2 cluster terminology.
+- `cluster_id` attribute on `singlestoredb_private_connection` (preferred) for the Management API v2 cluster terminology.
 
 ### Changed
 
@@ -20,6 +20,7 @@
 - Workspace adopt PATCHes only changed size/autoscale/kai fields so default S-00 workspaces do not enter long PENDING reconfigurations.
 - Role grants with `resource_type = "Cluster"` continue to accept `singlestoredb_workspace_group.id`; identity-roles responses that use `ClusterGroup` are normalized back to `Cluster`.
 - `singlestoredb_regions` now returns region code names (`region_name`) via `/v2/regions` instead of region UUIDs (`id` nested attribute removed). Prefer `singlestoredb_regions_v2` / `cloud_provider` + `region_name` for new configurations.
+- `singlestoredb_flow` keeps the `workspace_id` argument. That value is the cluster ID and is sent to `/v2/flow` as `clusterID`, so existing Flow configuration and state need no change.
 - Existing Management API resources and data sources (projects, teams, users, invitations, flow, private connections, organization access controls, secrets) call the corresponding `/v2/...` endpoints.
 
 ### Fixed
@@ -30,7 +31,6 @@
 
 ### Breaking
 
-- `singlestoredb_flow`: replace `workspace_id` with `cluster_id` (same UUID value; cluster is the Management API v2 name for a workspace).
 - `singlestoredb_private_connection`: prefer `cluster_id`; `workspace_id` and `workspace_group_id` remain as deprecated aliases.
 - `singlestoredb_regions` nested `id` (region UUID) is no longer available; use `region_name` / `provider` instead.
 

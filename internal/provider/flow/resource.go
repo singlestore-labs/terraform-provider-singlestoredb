@@ -34,7 +34,7 @@ type flowInstanceResource struct {
 type flowInstanceResourceModel struct {
 	ID           types.String `tfsdk:"id"`
 	Name         types.String `tfsdk:"name"`
-	ClusterID    types.String `tfsdk:"cluster_id"`
+	ClusterID    types.String `tfsdk:"workspace_id"`
 	UserName     types.String `tfsdk:"user_name"`
 	DatabaseName types.String `tfsdk:"database_name"`
 	Size         types.String `tfsdk:"size"`
@@ -68,9 +68,9 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 				Required:            true,
 				MarkdownDescription: "The name of the Flow instance.",
 			},
-			"cluster_id": schema.StringAttribute{
+			"workspace_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The unique identifier of the cluster (workspace) to associate the Flow instance with.",
+				MarkdownDescription: "The cluster ID to associate the Flow instance with. Set this to `singlestoredb_workspace.id`.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"user_name": schema.StringAttribute{
@@ -260,7 +260,7 @@ func appendFlowImmutableFieldPlanErrors(resp *resource.ModifyPlanResponse, plan,
 		stateVal types.String
 	}{
 		{"name", plan.Name, state.Name},
-		{"cluster_id", plan.ClusterID, state.ClusterID},
+		{"workspace_id", plan.ClusterID, state.ClusterID},
 		{"size", plan.Size, state.Size},
 	}
 

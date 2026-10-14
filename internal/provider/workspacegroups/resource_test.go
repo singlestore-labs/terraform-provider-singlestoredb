@@ -638,12 +638,12 @@ func TestWorkspaceGroupReadRemovesMissingGroup(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch {
-		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+		case isMethodPath(r, http.MethodGet, pathV2Projects):
 			_, err := w.Write(testutil.MustJSON([]management.Project{{
 				Name: config.TestInitialProjectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
-		case r.URL.Path == pathV2Clusters && r.Method == http.MethodGet:
+		case isMethodPath(r, http.MethodGet, pathV2Clusters):
 			if hideLists.CompareAndSwap(true, false) {
 				_, err := w.Write(testutil.MustJSON([]management.Cluster{}))
 				require.NoError(t, err)
@@ -652,14 +652,14 @@ func TestWorkspaceGroupReadRemovesMissingGroup(t *testing.T) {
 			}
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{workspaceGroup}))
 			require.NoError(t, err)
-		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
+		case isMethodPath(r, http.MethodPost, pathV2Clusters):
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 				AdminPassword string    `json:"adminPassword"`
 			}{ClusterID: clusterID, GroupID: workspaceGroupID, AdminPassword: config.TestInitialAdminPassword}))
 			require.NoError(t, err)
-		case strings.HasSuffix(r.URL.Path, clusterID.String()) && r.Method == http.MethodDelete:
+		case isMethodSuffix(r, http.MethodDelete, clusterID.String()):
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))

@@ -65,7 +65,7 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
-		clusterPath := strings.Join([]string{"/v2/clusters", clusterID.String()}, "/")
+		clusterPath := strings.Join([]string{v2ClustersPath, clusterID.String()}, "/")
 
 		switch {
 		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
@@ -73,14 +73,14 @@ func TestCRUDWorkspace(t *testing.T) { //nolint:maintidx,cyclop
 				Name: config.TestInitialProjectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+		case r.URL.Path == v2ClustersPath && r.Method == http.MethodGet:
 			clusters := []management.Cluster{}
 			if clusterExists {
 				clusters = append(clusters, cluster)
 			}
 			_, err := w.Write(testutil.MustJSON(clusters))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+		case r.URL.Path == v2ClustersPath && r.Method == http.MethodPost:
 			postCount++
 			require.Equal(t, 1, postCount, "workspace create should adopt the starter cluster, not POST a second cluster")
 			body, err := io.ReadAll(r.Body)
@@ -288,25 +288,25 @@ func TestSecondWorkspaceInSameApplyIsRejected(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch {
-		case r.URL.Path == "/v2/projects" && r.Method == http.MethodGet:
+		case isMethodPath(r, http.MethodGet, "/v2/projects"):
 			_, err := w.Write(testutil.MustJSON([]management.Project{{
 				Name: config.TestInitialProjectName, ProjectID: projectID, Edition: management.STANDARD, CreatedAt: time.Now().UTC(),
 			}}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+		case isMethodPath(r, http.MethodGet, v2ClustersPath):
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{cluster}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+		case isMethodPath(r, http.MethodPost, v2ClustersPath):
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 				AdminPassword string    `json:"adminPassword"`
 			}{ClusterID: clusterID, GroupID: workspaceGroupID, AdminPassword: config.TestInitialAdminPassword}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters/"+clusterID.String() && r.Method == http.MethodGet:
+		case isMethodPath(r, http.MethodGet, v2ClustersPath+"/"+clusterID.String()):
 			_, err := w.Write(testutil.MustJSON(cluster))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters/"+clusterID.String() && r.Method == http.MethodDelete:
+		case isMethodPath(r, http.MethodDelete, v2ClustersPath+"/"+clusterID.String()):
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
@@ -385,19 +385,19 @@ func TestCreateWorkspaceRejectsDifferentGroup(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json")
 		switch {
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+		case r.URL.Path == v2ClustersPath && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON([]management.Cluster{first, second}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodPost:
+		case r.URL.Path == v2ClustersPath && r.Method == http.MethodPost:
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{ClusterID: createdID, GroupID: otherGroupID}))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters/"+createdID.String() && r.Method == http.MethodGet:
+		case r.URL.Path == v2ClustersPath+"/"+createdID.String() && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(created))
 			require.NoError(t, err)
-		case r.URL.Path == "/v2/clusters/"+createdID.String() && r.Method == http.MethodDelete:
+		case r.URL.Path == v2ClustersPath+"/"+createdID.String() && r.Method == http.MethodDelete:
 			deleted.Store(true)
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.

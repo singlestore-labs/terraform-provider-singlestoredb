@@ -186,7 +186,7 @@ func TestCRUDFlowInstance(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", config.IDAttribute, testFlowInstanceID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "name", testFlowInstanceName),
-					resource.TestCheckResourceAttr("singlestoredb_flow.this", "cluster_id", testWorkspaceID.String()),
+					resource.TestCheckResourceAttr("singlestoredb_flow.this", "workspace_id", testWorkspaceID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "endpoint", testFlowEndpoint),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "size", "F1"),
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "user_name", "admin"),
@@ -453,7 +453,7 @@ func TestFlowInstanceIntegration(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_flow.this", "size", "F1"),
 					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", config.IDAttribute),
 					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "endpoint"),
-					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "cluster_id"),
+					resource.TestCheckResourceAttrSet("singlestoredb_flow.this", "workspace_id"),
 				),
 			},
 		},

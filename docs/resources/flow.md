@@ -37,7 +37,7 @@ resource "singlestoredb_workspace" "example" {
 
 resource "singlestoredb_flow" "this" {
   name          = "my-flow-instance"
-  cluster_id    = singlestoredb_workspace.example.id
+  workspace_id  = singlestoredb_workspace.example.id
   user_name     = "admin"
   database_name = "my_database"
   size          = "F1"
@@ -53,11 +53,11 @@ output "flow_endpoint" {
 
 ### Required
 
-- `cluster_id` (String) The unique identifier of the cluster (workspace) to associate the Flow instance with.
 - `database_name` (String) The name of the SingleStore database to connect to.
 - `name` (String) The name of the Flow instance.
 - `size` (String) The size of the Flow instance (in Flow size notation), such as "F1", "F2", or "F3".
 - `user_name` (String) The username of the SingleStore database user to connect with.
+- `workspace_id` (String) The cluster ID to associate the Flow instance with. Set this to `singlestoredb_workspace.id`.
 
 ### Read-Only
 

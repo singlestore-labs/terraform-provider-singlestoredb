@@ -29,7 +29,7 @@ type flowInstanceDataSourceGet struct {
 type flowInstanceDataSourceModel struct {
 	ID        types.String `tfsdk:"id"`
 	Name      types.String `tfsdk:"name"`
-	ClusterID types.String `tfsdk:"cluster_id"`
+	ClusterID types.String `tfsdk:"workspace_id"`
 	CreatedAt types.String `tfsdk:"created_at"`
 	DeletedAt types.String `tfsdk:"deleted_at"`
 	Endpoint  types.String `tfsdk:"endpoint"`
@@ -130,9 +130,9 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 			Optional:            conf.optionalName,
 			MarkdownDescription: "The name of the Flow instance. Either `id` or `name` must be specified.",
 		},
-		"cluster_id": schema.StringAttribute{
+		"workspace_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The unique identifier of the workspace associated with the Flow instance.",
+			MarkdownDescription: "The cluster ID associated with the Flow instance. This is `singlestoredb_workspace.id`.",
 		},
 		"created_at": schema.StringAttribute{
 			Computed:            true,

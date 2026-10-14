@@ -53,7 +53,7 @@ func TestReadsFlowInstanceByID(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", config.IDAttribute, flowInstance.FlowID.String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "name", flowInstance.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "cluster_id", util.Deref(flowInstance.ClusterID).String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "workspace_id", util.Deref(flowInstance.ClusterID).String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "endpoint", *flowInstance.Endpoint),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "size", *flowInstance.Size),
 				),
@@ -165,7 +165,7 @@ func TestReadsFlowInstanceByName(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", config.IDAttribute, flowInstance.FlowID.String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "name", flowInstance.Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "cluster_id", util.Deref(flowInstance.ClusterID).String()),
+					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "workspace_id", util.Deref(flowInstance.ClusterID).String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "endpoint", *flowInstance.Endpoint),
 					resource.TestCheckResourceAttr("data.singlestoredb_flow.this", "size", *flowInstance.Size),
 				),

@@ -1,6 +1,13 @@
 package workspaces_test
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
+
+func isMethodPath(r *http.Request, method, path string) bool {
+	return r.Method == method && r.URL.Path == path
+}
 
 func mustParseTimePtr(s string) *time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)

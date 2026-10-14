@@ -22,7 +22,7 @@ resource "singlestoredb_workspace" "example" {
 
 resource "singlestoredb_flow" "this" {
   name          = "my-flow-instance"
-  cluster_id    = singlestoredb_workspace.example.id
+  workspace_id  = singlestoredb_workspace.example.id
   user_name     = "admin"
   database_name = "my_database"
   size          = "F1"

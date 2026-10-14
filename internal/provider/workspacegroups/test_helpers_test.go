@@ -1,6 +1,18 @@
 package workspacegroups_test
 
-import "time"
+import (
+	"net/http"
+	"strings"
+	"time"
+)
+
+func isMethodPath(r *http.Request, method, path string) bool {
+	return r.Method == method && r.URL.Path == path
+}
+
+func isMethodSuffix(r *http.Request, method, suffix string) bool {
+	return r.Method == method && strings.HasSuffix(r.URL.Path, suffix)
+}
 
 func mustParseTimePtr(s string) *time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)

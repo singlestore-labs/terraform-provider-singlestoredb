@@ -144,5 +144,5 @@ terraform plan
 
 ## Resources that reference the workspace
 
-- `singlestoredb_flow` uses `cluster_id`. Set it to the same UUID that was `workspace_id` (the workspace / cluster ID).
+- `singlestoredb_flow` keeps `workspace_id`. Set it to `singlestoredb_workspace.id`; that UUID is the cluster ID.
 - `singlestoredb_private_connection` prefers `cluster_id`. `workspace_id` and `workspace_group_id` remain as deprecated aliases. `workspace_id` is the cluster ID.
