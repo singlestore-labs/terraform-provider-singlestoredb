@@ -51,5 +51,5 @@ output "this_private_connection" {
 - `type` (String) The private connection type.
 - `updated_at` (String) The timestamp of when the private connection was updated.
 - `web_socket_port` (Number) The websockets port.
-- `workspace_group_id` (String) Deprecated. Previously the workspace group ID; no longer returned by the v2 API.
-- `workspace_id` (String) Deprecated alias for cluster_id.
+- `workspace_group_id` (String) Deprecated temporary alias. Previously the workspace group ID; no longer returned by the v2 API. Removed with the workspace resources in the first release on or after April 30, 2027.
+- `workspace_id` (String) Deprecated temporary alias for cluster_id. Removed with the workspace resources in the first release on or after April 30, 2027.

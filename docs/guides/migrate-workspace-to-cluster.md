@@ -1,17 +1,51 @@
 ---
 page_title: "Migrating from Workspace to Cluster - terraform-provider-singlestoredb"
 description: |-
-  Keep singlestoredb_workspace and singlestoredb_workspace_group working, or move them to singlestoredb_cluster without recreating the deployment.
+  Upgrade to provider v0.2.0. singlestoredb_workspace and singlestoredb_workspace_group stay supported through 0.2.x and are removed in the first release on or after April 30, 2027.
 ---
 
 # Migrating from workspace to cluster
 
-`singlestoredb_workspace_group` and `singlestoredb_workspace` stay in the provider. Their arguments are unchanged. Under Management API `/v2/clusters`, a workspace and its workspace group are one cluster, so a few operations cannot work the way they did against `/v1/workspaceGroups` and `/v1/workspaces`.
+Provider v0.2.0 adopts the cluster model. Use `singlestoredb_cluster` for new configurations. One cluster replaces a workspace plus its workspace group.
 
-Use this guide in two ways:
+`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated in v0.2.0. Their arguments stay the same, and they receive bug fixes, through every 0.2.x release. Both resources are removed in the first provider release on or after April 30, 2027. If v0.2.0 is published after October 31, 2026, that removal date moves so the deprecation period is still six months. Upgrading does not require a state migration.
 
-- Keep the existing resources and check the behavior section before you upgrade the provider.
-- Replace them with `singlestoredb_cluster` when you want one resource for that deployment. The state migration does not recreate the cluster.
+Under Management API `/v2/clusters`, a workspace and its workspace group are one cluster, so a few operations cannot work the way they did against `/v1/workspaceGroups` and `/v1/workspaces`.
+
+Pin the provider version you run today until `terraform plan` is clean in a non-production configuration. This page is the upgrade notice: what changed, who must act, who can defer, and the removal date.
+
+## Do I need to act before upgrading?
+
+Act before you upgrade when a configuration has any of these:
+
+- `singlestoredb_regions` uses the nested region UUID `id`. Use `region_name` and `provider` instead. `singlestoredb_regions_v2` is the data source for new configurations.
+- A workspace group has more than one `singlestoredb_workspace`.
+- A new workspace group sets `region_id`. New groups use `cloud_provider` and `region_name`.
+- Automation destroys a workspace in a separate apply from its workspace group.
+- `admin_password` is set and must stay that exact value. Omitting it lets `/v2/clusters` generate the password that Terraform stores.
+
+You can upgrade and keep the deprecated resources when all of these are true:
+
+- The configuration has one workspace group and one workspace.
+- You have reviewed the behavior sections below.
+- `singlestoredb_flow` still sets `workspace_id` to `singlestoredb_workspace.id`. That UUID is the cluster ID.
+- `singlestoredb_private_connection` may keep `workspace_id` or `workspace_group_id` for now. Those arguments are temporary aliases. `cluster_id` is preferred, and the aliases are removed with the workspace resources.
+
+Moving an existing deployment to `singlestoredb_cluster` is optional while the deprecated resources still work.
+
+## Upgrade checklist
+
+1. Back up Terraform state and commit `.terraform.lock.hcl`.
+2. Pin v0.2.0 in a non-production configuration.
+3. Replace region UUIDs with `region_name` and the cloud provider.
+4. Run `terraform init -upgrade` and `terraform plan`. Do not apply a plan that destroys or replaces a deployment.
+5. If you keep the deprecated resources, confirm the group has one workspace and that the workspace and group are destroyed in the same apply.
+6. If you consolidate to `singlestoredb_cluster`, follow the state removal and import steps below and confirm the plan is empty.
+7. Apply in production only after the non-production plan is clean.
+
+## Roll back
+
+Keep the state backup and the lock file from the previous provider version. To roll back, restore that lock file, set `required_providers` to the previous version, and run `terraform init`. Do not apply a plan produced while a migration is incomplete.
 
 ## Behavior that stays the same
 
@@ -40,9 +74,11 @@ These `singlestoredb_workspace_group` and `singlestoredb_workspace` uses keep wo
 
 `singlestoredb_cluster` is the resource that matches `/v2/clusters`: one object for the workspace and its workspace group.
 
-Do this against the existing deployment. Import reads the cluster; it does not create a new one.
+Do this against the existing deployment. Import reads the cluster. It does not create a new one.
 
 A `moved` block cannot merge two resources into one. Remove both addresses from state, then import the cluster.
+
+A plan that replaces the cluster can destroy the deployment and its data. Do not apply that plan. Fix the configuration until `terraform plan` is empty.
 
 ### 1. Record the IDs and the admin password
 
@@ -110,7 +146,7 @@ terraform import singlestoredb_cluster.this <workspace-id>
 terraform plan
 ```
 
-`terraform plan` should be empty after you align `name` and the other attributes with the imported state. A plan that wants to replace the cluster means an identity field does not match the live object. Fix the configuration. Do not apply a replace if you need to keep the data.
+`terraform plan` should be empty after you align `name` and the other attributes with the imported state. A plan that wants to replace the cluster means an identity field does not match the live object. Fix the configuration. Applying a replacement destroys the cluster and its data.
 
 `endpoint` and `group_id` are computed. `id` is the workspace ID you imported.
 
@@ -144,5 +180,24 @@ terraform plan
 
 ## Resources that reference the workspace
 
-- `singlestoredb_flow` keeps `workspace_id`. Set it to `singlestoredb_workspace.id`; that UUID is the cluster ID.
-- `singlestoredb_private_connection` prefers `cluster_id`. `workspace_id` and `workspace_group_id` remain as deprecated aliases. `workspace_id` is the cluster ID.
+- `singlestoredb_flow` keeps `workspace_id`. Set it to `singlestoredb_workspace.id`; that UUID is the cluster ID. The provider sends it to the v2 API as `clusterID`.
+- `singlestoredb_private_connection` prefers `cluster_id`. `workspace_id` and `workspace_group_id` remain temporary aliases until the workspace resources are removed. `workspace_id` is the cluster ID.
+
+## Support
+
+Use this page for the impact list, commands, and rollback steps above. Configurations to review with customers before they upgrade:
+
+- More than one workspace in a workspace group.
+- `singlestoredb_regions` nested `id` values.
+- Workspace group creates that set `region_id`.
+- Automation that destroys a workspace separately from its workspace group.
+- A configured `admin_password` that can drift from the password `/v2/clusters` stores.
+
+Escalation:
+
+- Provider behavior and this guide: [open a GitHub issue](https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new).
+- Account or deployment access: [SingleStore support](https://www.singlestore.com/support/).
+
+## Two-week review
+
+For the first two weeks after v0.2.0 is published, review GitHub issues and failed migrations daily. Correct this guide when a step is wrong. Keep the April 30, 2027 removal date unless those reports show customers cannot finish the import procedure in six months. A change to that date must name the last 0.2.x release and the new removal date.

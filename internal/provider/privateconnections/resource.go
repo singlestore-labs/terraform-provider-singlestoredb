@@ -149,14 +149,14 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 			"workspace_group_id": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				DeprecationMessage:  "Use cluster_id instead. When set alone, a cluster in the group is resolved automatically.",
-				MarkdownDescription: "Deprecated. The ID of the workspace group; used to resolve a cluster ID when cluster_id/workspace_id are unset.",
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in the first release on or after April 30, 2027. When set alone, a cluster in the group is resolved automatically.",
+				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in the first release on or after April 30, 2027.",
 			},
 			"workspace_id": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				DeprecationMessage:  "Use cluster_id instead. Kept as a deprecated alias for cluster_id.",
-				MarkdownDescription: "Deprecated. Alias for cluster_id (the cluster / workspace to connect with).",
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in the first release on or after April 30, 2027.",
+				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in the first release on or after April 30, 2027.",
 			},
 			"cluster_id": schema.StringAttribute{
 				Optional:            true,

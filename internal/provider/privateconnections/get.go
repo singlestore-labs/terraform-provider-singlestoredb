@@ -153,11 +153,11 @@ func newPrivateConnectionDataSourceSchemaAttributes() map[string]schema.Attribut
 		},
 		"workspace_group_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Deprecated. Previously the workspace group ID; no longer returned by the v2 API.",
+			MarkdownDescription: "Deprecated temporary alias. Previously the workspace group ID; no longer returned by the v2 API. Removed with the workspace resources in the first release on or after April 30, 2027.",
 		},
 		"workspace_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Deprecated alias for cluster_id.",
+			MarkdownDescription: "Deprecated temporary alias for cluster_id. Removed with the workspace resources in the first release on or after April 30, 2027.",
 		},
 		"cluster_id": schema.StringAttribute{
 			Computed:            true,

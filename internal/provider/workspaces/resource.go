@@ -120,7 +120,8 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource manages a SingleStoreDB workspace. Use it with `singlestoredb_workspace_group` as before. The group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster; use `singlestoredb_cluster` for each deployment. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.",
+		DeprecationMessage:  config.WorkspaceResourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. This resource manages a SingleStoreDB workspace and stays supported through provider 0.2.x. It is removed in the first release on or after April 30, 2027. Use `singlestoredb_cluster` for new deployments. With `singlestoredb_workspace_group`, the group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

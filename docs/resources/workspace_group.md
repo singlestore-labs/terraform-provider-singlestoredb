@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace_group Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires project_name. Pair it with one singlestoredb_workspace, which adopts that cluster. name and update_window cannot be changed after create. New groups set cloud_provider and region_name; a group that already uses region_id keeps that value. See the migrate-workspace-to-cluster guide.
+  Deprecated. Manage SingleStoreDB workspace groups with this resource. It stays supported through provider 0.2.x and is removed in the first release on or after April 30, 2027. Use singlestoredb_cluster for new deployments. Creating a group provisions one starter cluster (size S-00) and requires project_name. Pair it with one singlestoredb_workspace, which adopts that cluster. name and update_window cannot be changed after create. New groups set cloud_provider and region_name; a group that already uses region_id keeps that value. See the migrate-workspace-to-cluster guide.
 ---
 
 # singlestoredb_workspace_group (Resource)
 
-Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.
+Deprecated. Manage SingleStoreDB workspace groups with this resource. It stays supported through provider 0.2.x and is removed in the first release on or after April 30, 2027. Use `singlestoredb_cluster` for new deployments. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.
 
 ## Example Usage
 

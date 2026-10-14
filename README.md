@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
+`terraform-provider-singlestoredb` is a Terraform provider for managing SingleStoreDB Cloud clusters. Use `singlestoredb_cluster` for new configurations. `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated: they stay supported through provider 0.2.x and are removed in the first release on or after April 30, 2027. The upgrade checklist is in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 ## Prerequisites
 
@@ -82,9 +82,27 @@ output "group_id" {
 }
 ```
 
-`singlestoredb_workspace_group` and `singlestoredb_workspace` stay supported with the same arguments. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it.
+The legacy resources below stay supported through provider 0.2.x. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it. They are removed in the first release on or after April 30, 2027.
 
-To manage that object as a single resource, use `singlestoredb_cluster`. The state move, attribute map, and the behavior that stays the same are in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
+```hcl
+# Legacy example. Prefer singlestoredb_cluster for new configurations.
+resource "singlestoredb_workspace_group" "example" {
+  name            = "group"
+  project_name    = "Standard Project"
+  firewall_ranges = ["0.0.0.0/0"]
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
+}
+
+resource "singlestoredb_workspace" "this" {
+  name               = "workspace-1"
+  workspace_group_id = singlestoredb_workspace_group.example.id
+  size               = "S-00"
+  suspended          = false
+}
+```
+
+The state move, attribute map, upgrade checklist, and rollback steps are in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 To try this example, follow these steps:
 

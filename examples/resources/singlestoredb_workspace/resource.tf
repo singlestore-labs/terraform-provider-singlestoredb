@@ -1,3 +1,7 @@
+# Legacy example. singlestoredb_workspace and singlestoredb_workspace_group are
+# deprecated. They stay supported through provider 0.2.x and are removed in the
+# first release on or after April 30, 2027. Use singlestoredb_cluster for new
+# configurations.
 provider "singlestoredb" {
   // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
   // Please set this environment variable with your SingleStore Management API key.

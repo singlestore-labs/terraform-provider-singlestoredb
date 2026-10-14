@@ -84,7 +84,8 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the schema for the resource.
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB workspace groups with this resource. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.",
+		DeprecationMessage:  config.WorkspaceResourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Manage SingleStoreDB workspace groups with this resource. It stays supported through provider 0.2.x and is removed in the first release on or after April 30, 2027. Use `singlestoredb_cluster` for new deployments. Creating a group provisions one starter cluster (size S-00) and requires `project_name`. Pair it with one `singlestoredb_workspace`, which adopts that cluster. `name` and `update_window` cannot be changed after create. New groups set `cloud_provider` and `region_name`; a group that already uses `region_id` keeps that value. See the migrate-workspace-to-cluster guide.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

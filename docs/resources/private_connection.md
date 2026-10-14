@@ -67,8 +67,8 @@ output "private_connection_id" {
 - `sql_port` (Number) The SQL port.
 - `type` (String) The private connection type.
 - `web_socket_port` (Number) The websockets port.
-- `workspace_group_id` (String, Deprecated) Deprecated. The ID of the workspace group; used to resolve a cluster ID when cluster_id/workspace_id are unset.
-- `workspace_id` (String, Deprecated) Deprecated. Alias for cluster_id (the cluster / workspace to connect with).
+- `workspace_group_id` (String, Deprecated) Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in the first release on or after April 30, 2027.
+- `workspace_id` (String, Deprecated) Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in the first release on or after April 30, 2027.
 
 ### Read-Only
 
