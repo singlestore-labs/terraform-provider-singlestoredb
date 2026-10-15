@@ -22,8 +22,10 @@ import (
 )
 
 var (
-	allowedList         = "651246146166"
-	updateAllowedList   = strings.Join([]string{"updated", allowedList}, "-")
+	allowedList = "651246146166"
+	// /v2/privateConnections stores an AWS account ID. A non-numeric value is accepted
+	// by PATCH and then left unchanged, so the update must be another 12-digit account ID.
+	updateAllowedList   = "210987654321"
 	privateConnectionID = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	workspaceID         = uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
 	workspaceGroupID    = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
