@@ -47,6 +47,18 @@ func TestToString(t *testing.T) {
 	require.Equal(t, s, util.ToString(types.StringValue(s)))
 }
 
+func TestNormalizeTimestampString(t *testing.T) {
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00Z"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01 00:00:00 +0000 UTC"))
+	require.Equal(t, "2026-09-30T10:20:12Z", util.NormalizeTimestampString("2026-09-30 10:20:12 +0000 UTC"))
+	require.Equal(t, "3h30m", util.NormalizeTimestampString("3h30m")) // duration passthrough
+}
+
+func TestMaybeExpiresAtStringValue(t *testing.T) {
+	require.True(t, util.MaybeExpiresAtStringValue(nil).IsNull())
+	require.Equal(t, "2222-01-01T00:00:00Z", util.MaybeExpiresAtStringValue(util.Ptr("2222-01-01 00:00:00 +0000 UTC")).ValueString())
+}
+
 func TestMaybeStringValue(t *testing.T) {
 	require.Equal(t, types.StringNull(), util.MaybeStringValue(nil))
 	s := "fizz"
@@ -84,20 +96,15 @@ func TestFirewallRanges(t *testing.T) {
 	require.Equal(t, []types.String{types.StringValue(a), types.StringValue(b)}, result)
 }
 
-func TestWorkspaceGroupStateStringValue(t *testing.T) {
-	state := management.WorkspaceGroupStateACTIVE
-	require.Equal(t, string(state), util.WorkspaceGroupStateStringValue(state).ValueString())
+func TestClusterStateStringValue(t *testing.T) {
+	state := management.ClusterStateACTIVE
+	require.Equal(t, string(state), util.ClusterStateStringValue(state).ValueString())
 }
 
-func TestWorkspaceStateString(t *testing.T) {
-	require.Nil(t, util.WorkspaceStateString(types.StringValue("something")))
-	active := string(management.WorkspaceStateACTIVE)
-	require.Equal(t, management.WorkspaceStateACTIVE, util.Deref(util.WorkspaceStateString(types.StringValue(active))))
-}
-
-func TestWorkspaceStateStringValue(t *testing.T) {
-	state := management.WorkspaceStateACTIVE
-	require.Equal(t, string(state), util.WorkspaceStateStringValue(state).ValueString())
+func TestClusterStateString(t *testing.T) {
+	require.Nil(t, util.ClusterStateString(types.StringValue("something")))
+	active := string(management.ClusterStateACTIVE)
+	require.Equal(t, management.ClusterStateACTIVE, util.Deref(util.ClusterStateString(types.StringValue(active))))
 }
 
 func mustUUIDSet(t *testing.T, ids ...string) types.Set {

@@ -1,3 +1,7 @@
+# Legacy example. singlestoredb_workspace and singlestoredb_workspace_group are
+# deprecated. They stay supported through provider 0.2.x and are removed in the
+# first release on or after April 30, 2027. Use singlestoredb_cluster for new
+# configurations.
 provider "singlestoredb" {
   // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
   // Please set this environment variable with your SingleStore Management API key.
@@ -6,11 +10,11 @@ provider "singlestoredb" {
 
 resource "singlestoredb_workspace_group" "example" {
   name            = "group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "this" {

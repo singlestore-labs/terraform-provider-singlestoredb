@@ -27,14 +27,14 @@ func ValidatePrivateConnection(plan PrivateConnectionModel, isUpdate bool) *util
 	var rules []validationRule
 
 	switch privateConnectionType {
-	case management.PrivateConnectionCreateTypeINBOUND:
+	case management.PrivateConnectionCreateV2TypeINBOUND:
 		rules = getInboundValidationRules(plan, isUpdate)
-	case management.PrivateConnectionCreateTypeOUTBOUND:
+	case management.PrivateConnectionCreateV2TypeOUTBOUND:
 		rules = getOutboundValidationRules(plan, isUpdate)
 	default:
 		return &util.SummaryWithDetailError{
 			Summary: "Unknown private connection type.",
-			Detail:  fmt.Sprintf("Invalid private connection type %s while it should be %s or %s", privateConnectionType, management.PrivateConnectionCreateTypeINBOUND, management.PrivateConnectionCreateTypeOUTBOUND),
+			Detail:  fmt.Sprintf("Invalid private connection type %s while it should be %s or %s", privateConnectionType, management.PrivateConnectionCreateV2TypeINBOUND, management.PrivateConnectionCreateV2TypeOUTBOUND),
 		}
 	}
 
@@ -54,7 +54,7 @@ func getInboundValidationRules(plan PrivateConnectionModel, isUpdate bool) []val
 	return []validationRule{
 		{isUpdate && isUndefined(plan.AllowList), allowListRequiredMsg},
 		{isDefined(plan.ServiceName), "service_name configuration is not allowed for INBOUND private connections."},
-		{isDefined(plan.KaiEndpointID) && isUndefined(plan.WorkspaceID), "workspace_id configuration is required for SingleStore Kai INBOUND private connections."},
+		{isDefined(plan.KaiEndpointID) && isUndefined(plan.WorkspaceID) && isUndefined(plan.ClusterID), "cluster_id (or workspace_id) configuration is required for SingleStore Kai INBOUND private connections."},
 		{isDefined(plan.KaiEndpointID) && isDefined(plan.AllowList), "allow_list configuration is not allowed for SingleStore Kai INBOUND private connections."},
 		{isUndefined(plan.KaiEndpointID) && isUndefined(plan.AllowList), allowListRequiredMsg},
 	}
@@ -77,6 +77,7 @@ func ValidatePrivateConnectionModifyPlan(plan, state PrivateConnectionModel) *ut
 		{hasChanged(plan.WebsocketsPort, state.WebsocketsPort), "Changing the web_socket_port configuration is currently not supported."},
 		{hasChanged(plan.WorkspaceGroupID, state.WorkspaceGroupID), "Changing the workspace_group_id configuration is not supported."},
 		{hasChanged(plan.WorkspaceID, state.WorkspaceID), "Changing the workspace_id configuration is not supported."},
+		{hasChanged(plan.ClusterID, state.ClusterID), "Changing the cluster_id configuration is not supported."},
 	}
 
 	for _, rule := range rules {

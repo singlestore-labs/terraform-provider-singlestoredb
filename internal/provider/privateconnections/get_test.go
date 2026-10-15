@@ -20,7 +20,7 @@ import (
 )
 
 func TestReadsPrivateConnection(t *testing.T) {
-	privateConnection := management.PrivateConnection{
+	privateConnection := management.ClusterPrivateConnection{
 		ActiveAt:            util.Ptr("2025-01-21T11:11:38.145343Z"),
 		AllowList:           util.Ptr("12345"),
 		CreatedAt:           util.Ptr("2025-01-21T11:11:38.145343Z"),
@@ -29,14 +29,13 @@ func TestReadsPrivateConnection(t *testing.T) {
 		OutboundAllowList:   util.Ptr("127.0.0.0"),
 		PrivateConnectionID: uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"),
 		ServiceName:         util.Ptr("test name"),
-		Status:              util.Ptr(management.PrivateConnectionStatusACTIVE),
-		Type:                util.Ptr(management.PrivateConnectionTypeINBOUND),
-		WorkspaceID:         util.Ptr(uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")),
-		WorkspaceGroupID:    uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
+		Status:              util.Ptr(management.ClusterPrivateConnectionStatusACTIVE),
+		Type:                util.Ptr(management.ClusterPrivateConnectionTypeINBOUND),
+		ClusterID:           util.Ptr(uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")),
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, fmt.Sprintf("/v1/privateConnections/%s", privateConnection.PrivateConnectionID), r.URL.Path)
+		require.Equal(t, fmt.Sprintf("/v2/privateConnections/%s", privateConnection.PrivateConnectionID), r.URL.Path)
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
 		_, err := w.Write(testutil.MustJSON(privateConnection))
 		require.NoError(t, err)
@@ -62,8 +61,7 @@ func TestReadsPrivateConnection(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "service_name", "test name"),
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "status", "ACTIVE"),
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "type", "INBOUND"),
-					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "workspace_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
-					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "workspace_group_id", "a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
+					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "cluster_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
 					resource.TestCheckResourceAttr("data.singlestoredb_private_connection.this", "updated_at", "2025-01-21T11:11:38.145343Z"),
 				),
 			},

@@ -68,7 +68,7 @@ func (d *flowInstancesDataSourceList) Read(ctx context.Context, req datasource.R
 		return
 	}
 
-	flowInstances, err := d.GetV1FlowWithResponse(ctx, &management.GetV1FlowParams{})
+	flowInstances, err := d.GetV2FlowWithResponse(ctx, &management.GetV2FlowParams{})
 	if serr := util.StatusOK(flowInstances, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,

@@ -24,7 +24,7 @@ nocache:
 
 generate: install tools
 	terraform fmt -recursive ./examples/
-	tfplugindocs
+	tfplugindocs generate --provider-name singlestoredb --rendered-provider-name terraform-provider-singlestoredb
 
 tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4

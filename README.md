@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
+`terraform-provider-singlestoredb` is a Terraform provider for managing SingleStoreDB Cloud clusters. Use `singlestoredb_cluster` for new configurations. `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated: they stay supported through provider 0.2.x and are removed in the first release on or after April 30, 2027. The upgrade checklist is in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 ## Prerequisites
 
@@ -48,7 +48,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample that creates a cluster via `/v2/clusters` (workspace + workspace group in one call):
 
 ```hcl
 provider "singlestoredb" {
@@ -57,13 +57,41 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
+resource "singlestoredb_cluster" "this" {
+  name            = "cluster-1"
+  project_name    = "Standard Project"
+  size            = "S-00"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
+  suspended       = false
+}
+
+output "endpoint" {
+  value = singlestoredb_cluster.this.endpoint
+}
+
+output "admin_password" {
+  value     = singlestoredb_cluster.this.admin_password
+  sensitive = true
+}
+
+output "group_id" {
+  value = singlestoredb_cluster.this.group_id
+}
+```
+
+The legacy resources below stay supported through provider 0.2.x. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it. They are removed in the first release on or after April 30, 2027.
+
+```hcl
+# Legacy example. Prefer singlestoredb_cluster for new configurations.
+resource "singlestoredb_workspace_group" "example" {
+  name            = "group"
+  project_name    = "Standard Project"
+  firewall_ranges = ["0.0.0.0/0"]
+  cloud_provider  = "AWS"
+  region_name     = "us-east-1"
 }
 
 resource "singlestoredb_workspace" "this" {
@@ -72,26 +100,19 @@ resource "singlestoredb_workspace" "this" {
   size               = "S-00"
   suspended          = false
 }
-
-output "endpoint" {
-  value = singlestoredb_workspace.this.endpoint
-}
-
-output "admin_password" {
-  value     = singlestoredb_workspace_group.example.admin_password
-  sensitive = true
-}
 ```
+
+The state move, attribute map, upgrade checklist, and rollback steps are in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 To try this example, follow these steps:
 
-1. **Create the workspace:**
+1. **Create the cluster:**
 
    ```shell
    terraform apply
    ```
 
-2. **Connect to the new workspace:**
+2. **Connect to the new cluster:**
 
    ```shell
    export endpoint=$(terraform output -raw endpoint)
@@ -99,7 +120,7 @@ To try this example, follow these steps:
    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
    ```
 
-3. **Terminate the workspace:**
+3. **Terminate the cluster:**
 
    ```shell
    terraform destroy

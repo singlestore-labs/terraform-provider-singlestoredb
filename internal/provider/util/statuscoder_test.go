@@ -12,7 +12,7 @@ import (
 )
 
 func TestStatusOK_StatusCodes(t *testing.T) {
-	input := management.GetV1RegionsResponse{
+	input := management.GetV2RegionsResponse{
 		Body: []byte("foo-bar-buzz-yes"),
 	}
 	result := util.StatusOK(input, nil)
@@ -28,7 +28,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotNil(t, result)
 	require.Contains(t, result.Detail, ierr.Error())
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
 	}, nil)
 	require.NotNil(t, result)
@@ -36,7 +36,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
 		Body:         []byte("error creating workspace group (group): no active plan found for project"),
 	}, nil)
@@ -45,7 +45,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
 		Body:         []byte("Access to organization is not authorized"),
 	}, nil)
@@ -55,7 +55,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
 	}, nil)
 	require.NotNil(t, result)
@@ -63,7 +63,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusBadRequest},
 		Body:         []byte("name: the length must be between 1 and 32"),
 	}, nil)
@@ -72,22 +72,22 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
 	}, nil)
 	require.NotNil(t, result)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
 	}, nil, util.ReturnNilOnNotFound)
 	require.Nil(t, result)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusInternalServerError},
 	}, nil, util.ReturnNilOnNotFound)
 	require.NotNil(t, result)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusOK},
 	}, nil)
 	require.Nil(t, result)
@@ -111,7 +111,7 @@ func TestMaybeBody(t *testing.T) {
 	require.Empty(t, util.MaybeBody(statusCoderNotStruct(0)))
 	require.Empty(t, util.MaybeBody(statusCoderWithoutBody{Code: 0}))
 	body := "buzz"
-	require.Equal(t, body, util.MaybeBody(management.GetV1RegionsResponse{
+	require.Equal(t, body, util.MaybeBody(management.GetV2RegionsResponse{
 		Body: []byte(body),
 	}))
 }

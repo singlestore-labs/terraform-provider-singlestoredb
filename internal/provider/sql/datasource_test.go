@@ -13,7 +13,6 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/zclconf/go-cty/cty"
 )
 
 func sqlQueryConfig(args string) string {
@@ -155,20 +154,15 @@ func TestSQLQueryIDChangesWhenArgsChange(t *testing.T) {
 }
 
 func TestSQLQueryDataSourceIntegration(t *testing.T) {
-	adminPassword := testAdminPassword
-	isDataAPIReady := testutil.IsDataAPIReady(adminPassword)
-
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey:             os.Getenv(config.EnvTestAPIKey),
 		WorkspaceGroupName: "example",
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.SQLQueryDataSource).
-					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
-					String(),
+				Config: examples.SQLQueryDataSource,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
+					testutil.IsDataAPIReadyUsingGroupPassword("singlestoredb_workspace.this", "singlestoredb_workspace_group.example"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_sql_query.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("data.singlestoredb_sql_query.this", "rows.#", "1"),
 					resource.TestCheckResourceAttr("data.singlestoredb_sql_query.this", "rows.0.value", "1"),

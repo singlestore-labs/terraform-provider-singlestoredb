@@ -64,7 +64,7 @@ func (d *privateConnectionsDataSourceList) Schema(_ context.Context, _ datasourc
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) { //nolint:cyclop
 	var data privateConnectionsListDataSourceModel
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
@@ -83,7 +83,31 @@ func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasou
 		return
 	}
 
-	privateConnections, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDPrivateConnectionsWithResponse(ctx, id, &management.GetV1WorkspaceGroupsWorkspaceGroupIDPrivateConnectionsParams{})
+	clustersResp, err := d.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(clustersResp, err); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
+
+		return
+	}
+
+	var clusterID *uuid.UUID
+	for _, cluster := range util.Deref(clustersResp.JSON200) {
+		if cluster.GroupID != nil && *cluster.GroupID == id && cluster.ClusterID != nil {
+			clusterID = cluster.ClusterID
+
+			break
+		}
+	}
+	if clusterID == nil {
+		resp.Diagnostics.AddError(
+			"No cluster found in workspace group",
+			"Could not resolve a cluster ID from workspace_group_id for listing private connections.",
+		)
+
+		return
+	}
+
+	privateConnections, err := d.GetV2ClustersClusterIDPrivateConnectionsWithResponse(ctx, *clusterID, &management.GetV2ClustersClusterIDPrivateConnectionsParams{})
 	if serr := util.StatusOK(privateConnections, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,

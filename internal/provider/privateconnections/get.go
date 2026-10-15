@@ -62,7 +62,7 @@ func (d *privateConnectionDataSourceGet) Read(ctx context.Context, req datasourc
 		return
 	}
 
-	privateConnection, err := d.GetV1PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV1PrivateConnectionsConnectionIDParams{})
+	privateConnection, err := d.GetV2PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV2PrivateConnectionsConnectionIDParams{})
 	if serr := util.StatusOK(privateConnection, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -153,11 +153,15 @@ func newPrivateConnectionDataSourceSchemaAttributes() map[string]schema.Attribut
 		},
 		"workspace_group_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The ID of the workspace group containing the private connection.",
+			MarkdownDescription: "Deprecated temporary alias. Previously the workspace group ID; no longer returned by the v2 API. Removed with the workspace resources in the first release on or after April 30, 2027.",
 		},
 		"workspace_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The ID of the workspace to connect with.",
+			MarkdownDescription: "Deprecated temporary alias for cluster_id. Removed with the workspace resources in the first release on or after April 30, 2027.",
+		},
+		"cluster_id": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The ID of the cluster connected with this private connection.",
 		},
 	}
 }
