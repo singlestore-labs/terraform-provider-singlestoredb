@@ -19,47 +19,52 @@ import (
 )
 
 func TestReadsWorkspaceGroups(t *testing.T) {
-	workspaceGroups := []management.WorkspaceGroup{
+	workspaceGroups := []management.Cluster{
 		{
 			AllowAllTraffic: nil,
-			CreatedAt:       "2023-02-28T05:33:06.3003Z",
+			CreatedAt:       mustParseTimePtr("2023-02-28T05:33:06.3003Z"),
 			ExpiresAt:       nil,
 			FirewallRanges:  util.Ptr([]string{"127.0.0.1/32"}),
 			Name:            "foo",
-			RegionID:        uuid.MustParse("0aa1aff3-4092-4a0c-bf36-da54e85a4fdf"),
-			Provider:        management.CloudProviderAWS,
-			RegionName:      "us-west-2",
-			State:           management.WorkspaceGroupStateACTIVE,
+			Provider:        util.Ptr(management.CloudProviderAWS),
+			Region:          util.Ptr("us-west-2"),
+			State:           util.Ptr(management.ClusterStateACTIVE),
 			TerminatedAt:    nil,
 			UpdateWindow: &management.UpdateWindow{
 				Day:  3,
 				Hour: 15,
 			},
-			WorkspaceGroupID:  uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce"),
+			GroupID:           util.Ptr(uuid.MustParse("e1a0a960-8591-4196-bb26-f53f0f8e35ce")),
 			DeploymentType:    &defaultDeploymentType,
 			OutboundAllowList: &testOutboundAllowList,
 		},
 		{
-			AllowAllTraffic:  util.Ptr(true),
-			CreatedAt:        "2022-07-15T15:11:09.185048Z",
-			ExpiresAt:        util.Ptr("2222-07-15T15:11:09.185048Z"),
-			FirewallRanges:   nil,
-			Name:             "bar",
-			RegionID:         uuid.MustParse("1aa1aff3-5092-4a0c-bf36-da54e85a5fdf"),
-			Provider:         management.CloudProviderGCP,
-			RegionName:       "us-west-1",
-			State:            management.WorkspaceGroupStatePENDING,
-			TerminatedAt:     nil,
-			UpdateWindow:     nil,
-			WorkspaceGroupID: uuid.MustParse("f1a0a960-8691-4196-bb26-f53f1f8e35ce"),
+			AllowAllTraffic: util.Ptr(true),
+			CreatedAt:       mustParseTimePtr("2022-07-15T15:11:09.185048Z"),
+			ExpiresAt:       util.Ptr("2222-07-15T15:11:09.185048Z"),
+			FirewallRanges:  nil,
+			Name:            "bar",
+			Provider:        util.Ptr(management.CloudProviderGCP),
+			Region:          util.Ptr("us-west-1"),
+			State:           util.Ptr(management.ClusterStatePENDING),
+			TerminatedAt:    nil,
+			UpdateWindow:    nil,
+			GroupID:         util.Ptr(uuid.MustParse("f1a0a960-8691-4196-bb26-f53f1f8e35ce")),
 		},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/workspaceGroups", r.URL.Path)
-		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
-		_, err := w.Write(testutil.MustJSON(workspaceGroups))
-		require.NoError(t, err)
+		w.Header().Add("Content-Type", "json")
+		switch r.URL.Path {
+		case pathV2Clusters:
+			_, err := w.Write(testutil.MustJSON(workspaceGroups))
+			require.NoError(t, err)
+		case pathV2Projects:
+			_, err := w.Write(testutil.MustJSON([]management.Project{}))
+			require.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
 	}))
 	t.Cleanup(server.Close)
 
@@ -79,10 +84,10 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 						strconv.Itoa(len(util.Deref(workspaceGroups[0].FirewallRanges))),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.name", workspaceGroups[0].Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.region_id", workspaceGroups[0].RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.cloud_provider", string(workspaceGroups[0].Provider)),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.region_name", workspaceGroups[0].RegionName),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.state", string(workspaceGroups[0].State)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.region_id"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.cloud_provider", string(util.Deref(workspaceGroups[0].Provider))),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.region_name", util.Deref(workspaceGroups[0].Region)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.state", string(util.Deref(workspaceGroups[0].State))),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.0.update_window.day",
 						strconv.Itoa(int(workspaceGroups[0].UpdateWindow.Day)),
@@ -96,16 +101,15 @@ func TestReadsWorkspaceGroups(t *testing.T) {
 						strconv.FormatBool(util.Deref(workspaceGroups[1].AllowAllTraffic)),
 					),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.expires_at",
-						util.Deref(workspaceGroups[1].ExpiresAt),
+						util.NormalizeTimestampString(util.Deref(workspaceGroups[1].ExpiresAt)),
 					),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.firewall_ranges.#",
-						strconv.Itoa(len(util.Deref(workspaceGroups[1].FirewallRanges))),
-					),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.firewall_ranges.0", "0.0.0.0/0"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.name", workspaceGroups[1].Name),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.region_id", workspaceGroups[1].RegionID.String()),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.cloud_provider", string(workspaceGroups[1].Provider)),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.region_name", workspaceGroups[1].RegionName),
-					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.state", string(workspaceGroups[1].State)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.region_id"),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.cloud_provider", string(util.Deref(workspaceGroups[1].Provider))),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.region_name", util.Deref(workspaceGroups[1].Region)),
+					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.state", string(util.Deref(workspaceGroups[1].State))),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.terminated_at"),
 					resource.TestCheckResourceAttr("data.singlestoredb_workspace_groups.all", "workspace_groups.1.update_window.%", "0"), // Not present for legacy schedules.
 				),

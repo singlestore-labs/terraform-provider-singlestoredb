@@ -45,6 +45,9 @@ const (
 	SupportURL = "https://www.singlestore.com/support/"
 	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
+	// WorkspaceResourceDeprecationMessage is the warning for singlestoredb_workspace
+	// and singlestoredb_workspace_group. Both stay supported through provider 0.2.x.
+	WorkspaceResourceDeprecationMessage = "Deprecated. This resource stays supported through provider 0.2.x, including bug fixes, and is removed in the first release on or after April 30, 2027. Use singlestoredb_cluster for new deployments. Existing configurations keep working. See the migrate-workspace-to-cluster guide."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

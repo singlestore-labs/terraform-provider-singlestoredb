@@ -126,7 +126,7 @@ func TestDerefSlice(t *testing.T) {
 }
 
 func TestJoin(t *testing.T) {
-	result := util.Join([]management.WorkspaceState{management.WorkspaceStateACTIVE, management.WorkspaceStateSUSPENDED}, ", ")
+	result := util.Join([]management.ClusterState{management.ClusterStateACTIVE, management.ClusterStateSUSPENDED}, ", ")
 	require.Equal(t, result, "ACTIVE, SUSPENDED")
 }
 

@@ -13,13 +13,13 @@ import (
 )
 
 // waitCondition return nil if it is satisfied.
-type waitCondition func(management.Workspace) error
+type waitCondition func(management.Cluster) error
 
-func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceID, timeout time.Duration, conditions ...waitCondition) (management.Workspace, *util.SummaryWithDetailError) {
-	result := management.Workspace{}
+func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
+	result := management.Cluster{}
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
-		workspace, err := c.GetV1WorkspacesWorkspaceIDWithResponse(ctx, id, &management.GetV1WorkspacesWorkspaceIDParams{})
+		workspace, err := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
 		if err != nil { // Not status code OK does not get here, not retrying for that reason.
 			ferr := fmt.Errorf("failed to get workspace %s: %w", id, err)
 
@@ -32,8 +32,8 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 			return retry.RetryableError(err)
 		}
 
-		if workspace.JSON200.State == management.WorkspaceStateFAILED {
-			err := fmt.Errorf("workspace %s failed; %s", workspace.JSON200.WorkspaceID, config.ContactSupportErrorDetail)
+		if clusterState(*workspace.JSON200) == management.ClusterStateFAILED {
+			err := fmt.Errorf("workspace %s failed; %s", util.Deref(workspace.JSON200.ClusterID), config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
@@ -57,19 +57,20 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 	return result, nil
 }
 
-func waitConditionState(states ...management.WorkspaceState) func(management.Workspace) error {
-	workspaceStateHistory := make([]management.WorkspaceState, 0, config.WorkspaceConsistencyThreshold)
+func waitConditionState(states ...management.ClusterState) func(management.Cluster) error {
+	workspaceStateHistory := make([]management.ClusterState, 0, config.WorkspaceConsistencyThreshold)
 
-	return func(w management.Workspace) error {
-		workspaceStateHistory = append(workspaceStateHistory, w.State)
+	return func(w management.Cluster) error {
+		state := clusterState(w)
+		workspaceStateHistory = append(workspaceStateHistory, state)
 
-		if !util.Any(states, w.State) {
-			return fmt.Errorf("workspace %s state is %s, but should be %s", w.WorkspaceID, w.State, util.Join(states, ", "))
+		if !util.Any(states, state) {
+			return fmt.Errorf("workspace %s state is %s, but should be %s", util.Deref(w.ClusterID), state, util.Join(states, ", "))
 		}
 
 		if !util.CheckLastN(workspaceStateHistory, config.WorkspaceConsistencyThreshold, states...) {
 			return fmt.Errorf("workspace %s state is %s but the Management API did not return the same state for the consequent %d iterations yet",
-				w.WorkspaceID, w.State, config.WorkspaceConsistencyThreshold,
+				util.Deref(w.ClusterID), state, config.WorkspaceConsistencyThreshold,
 			)
 		}
 
@@ -77,21 +78,22 @@ func waitConditionState(states ...management.WorkspaceState) func(management.Wor
 	}
 }
 
-func waitConditionSize(desiredSize string) func(management.Workspace) error {
-	return func(w management.Workspace) error {
-		if w.Size != desiredSize {
-			return fmt.Errorf("workspace %s size is %s, but should be %s", w.WorkspaceID, w.Size, desiredSize)
+func waitConditionSize(desiredSize string) func(management.Cluster) error {
+	return func(w management.Cluster) error {
+		size := clusterSize(w)
+		if size != desiredSize {
+			return fmt.Errorf("workspace %s size is %s, but should be %s", util.Deref(w.ClusterID), size, desiredSize)
 		}
 
 		return nil
 	}
 }
 
-func waitConditionTakesAtLeast(d time.Duration) func(management.Workspace) error {
+func waitConditionTakesAtLeast(d time.Duration) func(management.Cluster) error {
 	begin := time.Now()
 	atLeast := begin.Add(d)
 
-	return func(_ management.Workspace) error {
+	return func(_ management.Cluster) error {
 		if time.Now().Before(atLeast) {
 			return fmt.Errorf("should wait at least until %s (%s starting from %s)", atLeast.UTC(), d, begin)
 		}

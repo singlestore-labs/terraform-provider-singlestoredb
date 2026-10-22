@@ -3,16 +3,20 @@
 page_title: "singlestoredb_workspace Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This resource enables the management of SingleStoreDB workspaces.
+  Deprecated. This resource manages a SingleStoreDB workspace and stays supported through provider 0.2.x. It is removed in the first release on or after April 30, 2027. Use singlestoredb_cluster for new deployments. With singlestoredb_workspace_group, the group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and workspace_group_id stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to singlestoredb_cluster first. See the migrate-workspace-to-cluster guide.
 ---
 
 # singlestoredb_workspace (Resource)
 
-This resource enables the management of SingleStoreDB workspaces.
+Deprecated. This resource manages a SingleStoreDB workspace and stays supported through provider 0.2.x. It is removed in the first release on or after April 30, 2027. Use `singlestoredb_cluster` for new deployments. With `singlestoredb_workspace_group`, the group creates one starter cluster and the first workspace adopts that cluster, so the admin password, firewall, and `workspace_group_id` stay aligned. A second workspace in the same configuration is rejected. Do not add another workspace to a group that already has a cluster. Destroying the adopted workspace deletes that cluster; destroy the workspace group in the same apply, or move to `singlestoredb_cluster` first. See the migrate-workspace-to-cluster guide.
 
 ## Example Usage
 
 ```terraform
+# Legacy example. singlestoredb_workspace and singlestoredb_workspace_group are
+# deprecated. They stay supported through provider 0.2.x and are removed in the
+# first release on or after April 30, 2027. Use singlestoredb_cluster for new
+# configurations.
 provider "singlestoredb" {
   // The SingleStoreDB Terraform provider uses the SINGLESTOREDB_API_KEY environment variable for authentication.
   // Please set this environment variable with your SingleStore Management API key.
@@ -21,11 +25,11 @@ provider "singlestoredb" {
 
 resource "singlestoredb_workspace_group" "example" {
   name            = "group"
+  project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
 }
 
 resource "singlestoredb_workspace" "this" {

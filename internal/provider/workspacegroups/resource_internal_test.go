@@ -1,12 +1,14 @@
 package workspacegroups
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,4 +124,76 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 		require.Equal(t, int64(10), model.Hour.ValueInt64())
 		require.Equal(t, int64(5), model.Day.ValueInt64())
 	})
+}
+
+func TestApplyWorkspaceGroupRegion(t *testing.T) {
+	t.Run("keeps a previously configured region_id", func(t *testing.T) {
+		model := workspaceGroupResourceModel{}
+		prior := types.StringValue("3c0c0d99-3c09-45ac-a01f-5ab62afd35cf")
+		applyWorkspaceGroupRegion(&model, management.Cluster{
+			Provider: util.Ptr(management.CloudProviderAWS),
+			Region:   util.Ptr("us-east-1"),
+		}, prior)
+
+		require.Equal(t, prior, model.RegionID)
+		require.True(t, model.CloudProvider.IsNull())
+		require.True(t, model.RegionName.IsNull())
+	})
+
+	t.Run("uses provider and region name when region_id is unset", func(t *testing.T) {
+		model := workspaceGroupResourceModel{}
+		applyWorkspaceGroupRegion(&model, management.Cluster{
+			Provider: util.Ptr(management.CloudProviderAWS),
+			Region:   util.Ptr("us-east-1"),
+		}, types.StringNull())
+
+		require.True(t, model.RegionID.IsNull())
+		require.Equal(t, string(management.CloudProviderAWS), model.CloudProvider.ValueString())
+		require.Equal(t, "us-east-1", model.RegionName.ValueString())
+	})
+}
+
+func TestValidateRequiredRegionParameters(t *testing.T) {
+	regionID := types.StringValue("3c0c0d99-3c09-45ac-a01f-5ab62afd35cf")
+
+	t.Run("existing region_id configuration is valid", func(t *testing.T) {
+		err := validateRequiredRegionParameters(&workspaceGroupResourceModel{RegionID: regionID})
+		require.Nil(t, err)
+	})
+
+	t.Run("cloud provider and region name are valid", func(t *testing.T) {
+		err := validateRequiredRegionParameters(&workspaceGroupResourceModel{
+			CloudProvider: types.StringValue("AWS"),
+			RegionName:    types.StringValue("us-east-1"),
+		})
+		require.Nil(t, err)
+	})
+
+	t.Run("setting both region forms is invalid", func(t *testing.T) {
+		err := validateRequiredRegionParameters(&workspaceGroupResourceModel{
+			RegionID:      regionID,
+			CloudProvider: types.StringValue("AWS"),
+			RegionName:    types.StringValue("us-east-1"),
+		})
+		require.NotNil(t, err)
+	})
+
+	t.Run("setting neither region form is invalid", func(t *testing.T) {
+		err := validateRequiredRegionParameters(&workspaceGroupResourceModel{})
+		require.NotNil(t, err)
+	})
+}
+
+func TestValidateWorkspaceGroupName(t *testing.T) {
+	require.Nil(t, validateWorkspaceGroupName("group"))
+	require.Nil(t, validateWorkspaceGroupName(strings.Repeat("n", clusterNameMaxLen)))
+	require.NotNil(t, validateWorkspaceGroupName(strings.Repeat("n", clusterNameMaxLen+1)))
+	require.NotNil(t, validateWorkspaceGroupName(""))
+}
+
+func TestIsNotFound(t *testing.T) {
+	require.True(t, isNotFound(&util.SummaryWithDetailError{Summary: "Not Found"}))
+	require.True(t, isNotFound(&util.SummaryWithDetailError{Summary: "Workspace group not found"}))
+	require.False(t, isNotFound(&util.SummaryWithDetailError{Summary: "SingleStore API client call failed"}))
+	require.False(t, isNotFound(nil))
 }
