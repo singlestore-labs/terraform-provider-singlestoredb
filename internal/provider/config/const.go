@@ -48,6 +48,9 @@ const (
 	// RegionsDataSourceDeprecationMessage is shown when singlestoredb_regions is used.
 	// v1.0.0, the first release on or after April 30, 2027, removes the data source.
 	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027."
+	// WorkspaceResourceDeprecationMessage is shown on every plan that uses
+	// singlestoredb_workspace or singlestoredb_workspace_group.
+	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in this release, and plans print this warning. The next minor release rejects a plan that still uses singlestoredb_workspace or singlestoredb_workspace_group unless the provider block sets allow_deprecated_workspace_resources = true. These resources are removed in the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See the provider README, Upgrading from workspace resources."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

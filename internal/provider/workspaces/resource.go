@@ -109,7 +109,8 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This resource enables the management of SingleStoreDB workspaces.",
+		DeprecationMessage:  config.WorkspaceResourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Manage an existing SingleStoreDB workspace. " + config.WorkspaceResourceDeprecationMessage,
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

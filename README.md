@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work and are deprecated; see [Upgrading from workspace resources](#upgrading-from-workspace-resources).
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ To set up the provider, first export the generated API key to the `SINGLESTOREDB
 export SINGLESTOREDB_API_KEY="paste your generated SingleStoreDB API key here"
 ```
 
-SQL resources and data sources (`singlestoredb_sql_execute`, `singlestoredb_sql_query`) use separate workspace credentials. When the `password` attribute is unset, the provider reads from `SINGLESTORE_SQL_USER_PASSWORD` at apply/read/destroy time. This is independent of the Management API key.
+SQL resources and data sources (`singlestoredb_sql_execute`, `singlestoredb_sql_query`) use the database user password. When the `password` attribute is unset, the provider reads from `SINGLESTORE_SQL_USER_PASSWORD` at apply/read/destroy time. This is independent of the Management API key.
 
 Then, to specify the SingleStoreDB provider for use in your Terraform configuration, you will need to add a `required_providers` block. The easiest way to get the correct `required_providers` block is to visit the [SingleStoreDB provider page on the Terraform Registry](https://registry.terraform.io/providers/singlestore-labs/singlestoredb/latest). Click the "USE PROVIDER" button to see and copy the `required_providers` block with the latest version of the provider. Paste this block into your Terraform configuration file.
 
@@ -48,7 +48,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a cluster:
 
 ```hcl
 provider "singlestoredb" {
@@ -57,41 +57,40 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
+resource "singlestoredb_cluster" "this" {
+  name            = "cluster-1"
+  project_name    = "Standard Project"
+  size            = "S-00"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
-}
-
-resource "singlestoredb_workspace" "this" {
-  name               = "workspace-1"
-  workspace_group_id = singlestoredb_workspace_group.example.id
-  size               = "S-00"
-  suspended          = false
+  suspended       = false
 }
 
 output "endpoint" {
-  value = singlestoredb_workspace.this.endpoint
+  value = singlestoredb_cluster.this.endpoint
 }
 
 output "admin_password" {
-  value     = singlestoredb_workspace_group.example.admin_password
+  value     = singlestoredb_cluster.this.admin_password
   sensitive = true
+}
+
+output "group_id" {
+  value = singlestoredb_cluster.this.group_id
 }
 ```
 
 To try this example, follow these steps:
 
-1. **Create the workspace:**
+1. **Create the cluster:**
 
    ```shell
    terraform apply
    ```
 
-2. **Connect to the new workspace:**
+2. **Connect to the new cluster:**
 
    ```shell
    export endpoint=$(terraform output -raw endpoint)
@@ -99,11 +98,51 @@ To try this example, follow these steps:
    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
    ```
 
-3. **Terminate the workspace:**
+3. **Terminate the cluster:**
 
    ```shell
    terraform destroy
    ```
+
+## Upgrading from workspace resources
+
+`singlestoredb_cluster` is the resource for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in this release. `terraform plan` prints a deprecation warning and does not change what those resources do.
+
+The next minor release rejects a plan that still contains `singlestoredb_workspace` or `singlestoredb_workspace_group`, unless the provider block sets `allow_deprecated_workspace_resources = true`. That argument does not exist yet. Leave it unset until that release, then set it only to keep an existing configuration running for one more release:
+
+```hcl
+provider "singlestoredb" {
+  allow_deprecated_workspace_resources = true
+}
+```
+
+New configurations use `singlestoredb_cluster`. These resources are removed in the first release on or after April 30, 2027.
+
+Move an existing deployment without creating a new one. The cluster `id` is the workspace id. A `moved` block cannot merge the two resources into one.
+
+```shell
+terraform state show singlestoredb_workspace.this
+terraform state rm singlestoredb_workspace.this
+terraform state rm singlestoredb_workspace_group.example
+terraform import singlestoredb_cluster.this <workspace-id>
+terraform plan
+```
+
+Copy the workspace group `admin_password` before `terraform state rm`. The API does not return it again. Set `name` to the name `/v2/clusters` returns, which is usually the workspace group name. `terraform plan` should be empty after the other attributes match the imported state. A plan that replaces the cluster means an identity field does not match the live deployment. Fix the configuration before you apply. Applying a replacement destroys the cluster and its data.
+
+| Existing attribute | Cluster attribute |
+| --- | --- |
+| `singlestoredb_workspace.id` | `id` (import this value) |
+| `singlestoredb_workspace_group.id` | `group_id` (computed) |
+| `singlestoredb_workspace_group.name` | `name` (use the live API name) |
+| `singlestoredb_workspace.size` | `size` |
+| `singlestoredb_workspace.suspended` | `suspended` |
+| `singlestoredb_workspace_group.admin_password` | `admin_password` |
+| `singlestoredb_workspace_group.firewall_ranges` | `firewall_ranges` |
+| `singlestoredb_workspace_group.expires_at` | `expires_at` |
+| `singlestoredb_workspace_group.project_name` | `project_name` |
+| `singlestoredb_workspace_group.cloud_provider` | `cloud_provider` |
+| `singlestoredb_workspace_group.region_name` | `region_name` |
 
 ## Documentation
 
