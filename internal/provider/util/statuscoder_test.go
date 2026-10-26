@@ -36,7 +36,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
 		Body:         []byte("error creating workspace group (group): no active plan found for project"),
 	}, nil)
@@ -45,7 +45,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.InvalidAPIKeyErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
 		Body:         []byte("Access to organization is not authorized"),
 	}, nil)
@@ -63,7 +63,7 @@ func TestStatusOK_StatusCodes(t *testing.T) {
 	require.NotContains(t, result.Detail, config.CreditsErrorDetail)
 	require.NotContains(t, result.Detail, config.AccessNotAuthorizedErrorDetail)
 
-	result = util.StatusOK(management.GetV1RegionsResponse{
+	result = util.StatusOK(management.GetV2RegionsResponse{
 		HTTPResponse: &http.Response{StatusCode: http.StatusBadRequest},
 		Body:         []byte("name: the length must be between 1 and 32"),
 	}, nil)
