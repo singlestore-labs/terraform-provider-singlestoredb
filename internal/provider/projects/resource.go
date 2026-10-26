@@ -87,7 +87,7 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	createResp, err := r.PostV1ProjectsWithResponse(ctx, management.PostV1ProjectsJSONRequestBody{
+	createResp, err := r.PostV2ProjectsWithResponse(ctx, management.PostV2ProjectsJSONRequestBody{
 		Name:    util.ToString(plan.Name),
 		Edition: management.ProjectEdition(plan.Edition.ValueString()),
 	})
@@ -97,7 +97,7 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, createResp.JSON200.ProjectID)
+	project, err := r.GetV2ProjectsProjectIDWithResponse(ctx, createResp.JSON200.ProjectID)
 	if serr := util.StatusOK(project, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
@@ -117,7 +117,7 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	project, err := r.GetV2ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(project, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
@@ -144,7 +144,7 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	id := uuid.MustParse(plan.ID.ValueString())
-	patchResp, err := r.PatchV1ProjectsProjectIDWithResponse(ctx, id, management.PatchV1ProjectsProjectIDJSONRequestBody{
+	patchResp, err := r.PatchV2ProjectsProjectIDWithResponse(ctx, id, management.PatchV2ProjectsProjectIDJSONRequestBody{
 		Name: util.ToString(plan.Name),
 	})
 	if serr := util.StatusOK(patchResp, err); serr != nil {
@@ -153,7 +153,7 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	project, err := r.GetV1ProjectsProjectIDWithResponse(ctx, id)
+	project, err := r.GetV2ProjectsProjectIDWithResponse(ctx, id)
 	if serr := util.StatusOK(project, err); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
@@ -173,7 +173,7 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	deleteResp, err := r.DeleteV1ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	deleteResp, err := r.DeleteV2ProjectsProjectIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(deleteResp, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 

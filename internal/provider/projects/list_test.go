@@ -34,7 +34,7 @@ func TestReadsProjects(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/projects", r.URL.Path)
+		require.Equal(t, "/v2/projects", r.URL.Path)
 		require.Equal(t, http.MethodGet, r.Method)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(projects))

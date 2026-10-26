@@ -107,6 +107,40 @@ func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.St
 	return types.StringValue(string(wgs))
 }
 
+func ClusterStateStringValue(cs management.ClusterState) types.String {
+	return types.StringValue(string(cs))
+}
+
+// MaybeExpiresAtStringValue maps an API expiresAt value onto Terraform state.
+// /v2/clusters often returns Go's default time.String() format; normalize to RFC3339.
+func MaybeExpiresAtStringValue(s *string) types.String {
+	if s == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(NormalizeTimestampString(*s))
+}
+
+// NormalizeTimestampString parses common Management API timestamp spellings and
+// returns RFC3339. Unrecognized values are returned unchanged.
+func NormalizeTimestampString(value string) string {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02T15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+
+	return value
+}
+
 func WorkspaceStateString(wgs types.String) *management.WorkspaceState {
 	for _, s := range []management.WorkspaceState{
 		management.WorkspaceStateACTIVE,
@@ -135,10 +169,10 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	return convert(*input)
 }
 
-func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateType, error) {
-	for _, s := range []management.PrivateConnectionCreateType{
-		management.PrivateConnectionCreateTypeINBOUND,
-		management.PrivateConnectionCreateTypeOUTBOUND,
+func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateV2Type, error) {
+	for _, s := range []management.PrivateConnectionCreateV2Type{
+		management.INBOUND,
+		management.OUTBOUND,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return s, nil
@@ -146,6 +180,43 @@ func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnection
 	}
 
 	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
+}
+
+func MaybeInt(i types.Int64) *int {
+	if i.IsNull() || i.IsUnknown() {
+		return nil
+	}
+
+	v := int(i.ValueInt64())
+
+	return &v
+}
+
+func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspendType {
+	for _, s := range []management.AutoSuspendSuspendType{
+		management.AutoSuspendSuspendTypeIDLE,
+		management.AutoSuspendSuspendTypeDISABLED,
+		management.AutoSuspendSuspendTypeSCHEDULED,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func ClusterDeploymentTypeString(wgs types.String) *management.ClusterDeploymentType {
+	for _, s := range []management.ClusterDeploymentType{
+		management.ClusterDeploymentTypePRODUCTION,
+		management.ClusterDeploymentTypeNONPRODUCTION,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
 }
 
 func MaybeFloat32(f types.Float32) *float32 {
@@ -186,9 +257,9 @@ func WorkspaceCreateAutoSuspendSuspendTypeString(wgs types.String) *management.W
 
 func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceUpdateAutoSuspendSuspendType {
 	for _, s := range []management.WorkspaceUpdateAutoSuspendSuspendType{
-		management.IDLE,
-		management.DISABLED,
-		management.SCHEDULED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeIDLE,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeDISABLED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeSCHEDULED,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return &s
