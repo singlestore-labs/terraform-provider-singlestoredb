@@ -13,6 +13,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -46,7 +47,7 @@ var (
 func TestGrantRevokeTeamRoles(t *testing.T) {
 	grantedRoles := []management.IdentityRole{}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v1/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v2/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}
@@ -58,9 +59,35 @@ func TestGrantRevokeTeamRoles(t *testing.T) {
 		return true
 	}
 
+	clusterResolveHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		clusterPath := strings.Join([]string{"/v2/clusters", grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID.String()}, "/")
+		switch {
+		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
+			// alignClusterRoleResourceIDs lists clusters; empty list leaves IDs unchanged.
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON([]management.Cluster{}))
+			require.NoError(t, err)
+
+			return true
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(management.Cluster{
+				Name:      "mock-cluster",
+				ClusterID: util.Ptr(grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID),
+				ProjectID: grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID,
+			}))
+			require.NoError(t, err)
+
+			return true
+		default:
+			return false
+		}
+	}
+
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		identityRolesHandler,
 		identityRolesHandler,
+		clusterResolveHandler,
 	}
 
 	teamsAccessControlsPatchHandler := func(w http.ResponseWriter, r *http.Request) {

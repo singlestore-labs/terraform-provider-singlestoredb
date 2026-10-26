@@ -26,11 +26,11 @@ type regionsListDataSourceModel struct {
 	Regions []regionModel `tfsdk:"regions"`
 }
 
-// regionModel maps regions schema data.
+// regionModel maps regions schema data (aligned with RegionV2 / regions_v2).
 type regionModel struct {
-	ID       types.String `tfsdk:"id"`
-	Provider types.String `tfsdk:"provider"`
-	Region   types.String `tfsdk:"region"`
+	Provider   types.String `tfsdk:"provider"`
+	Region     types.String `tfsdk:"region"`
+	RegionName types.String `tfsdk:"region_name"`
 }
 
 var _ datasource.DataSourceWithConfigure = &regionsDataSourceList{}
@@ -58,10 +58,6 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						config.IDAttribute: schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "The unique identifier for the region.",
-						},
 						"provider": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "The name of the cloud provider hosting the region.",
@@ -69,6 +65,10 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 						"region": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "The name of the region.",
+						},
+						"region_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The region code name.",
 						},
 					},
 				},
@@ -79,8 +79,7 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	// v1 regions stay until singlestoredb_regions moves to the v2 API.
-	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{}) //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
+	regions, err := d.GetV2RegionsWithResponse(ctx, &management.GetV2RegionsParams{})
 	if serr := util.StatusOK(regions, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -108,10 +107,10 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toRegionsDataSourceModel(region management.Region) regionModel { //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
+func toRegionsDataSourceModel(region management.RegionV2) regionModel {
 	return regionModel{
-		ID:       types.StringValue(region.RegionID.String()),
-		Provider: types.StringValue(string(region.Provider)),
-		Region:   types.StringValue(region.Region),
+		Provider:   types.StringValue(string(region.Provider)),
+		Region:     types.StringValue(region.Region),
+		RegionName: types.StringValue(region.RegionName),
 	}
 }
