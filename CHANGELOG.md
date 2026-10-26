@@ -36,6 +36,7 @@ Provider v0.2.0 adopts the cluster model. The upgrade checklist, rollback steps,
 
 ### Fixed
 
+- `admin_password` is rejected when it fails the Management API `/v2/clusters` complexity rules. On create, that API replaces such a password, returns the generated password only in the create response, and the provider was storing the configured value, which cannot log in. If a create response still contains a different password, the new cluster is deleted and the apply fails.
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
 - `singlestoredb_workspace_group` refresh keeps a configured `region_id`. `/v2/clusters` does not return a region UUID, and the previous read stored null, which dropped the value from state.
 - A missing workspace group (`Not Found`) is removed from state on read. The check did not match the status text, so a deleted group stayed in state and errored instead.

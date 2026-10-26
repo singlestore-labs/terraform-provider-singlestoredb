@@ -55,7 +55,7 @@ output "group_id" {
 
 ### Optional
 
-- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long.
+- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. If omitted, Management API /v2/clusters generates a password and Terraform stores that generated value. A configured password must contain at least 14 characters, an uppercase letter, a lowercase letter, a digit, and a special character. It may include at most 2 consecutive sequential characters, such as "ab" or "12", and at most 3 identical characters in a row. The provider rejects a password that fails these rules, because /v2/clusters would generate a different password on create and return it only in that response.
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the cluster. (see [below for nested schema](#nestedatt--auto_scale))
 - `auto_suspend` (Attributes) Auto suspend settings for the cluster. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the cluster. It can have one of the following values: 1, 2, or 4. Default is 1.

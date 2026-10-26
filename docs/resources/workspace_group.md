@@ -39,7 +39,7 @@ resource "singlestoredb_workspace_group" "this" {
 
 ### Optional
 
-- `admin_password` (String, Sensitive) The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long. Please note that updates to the admin password might take a brief moment to become effective.
+- `admin_password` (String, Sensitive) The admin SQL user password for the workspace group. If omitted, Management API /v2/clusters generates a password and Terraform stores that generated value. A configured password must contain at least 14 characters, an uppercase letter, a lowercase letter, a digit, and a special character. It may include at most 2 consecutive sequential characters, such as "ab" or "12", and at most 3 identical characters in a row. The provider rejects a password that fails these rules, because /v2/clusters would generate a different password on create and return it only in that response. Updates to the admin password might take a brief moment to become effective.
 - `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.
 - `deployment_type` (String) The deployment type that will be applied to all the workspaces within the workspace group. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
 - `expires_at` (String) The expiration timestamp of the workspace group. If not specified, the workspace group never expires. Upon expiration, the workspace group is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".

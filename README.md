@@ -6,7 +6,8 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing SingleStoreDB Cloud clusters. Use `singlestoredb_cluster` for new configurations. `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated: they stay supported through provider 0.2.x and are removed in the first release on or after April 30, 2027. The upgrade checklist is in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud.
+Use `singlestoredb_cluster` for new configurations. `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated: they stay supported through provider 0.2.x and are removed in the first release on or after April 30, 2027. The upgrade checklist is in [docs/guides/migrate-workspace-to-cluster.md](docs/guides/migrate-workspace-to-cluster.md).
 
 ## Prerequisites
 
@@ -48,7 +49,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample that creates a cluster via `/v2/clusters` (workspace + workspace group in one call):
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample that creates a cluster via `/v2/clusters` (this corresponds to legacy workspace + workspace group in one call):
 
 ```hcl
 provider "singlestoredb" {
@@ -82,7 +83,7 @@ output "group_id" {
 }
 ```
 
-The legacy resources below stay supported through provider 0.2.x. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it. They are removed in the first release on or after April 30, 2027.
+The legacy resources below stay supported through provider 0.2.x. A workspace group and its first workspace are one `/v2/clusters` object: the group creates a starter cluster and the workspace adopts it. They are removed in the first release on or after April 30, 2027. Use `singlestoredb_cluster` cluster resource instead.
 
 ```hcl
 # Legacy example. Prefer singlestoredb_cluster for new configurations.

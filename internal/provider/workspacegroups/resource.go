@@ -144,9 +144,9 @@ func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:            true,
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The admin SQL user password for the workspace group. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long. Please note that updates to the admin password might take a brief moment to become effective.`,
+				MarkdownDescription: util.AdminPasswordMarkdown("workspace group") + " Updates to the admin password might take a brief moment to become effective.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(config.AdminPasswordMinLength),
+					util.NewAdminPasswordValidator(),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -278,11 +278,8 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	}
 
 	workspaceGroupCreateResponse, err := r.PostV2ClustersWithResponse(ctx, createBody)
-	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
-		resp.Diagnostics.AddError(
-			serr.Summary,
-			serr.Detail,
-		)
+	if serr := util.CheckCreatedAdminPassword(ctx, r.ClientWithResponsesInterface, workspaceGroupCreateResponse, err, plan.AdminPassword.ValueString()); serr != nil {
+		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
 	}

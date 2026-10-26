@@ -21,8 +21,8 @@ A plan that replaces the cluster can destroy the deployment and its data. Do not
 ### 1. Record the IDs and the admin password
 
 ```shell
-terraform state show singlestoredb_workspace.this
-terraform state show singlestoredb_workspace_group.example
+terraform state show singlestoredb_workspace.workspace_name
+terraform state show singlestoredb_workspace_group.wg_name
 ```
 
 Copy these values before the next step. `terraform state rm` drops them from state.
@@ -39,7 +39,7 @@ Remove `singlestoredb_workspace_group` and `singlestoredb_workspace`. Add `singl
 Before:
 
 ```terraform
-resource "singlestoredb_workspace_group" "example" {
+resource "singlestoredb_workspace_group" "wg_name" {
   name            = "group"
   project_name    = "Standard Project"
   firewall_ranges = ["0.0.0.0/0"]
@@ -48,9 +48,9 @@ resource "singlestoredb_workspace_group" "example" {
   region_name     = "us-east-1"
 }
 
-resource "singlestoredb_workspace" "this" {
+resource "singlestoredb_workspace" "workspace_name" {
   name               = "workspace-1"
-  workspace_group_id = singlestoredb_workspace_group.example.id
+  workspace_group_id = singlestoredb_workspace_group.wg_name.id
   size               = "S-00"
   suspended          = false
 }
@@ -78,8 +78,8 @@ resource "singlestoredb_cluster" "this" {
 ### 3. Move state and import
 
 ```shell
-terraform state rm singlestoredb_workspace.this
-terraform state rm singlestoredb_workspace_group.example
+terraform state rm singlestoredb_workspace.workspace_name
+terraform state rm singlestoredb_workspace_group.wg_name
 terraform import singlestoredb_cluster.this <workspace-id>
 terraform plan
 ```

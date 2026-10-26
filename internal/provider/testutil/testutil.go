@@ -214,8 +214,8 @@ func IsDataAPIReady(adminPassword string) resource.CheckResourceAttrWithFunc {
 }
 
 // IsDataAPIReadyUsingGroupPassword reads the workspace endpoint and workspace-group
-// admin_password from Terraform state. /v2/clusters often ignores configured passwords
-// and returns a generated one that must be used for connectivity checks.
+// admin_password from Terraform state. When the configuration omits admin_password,
+// that state value is the password /v2/clusters generated on create.
 func IsDataAPIReadyUsingGroupPassword(workspaceAddr, groupAddr string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		ws, ok := s.RootModule().Resources[workspaceAddr]
