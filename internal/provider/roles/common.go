@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
@@ -509,15 +510,24 @@ func applyOrganizationAccessControls(ctx context.Context, r management.ClientWit
 }
 
 func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	clusterID, err := resolveClusterIDForAccessControls(ctx, r, resourceID)
+	target, err := resolveClusterAccessTarget(ctx, r, resourceID)
 	if err != nil {
 		return false, err
 	}
 
-	response, err := r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, clusterID, management.PatchV2ClustersClusterIDAccessControlsJSONRequestBody{
+	body := management.ControlAccessAction{
 		Grants:  grants,
 		Revokes: revokes,
-	})
+	}
+	var response util.StatusCoder
+	switch target.endpoint {
+	case clusterAccessEndpointV1WorkspaceGroup:
+		response, err = r.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, target.id, body)
+	case clusterAccessEndpointV2Cluster:
+		response, err = r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, target.id, body)
+	default:
+		return false, fmt.Errorf("unsupported cluster access endpoint")
+	}
 	if serr := util.StatusOK(response, err); serr != nil {
 		return false, serr
 	}
@@ -525,30 +535,61 @@ func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientW
 	return true, nil
 }
 
-// resolveClusterIDForAccessControls accepts either a cluster ID or a workspace group ID.
-// Terraform configs historically pass singlestoredb_workspace_group.id (group ID) for
-// resource_type = "Cluster"; /v2/clusters/{id}/accessControls expects a cluster ID.
-func resolveClusterIDForAccessControls(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (uuid.UUID, error) {
-	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
-	if err == nil && direct != nil && direct.StatusCode() == 200 && direct.JSON200 != nil {
-		return resourceID, nil
+// clusterAccessEndpoint selects the access-control API for a Cluster role.
+// A workspace group ID keeps using the v1 workspace-group API. A cluster ID,
+// including one resolved from a parent group that is not itself a workspace group,
+// uses the v2 cluster API.
+type clusterAccessEndpoint int
+
+const (
+	clusterAccessEndpointV2Cluster clusterAccessEndpoint = iota
+	clusterAccessEndpointV1WorkspaceGroup
+)
+
+type clusterAccessTarget struct {
+	endpoint clusterAccessEndpoint
+	id       uuid.UUID
+}
+
+// resolveClusterAccessTarget accepts a cluster ID or a workspace group ID.
+// Terraform configs pass singlestoredb_workspace_group.id for resource_type = "Cluster".
+// That ID is the group, not a v2 cluster, so access controls stay on the workspace group.
+func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (clusterAccessTarget, error) {
+	if clusterExists(ctx, c, resourceID) {
+		return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: resourceID}, nil
+	}
+
+	if workspaceGroupExists(ctx, c, resourceID) {
+		return clusterAccessTarget{endpoint: clusterAccessEndpointV1WorkspaceGroup, id: resourceID}, nil
 	}
 
 	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
 	if serr := util.StatusOK(list, err); serr != nil {
-		return uuid.UUID{}, serr
+		return clusterAccessTarget{}, serr
 	}
 
 	for _, cluster := range util.Deref(list.JSON200) {
 		if cluster.GroupID != nil && *cluster.GroupID == resourceID && cluster.ClusterID != nil {
-			return *cluster.ClusterID, nil
+			return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: *cluster.ClusterID}, nil
 		}
 	}
 
-	return uuid.UUID{}, &util.SummaryWithDetailError{
+	return clusterAccessTarget{}, &util.SummaryWithDetailError{
 		Summary: "Failed to resolve cluster ID",
-		Detail:  fmt.Sprintf("No cluster was found for resource ID %s (tried as cluster ID and as workspace group ID).", resourceID),
+		Detail:  fmt.Sprintf("No cluster or workspace group was found for resource ID %s (tried as cluster ID, as workspace group ID, and as the group that contains a cluster).", resourceID),
 	}
+}
+
+func clusterExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) bool {
+	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
+
+	return err == nil && direct != nil && direct.StatusCode() == http.StatusOK && direct.JSON200 != nil
+}
+
+func workspaceGroupExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) bool {
+	group, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, resourceID, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
+
+	return err == nil && group != nil && group.StatusCode() == http.StatusOK && group.JSON200 != nil
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
