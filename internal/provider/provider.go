@@ -64,7 +64,7 @@ func (p *singlestoreProvider) Metadata(_ context.Context, _ provider.MetadataReq
 // Schema defines the provider-level schema for configuration data.
 func (p *singlestoreProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB workspace groups and workspaces.",
+		MarkdownDescription: "The Terraform provider plugin for managing SingleStoreDB clusters. Use `singlestoredb_cluster` for new deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated: they keep working in this release and plans warn. The next minor release fails planning those resources unless `allow_deprecated_workspace_resources` is set. They are removed in the first release on or after April 30, 2027.",
 		Attributes: map[string]schema.Attribute{
 			config.APIKeyAttribute: schema.StringAttribute{
 				MarkdownDescription: fmt.Sprintf("The SingleStore Management API key used for authentication. If not provided, the provider will attempt to read the key from the file specified in the '%s' attribute or from the environment variable '%s'. Generate your API key in the SingleStore Portal at %s.", config.APIKeyPathAttribute, config.EnvAPIKey, config.PortalAPIKeysPageRedirect),

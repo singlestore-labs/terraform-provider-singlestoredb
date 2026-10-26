@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This resource enables the management of SingleStoreDB workspaces.
+  Deprecated. Manage an existing SingleStoreDB workspace. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in this release, and plans print this warning. The next minor release rejects a plan that still uses singlestoredb_workspace or singlestoredb_workspace_group unless the provider block sets allow_deprecated_workspace_resources = true. These resources are removed in the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See the provider README, Upgrading from workspace resources.
 ---
 
 # singlestoredb_workspace (Resource)
 
-This resource enables the management of SingleStoreDB workspaces.
+Deprecated. Manage an existing SingleStoreDB workspace. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in this release, and plans print this warning. The next minor release rejects a plan that still uses singlestoredb_workspace or singlestoredb_workspace_group unless the provider block sets allow_deprecated_workspace_resources = true. These resources are removed in the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See the provider README, Upgrading from workspace resources.
 
 ## Example Usage
 

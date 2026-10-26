@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources. Use the cluster resource for new deployments.
+
+### Changed
+
+- `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior. Plans print a deprecation warning. The next minor release fails planning those resources unless `allow_deprecated_workspace_resources` is set. The resources are removed in the first release on or after April 30, 2027.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
