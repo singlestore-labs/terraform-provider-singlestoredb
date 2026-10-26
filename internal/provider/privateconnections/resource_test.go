@@ -336,8 +336,10 @@ func TestPrivateConnectionResourceIntegration(t *testing.T) {
 				),
 			},
 			{
+				// A value such as "updated-<account>" is left unchanged by the live API,
+				// so the wait for the new allow_list never finishes. Use another 12-digit account ID.
 				Config: testutil.UpdatableConfig(examples.PrivateConnectionsResource).
-					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
+					WithPrivateConnectionResource("this")("allow_list", cty.StringVal("123456789012")).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", config.IDAttribute),
