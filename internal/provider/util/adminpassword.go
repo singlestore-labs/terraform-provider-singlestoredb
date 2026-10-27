@@ -7,7 +7,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 )
@@ -17,15 +19,37 @@ const (
 	adminPasswordMaxRepeat     = 3
 )
 
+// SkipAdminPasswordValidationAttribute turns off the provider's admin_password
+// rule check for a resource. It exists so that a change to the Management API
+// password rules does not block users until the provider is updated.
+const SkipAdminPasswordValidationAttribute = "skip_admin_password_validation"
+
+// AdminPasswordRules describes the Management API /v2/clusters password rules
+// that the provider checks.
+func AdminPasswordRules() string {
+	return fmt.Sprintf(
+		"at least %d characters, an uppercase letter, a lowercase letter, a digit, and a special character, "+
+			"at most %d consecutive sequential characters (such as \"ab\" or \"12\"), "+
+			"and at most %d identical characters in a row",
+		config.AdminPasswordMinLength,
+		adminPasswordMaxSequential,
+		adminPasswordMaxRepeat,
+	)
+}
+
 // AdminPasswordMarkdown describes admin_password for resource schemas.
 // subject is the resource noun, such as "cluster" or "workspace group".
 func AdminPasswordMarkdown(subject string) string {
 	return fmt.Sprintf(
-		"The admin SQL user password for the %s. If omitted, Management API /v2/clusters generates a password and Terraform stores that generated value. A configured password must contain at least %d characters, an uppercase letter, a lowercase letter, a digit, and a special character. It may include at most %d consecutive sequential characters, such as \"ab\" or \"12\", and at most %d identical characters in a row. The provider rejects a password that fails these rules, because /v2/clusters would generate a different password on create and return it only in that response.",
+		"The admin SQL user password for the %s. If omitted, Management API /v2/clusters generates a password and Terraform stores that generated value. "+
+			"A configured password must have %s. "+
+			"The provider checks these rules during plan; set `%s = true` to turn the check off if the API rules have changed. "+
+			"If the API still does not accept the configured password on create, it generates a different one, so the provider deletes the new %s and fails, "+
+			"rather than store a password that cannot log in.",
 		subject,
-		config.AdminPasswordMinLength,
-		adminPasswordMaxSequential,
-		adminPasswordMaxRepeat,
+		AdminPasswordRules(),
+		SkipAdminPasswordValidationAttribute,
+		subject,
 	)
 }
 
@@ -181,36 +205,49 @@ func CheckCreatedAdminPassword(ctx context.Context, c management.ClientWithRespo
 }
 
 // RejectReplacedAdminPassword deletes a cluster whose create response replaced
-// the configured password. The generated password is included only when the
-// cluster cannot be deleted, because that response is the only time the API
-// returns it.
+// the configured password, and returns an error that explains how to set a
+// password the API accepts. The generated password is never included, because
+// error output often ends up in CI logs.
 func RejectReplacedAdminPassword(ctx context.Context, c management.ClientWithResponsesInterface, clusterID uuid.UUID, configured, apiReturned string) *SummaryWithDetailError {
 	if !AdminPasswordWasReplaced(configured, apiReturned) {
 		return nil
 	}
 
-	summary := "Admin password was not applied"
-	detail := "Management API /v2/clusters did not keep the configured admin_password and returned a different generated password. " +
-		"That generated password is not available on later reads. " +
-		"The new cluster was deleted so Terraform would not store a password that cannot log in. " +
-		"Set a password that meets the API rules, or omit admin_password."
+	summary := "Admin password was rejected"
+	cause := "Management API /v2/clusters did not accept the configured admin_password and generated a different password instead. " +
+		"Terraform does not store a password that cannot log in."
 
-	if clusterID == uuid.Nil {
-		return &SummaryWithDetailError{
-			Summary: summary,
-			Detail:  detail + " The create response did not include a cluster ID, so the cluster was not deleted. Generated password: " + apiReturned,
+	var outcome string
+	switch {
+	case clusterID == uuid.Nil:
+		outcome = "The create response did not include a cluster ID, so the new cluster could not be deleted. " +
+			"Delete it in the SingleStore Portal before you apply again."
+	default:
+		deleteResponse, err := c.DeleteV2ClustersClusterIDWithResponse(ctx, clusterID)
+		if serr := StatusOK(deleteResponse, err, ReturnNilOnNotFound); serr != nil {
+			outcome = fmt.Sprintf("The new cluster %s could not be deleted (%s). "+
+				"Delete it in the SingleStore Portal before you apply again.", clusterID, serr.Detail)
+		} else {
+			outcome = fmt.Sprintf("The new cluster %s was deleted.", clusterID)
 		}
 	}
 
-	deleteResponse, err := c.DeleteV2ClustersClusterIDWithResponse(ctx, clusterID)
-	if serr := StatusOK(deleteResponse, err, ReturnNilOnNotFound); serr != nil {
-		return &SummaryWithDetailError{
-			Summary: summary,
-			Detail:  fmt.Sprintf("%s Cluster %s could not be deleted (%s). Generated password: %s", detail, clusterID, serr.Detail, apiReturned),
-		}
+	return &SummaryWithDetailError{
+		Summary: summary,
+		Detail:  cause + " " + outcome + "\n\n" + adminPasswordFixInstructions(configured),
+	}
+}
+
+func adminPasswordFixInstructions(configured string) string {
+	known := "The configured password meets the rules the provider knows, so the API rules have likely changed. " +
+		"Check the SingleStore documentation for the current password requirements."
+	if problems := AdminPasswordProblems(configured); len(problems) > 0 {
+		known = "The configured password fails these rules: it " + strings.Join(problems, "; ") + "."
 	}
 
-	return &SummaryWithDetailError{Summary: summary, Detail: detail}
+	return "To fix this, do one of the following, then apply again:\n" +
+		"  - Set admin_password to a password with " + AdminPasswordRules() + ". " + known + "\n" +
+		"  - Remove admin_password to let the API generate a password. Terraform stores the generated password in admin_password."
 }
 
 var _ validator.String = &adminPasswordValidator{}
@@ -218,15 +255,25 @@ var _ validator.String = &adminPasswordValidator{}
 type adminPasswordValidator struct{}
 
 func (v adminPasswordValidator) Description(context.Context) string {
-	return "must meet Management API /v2/clusters password rules"
+	return "must meet Management API /v2/clusters password rules unless " + SkipAdminPasswordValidationAttribute + " is true"
 }
 
 func (v adminPasswordValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
-func (v adminPasswordValidator) ValidateString(_ context.Context, request validator.StringRequest, response *validator.StringResponse) {
+func (v adminPasswordValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
 	if request.ConfigValue.IsNull() || request.ConfigValue.IsUnknown() {
+		return
+	}
+
+	var skip types.Bool
+	response.Diagnostics.Append(request.Config.GetAttribute(ctx, path.Root(SkipAdminPasswordValidationAttribute), &skip)...)
+	if response.Diagnostics.HasError() {
+		return
+	}
+	// An unknown skip value may turn out true, so do not block the plan on it.
+	if skip.IsUnknown() || skip.ValueBool() {
 		return
 	}
 
@@ -238,15 +285,18 @@ func (v adminPasswordValidator) ValidateString(_ context.Context, request valida
 	response.Diagnostics.AddAttributeError(
 		request.Path,
 		"Invalid admin password",
-		"The password does not meet the Management API /v2/clusters rules: "+strings.Join(problems, "; ")+
-			". /v2/clusters replaces a password that fails these rules and returns the generated password only on create. "+
-			"Terraform would store the configured value, which cannot log in.",
+		"The password does not meet the Management API /v2/clusters password rules: it "+strings.Join(problems, "; ")+". "+
+			"/v2/clusters would replace it with a generated password, and the provider would then delete the new cluster.\n\n"+
+			"Set admin_password to a password with "+AdminPasswordRules()+", or remove admin_password to let the API generate one. "+
+			"If the API rules have changed and this check is out of date, set "+SkipAdminPasswordValidationAttribute+" = true.",
 	)
 }
 
 // NewAdminPasswordValidator rejects passwords that /v2/clusters would replace
 // with a generated password. Null and unknown values are skipped, so an omitted
-// admin_password still lets the API generate one.
+// admin_password still lets the API generate one. The resource must define the
+// SkipAdminPasswordValidationAttribute bool attribute; when it is true, the
+// check is skipped and the create response check is the only guard.
 func NewAdminPasswordValidator() validator.String {
 	return &adminPasswordValidator{}
 }

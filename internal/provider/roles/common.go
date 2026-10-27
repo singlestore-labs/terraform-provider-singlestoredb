@@ -380,9 +380,12 @@ func configuredClusterResourceIDs(expectedRoles, unexpectedRoles *[]RoleAttribut
 }
 
 func pickConfiguredClusterResourceID(configured []uuid.UUID, clusterID, groupID uuid.UUID) (uuid.UUID, bool) {
-	for _, id := range configured {
-		if id == clusterID || id == groupID {
-			return id, true
+	// An exact cluster ID match wins over its group ID.
+	for _, want := range []uuid.UUID{clusterID, groupID} {
+		for _, id := range configured {
+			if id == want {
+				return id, true
+			}
 		}
 	}
 
@@ -555,11 +558,19 @@ type clusterAccessTarget struct {
 // Terraform configs pass singlestoredb_workspace_group.id for resource_type = "Cluster".
 // That ID is the group, not a v2 cluster, so access controls stay on the workspace group.
 func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (clusterAccessTarget, error) {
-	if clusterExists(ctx, c, resourceID) {
+	isCluster, err := clusterExists(ctx, c, resourceID)
+	if err != nil {
+		return clusterAccessTarget{}, err
+	}
+	if isCluster {
 		return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: resourceID}, nil
 	}
 
-	if workspaceGroupExists(ctx, c, resourceID) {
+	isWorkspaceGroup, err := workspaceGroupExists(ctx, c, resourceID)
+	if err != nil {
+		return clusterAccessTarget{}, err
+	}
+	if isWorkspaceGroup {
 		return clusterAccessTarget{endpoint: clusterAccessEndpointV1WorkspaceGroup, id: resourceID}, nil
 	}
 
@@ -580,16 +591,26 @@ func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResp
 	}
 }
 
-func clusterExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) bool {
+// clusterExists reports false only on 404. Other failures are returned so they
+// are not mistaken for a missing cluster.
+func clusterExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
 	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
+	if serr := util.StatusOK(direct, err, util.ReturnNilOnNotFound); serr != nil {
+		return false, serr
+	}
 
-	return err == nil && direct != nil && direct.StatusCode() == http.StatusOK && direct.JSON200 != nil
+	return direct.StatusCode() == http.StatusOK && direct.JSON200 != nil, nil
 }
 
-func workspaceGroupExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) bool {
+// workspaceGroupExists reports false only on 404. Other failures are returned so
+// they are not mistaken for a missing workspace group.
+func workspaceGroupExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
 	group, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, resourceID, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
+	if serr := util.StatusOK(group, err, util.ReturnNilOnNotFound); serr != nil {
+		return false, serr
+	}
 
-	return err == nil && group != nil && group.StatusCode() == http.StatusOK && group.JSON200 != nil
+	return group.StatusCode() == http.StatusOK && group.JSON200 != nil, nil
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {

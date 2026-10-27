@@ -81,6 +81,19 @@ func TestValidateModifyProjectName(t *testing.T) {
 	require.Contains(t, validateModifyProjectName(&plan, &state).Detail, "Other Project")
 }
 
+func TestValidateModifyExpiresAt(t *testing.T) {
+	plan := validClusterPlan()
+	state := validClusterPlan()
+	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+
+	state.ExpiresAt = types.StringValue("2221-01-02T15:04:05Z")
+	plan.ExpiresAt = types.StringValue("2222-01-02T15:04:05Z")
+	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+
+	plan.ExpiresAt = types.StringNull()
+	require.Equal(t, "Cannot remove cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
+}
+
 func TestValidateSuspendedAndConfigChanges(t *testing.T) {
 	state := validClusterPlan()
 	plan := validClusterPlan()

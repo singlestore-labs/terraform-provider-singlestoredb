@@ -16,4 +16,6 @@ func TestValidateTerraformSize(t *testing.T) {
 	require.Error(t, clusters.ValidateTerraformSize("X-00"))
 	require.Error(t, clusters.ValidateTerraformSize("S-abc"))
 	require.Error(t, clusters.ValidateTerraformSize(""))
+	require.Error(t, clusters.ValidateTerraformSize("S--1"))
+	require.Error(t, clusters.ValidateTerraformSize("S-+2"))
 }

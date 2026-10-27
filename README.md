@@ -104,6 +104,22 @@ To try this example, follow these steps:
    terraform destroy
    ```
 
+### Cluster admin password
+
+If you omit `admin_password`, the Management API generates a password and Terraform stores it in `admin_password`. If you set `admin_password`, it must have at least 14 characters, an uppercase letter, a lowercase letter, a digit, and a special character, at most 2 consecutive sequential characters (such as "ab" or "12"), and at most 3 identical characters in a row.
+
+The provider checks these rules during `terraform plan` and fails with "Invalid admin password" when a password breaks them. If the API still does not accept the configured password, it generates a different password on create. The provider then deletes the new cluster and fails with "Admin password was rejected", so Terraform never stores a password that cannot log in. Both errors list the rules and the ones the password fails. Fix `admin_password`, or remove it, and apply again.
+
+If the API password rules change and the plan check rejects a password the API accepts, set `skip_admin_password_validation = true` on the cluster until a provider release updates the rules. The create check still applies.
+
+```terraform
+resource "singlestoredb_cluster" "this" {
+  # ...
+  admin_password                 = var.admin_password
+  skip_admin_password_validation = true
+}
+```
+
 ## Upgrading from workspace resources
 
 `singlestoredb_cluster` is the resource for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in this release. `terraform plan` prints a deprecation warning and does not change what those resources do.
@@ -128,7 +144,9 @@ terraform import singlestoredb_cluster.this <workspace-id>
 terraform plan
 ```
 
-Copy the workspace group `admin_password` before `terraform state rm`. The API does not return it again. Set `name` to the name `/v2/clusters` returns, which is usually the workspace group name. `terraform plan` should be empty after the other attributes match the imported state. A plan that replaces the cluster means an identity field does not match the live deployment. Fix the configuration before you apply. Applying a replacement destroys the cluster and its data.
+Copy the workspace group `admin_password` before `terraform state rm`. The API does not return it again. Set it as the cluster `admin_password`. Workspace groups required only 14 characters, so the copied password can fail the cluster plan check described in [Cluster admin password](#cluster-admin-password). In that case, set `skip_admin_password_validation = true` to keep the existing password, or set a new password that meets the rules. Set `name` to the name `/v2/clusters` returns, which is usually the workspace group name.
+
+After the other attributes match the imported state, `terraform plan` shows a single in-place update of `admin_password`. Import cannot read the password, so state holds an empty value, and the apply sends the configured password to the cluster. Any other change means the configuration does not match the live deployment. A plan that replaces the cluster means an identity field does not match. Fix the configuration before you apply. Applying a replacement destroys the cluster and its data.
 
 | Existing attribute | Cluster attribute |
 | --- | --- |

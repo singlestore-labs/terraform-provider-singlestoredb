@@ -69,29 +69,30 @@ type autoSuspendResourceModel struct {
 
 // clusterResourceModel maps the resource schema data.
 type clusterResourceModel struct {
-	ID                  types.String              `tfsdk:"id"`
-	Name                types.String              `tfsdk:"name"`
-	ProjectName         types.String              `tfsdk:"project_name"`
-	GroupID             types.String              `tfsdk:"group_id"`
-	Size                types.String              `tfsdk:"size"`
-	ScaleFactor         types.Float32             `tfsdk:"scale_factor"`
-	CacheConfig         types.Float32             `tfsdk:"cache_config"`
-	Suspended           types.Bool                `tfsdk:"suspended"`
-	Kai                 types.Bool                `tfsdk:"kai"`
-	AdminPassword       types.String              `tfsdk:"admin_password"`
-	FirewallRanges      []types.String            `tfsdk:"firewall_ranges"`
-	ExpiresAt           types.String              `tfsdk:"expires_at"`
-	CloudProvider       types.String              `tfsdk:"cloud_provider"`
-	RegionName          types.String              `tfsdk:"region_name"`
-	DeploymentType      types.String              `tfsdk:"deployment_type"`
-	OptInPreviewFeature types.Bool                `tfsdk:"opt_in_preview_feature"`
-	MultiAZ             types.Bool                `tfsdk:"multi_az"`
-	OutboundAllowList   types.String              `tfsdk:"outbound_allow_list"`
-	Endpoint            types.String              `tfsdk:"endpoint"`
-	CreatedAt           types.String              `tfsdk:"created_at"`
-	AutoScale           *autoScaleResourceModel   `tfsdk:"auto_scale"`
-	AutoSuspend         *autoSuspendResourceModel `tfsdk:"auto_suspend"`
-	UpdateWindow        types.Object              `tfsdk:"update_window"`
+	ID                          types.String              `tfsdk:"id"`
+	Name                        types.String              `tfsdk:"name"`
+	ProjectName                 types.String              `tfsdk:"project_name"`
+	GroupID                     types.String              `tfsdk:"group_id"`
+	Size                        types.String              `tfsdk:"size"`
+	ScaleFactor                 types.Float32             `tfsdk:"scale_factor"`
+	CacheConfig                 types.Float32             `tfsdk:"cache_config"`
+	Suspended                   types.Bool                `tfsdk:"suspended"`
+	Kai                         types.Bool                `tfsdk:"kai"`
+	AdminPassword               types.String              `tfsdk:"admin_password"`
+	SkipAdminPasswordValidation types.Bool                `tfsdk:"skip_admin_password_validation"`
+	FirewallRanges              []types.String            `tfsdk:"firewall_ranges"`
+	ExpiresAt                   types.String              `tfsdk:"expires_at"`
+	CloudProvider               types.String              `tfsdk:"cloud_provider"`
+	RegionName                  types.String              `tfsdk:"region_name"`
+	DeploymentType              types.String              `tfsdk:"deployment_type"`
+	OptInPreviewFeature         types.Bool                `tfsdk:"opt_in_preview_feature"`
+	MultiAZ                     types.Bool                `tfsdk:"multi_az"`
+	OutboundAllowList           types.String              `tfsdk:"outbound_allow_list"`
+	Endpoint                    types.String              `tfsdk:"endpoint"`
+	CreatedAt                   types.String              `tfsdk:"created_at"`
+	AutoScale                   *autoScaleResourceModel   `tfsdk:"auto_scale"`
+	AutoSuspend                 *autoSuspendResourceModel `tfsdk:"auto_suspend"`
+	UpdateWindow                types.Object              `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -193,13 +194,19 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:            true,
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: `The admin SQL user password for the cluster. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long.`,
+				MarkdownDescription: util.AdminPasswordMarkdown("cluster"),
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(config.AdminPasswordMinLength),
+					util.NewAdminPasswordValidator(),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			util.SkipAdminPasswordValidationAttribute: schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "Skip the provider's plan-time check of `admin_password` against the Management API password rules. Default is false. Set to true only if the API rules have changed and the provider rejects a password the API accepts. The create response is still checked: if the API does not accept the configured password, the provider deletes the new cluster and fails.",
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -398,7 +405,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	clusterCreateResponse, cerr := r.PostV2ClustersWithResponse(ctx, createBody)
-	if serr := util.StatusOK(clusterCreateResponse, cerr); serr != nil {
+	if serr := util.CheckCreatedAdminPassword(ctx, r.ClientWithResponsesInterface, clusterCreateResponse, cerr, plan.AdminPassword.ValueString()); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
@@ -419,6 +426,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.AdminPassword.ValueString(),
 		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
 	), plan.FirewallRanges, plan.ProjectName)
+	result.SkipAdminPasswordValidation = plan.SkipAdminPasswordValidation
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -476,7 +484,9 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		projectName = resolved
 	}
 
+	skipAdminPasswordValidation := types.BoolValue(state.SkipAdminPasswordValidation.ValueBool()) // Null after import.
 	state = toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName)
+	state.SkipAdminPasswordValidation = skipAdminPasswordValidation
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
@@ -503,6 +513,7 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 		return
 	}
+	result.SkipAdminPasswordValidation = plan.SkipAdminPasswordValidation
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -558,8 +569,24 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
+	// UseStateForUnknown skips a null state, so an unconfigured project_name whose
+	// name could not be resolved on read stays unknown. Keep it null.
+	if plan.ProjectName.IsUnknown() && state.ProjectName.IsNull() {
+		plan.ProjectName = types.StringNull()
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("project_name"), types.StringNull())...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	if err := validateModifyProjectName(plan, state); err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
+
+		return
+	}
+
+	if err := validateModifyExpiresAt(plan, state); err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("expires_at"), err.Summary, err.Detail)
 
 		return
 	}
@@ -675,6 +702,19 @@ func validateModifyProjectName(plan, state *clusterResourceModel) *util.SummaryW
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot update cluster project_name",
 			Detail:  fmt.Sprintf("Updating the project_name is not permitted. Expected value is %s, but configured value is %s.", state.ProjectName.String(), plan.ProjectName.String()),
+		}
+	}
+
+	return nil
+}
+
+// validateModifyExpiresAt rejects removing expires_at. The PATCH body omits a null
+// expiresAt, so the API would keep the old expiration.
+func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
+	if plan.ExpiresAt.IsNull() && !state.ExpiresAt.IsNull() {
+		return &util.SummaryWithDetailError{
+			Summary: "Cannot remove cluster expires_at",
+			Detail:  fmt.Sprintf("Removing expires_at is not supported. The cluster still expires at %s. Set expires_at to a new timestamp instead.", state.ExpiresAt.ValueString()),
 		}
 	}
 

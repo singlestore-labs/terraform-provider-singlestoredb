@@ -85,6 +85,31 @@ func TestResolveClusterAccessTargetNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), resourceID.String())
 }
 
+func TestResolveClusterAccessTargetReportsAPIError(t *testing.T) {
+	resourceID := uuid.MustParse("99999999-9999-9999-9999-999999999999")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/clusters/"+resourceID.String(), r.URL.Path)
+		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})
+	})
+
+	_, err := resolveClusterAccessTarget(t.Context(), client, resourceID)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "No cluster or workspace group was found")
+}
+
+func TestPickConfiguredClusterResourceIDPrefersClusterID(t *testing.T) {
+	groupID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	clusterID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+	id, ok := pickConfiguredClusterResourceID([]uuid.UUID{groupID, clusterID}, clusterID, groupID)
+	require.True(t, ok)
+	require.Equal(t, clusterID, id)
+
+	id, ok = pickConfiguredClusterResourceID([]uuid.UUID{groupID}, clusterID, groupID)
+	require.True(t, ok)
+	require.Equal(t, groupID, id)
+}
+
 func TestApplyWorkspaceGroupAccessControlsChoosesEndpoint(t *testing.T) {
 	groupID := uuid.MustParse("66666666-6666-6666-6666-666666666666")
 	clusterID := uuid.MustParse("77777777-7777-7777-7777-777777777777")

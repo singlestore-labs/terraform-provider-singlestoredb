@@ -182,16 +182,6 @@ func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnection
 	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
 }
 
-func MaybeInt(i types.Int64) *int {
-	if i.IsNull() || i.IsUnknown() {
-		return nil
-	}
-
-	v := int(i.ValueInt64())
-
-	return &v
-}
-
 func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspendType {
 	for _, s := range []management.AutoSuspendSuspendType{
 		management.AutoSuspendSuspendTypeIDLE,

@@ -5,6 +5,7 @@
 ### Added
 
 - `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources. Use the cluster resource for new deployments.
+- `singlestoredb_cluster.admin_password` is checked against the Management API password rules during plan. If the API still replaces the configured password with a generated one on create, the provider deletes the new cluster and fails with an error that explains how to set a valid password. `skip_admin_password_validation = true` turns off the plan check, for use when the API rules change before the provider is updated.
 
 ### Changed
 
