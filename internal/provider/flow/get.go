@@ -132,7 +132,7 @@ func newFlowInstanceDataSourceSchemaAttributes(conf flowInstanceDataSourceSchema
 		},
 		"workspace_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "The cluster ID associated with the Flow instance. This is `singlestoredb_workspace.id`.",
+			MarkdownDescription: "The cluster ID associated with the Flow instance. This is `singlestoredb_cluster.id` (or the deprecated `singlestoredb_workspace.id`).",
 		},
 		"created_at": schema.StringAttribute{
 			Computed:            true,

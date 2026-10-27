@@ -3,6 +3,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -211,15 +212,23 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Validators:          []validator.String{util.NewTimeValidator()},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'. If omitted together with region_name, the Management API picks the region and this attribute reports its provider.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(management.CloudProviderAWS), string(management.CloudProviderGCP), string(management.CloudProviderAzure)),
 				},
 			},
 			"region_name": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "The region code name used to resolve region.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				MarkdownDescription: "The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.",
 			},
 			"deployment_type": schema.StringAttribute{
 				Optional:            true,
@@ -427,10 +436,16 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	id := uuid.MustParse(state.ID.ValueString())
 
 	cluster, err := r.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
-	if serr := util.StatusOK(cluster, err); serr != nil {
+	if serr := util.StatusOK(cluster, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
+	}
+
+	if cluster.StatusCode() == http.StatusNotFound {
+		resp.State.RemoveResource(ctx)
+
+		return // The resource got deleted externally, deleting it from the state file to recreate.
 	}
 
 	stateValue := util.Deref(cluster.JSON200.State)

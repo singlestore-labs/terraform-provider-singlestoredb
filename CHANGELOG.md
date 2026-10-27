@@ -9,6 +9,8 @@
 ### Changed
 
 - `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior. Plans print a deprecation warning. The next minor release fails planning those resources unless `allow_deprecated_workspace_resources` is set. The resources are removed in the first release on or after April 30, 2027.
+- `singlestoredb_regions` reads regions from the v2 Management API and adds `regions[*].region_name`. `regions[*].id` is deprecated and must not be used anymore. It keeps returning the region ID in this release, every read of the data source prints a deprecation warning, and it is removed in v0.2.0. Use `regions[*].provider` and `regions[*].region_name` instead.
+- `singlestoredb_private_connection` targets a cluster. When only the deprecated `workspace_group_id` is set, the group must contain exactly one active workspace, which is used as the cluster; otherwise create fails and asks for `cluster_id`. Previously, a `workspace_group_id`-only configuration created a workspace group level connection.
 
 ### Fixed
 
