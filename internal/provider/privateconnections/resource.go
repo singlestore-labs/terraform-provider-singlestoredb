@@ -147,9 +147,12 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				Default:             float32default.StaticFloat32(defaultWebsocketPort),
 			},
 			"workspace_group_id": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in the first release on or after April 30, 2027. When set alone, a cluster in the group is resolved automatically.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in the first release on or after April 30, 2027. When set alone, the group must contain exactly one active workspace, which is used as the cluster.",
 				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in the first release on or after April 30, 2027.",
 			},
 			"workspace_id": schema.StringAttribute{
@@ -169,7 +172,7 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *privateConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) { //nolint:cyclop
+func (r *privateConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan PrivateConnectionModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -246,15 +249,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	result := toPrivateConnectionModel(con)
-
-	// Preserve deprecated aliases from the plan; the v2 API no longer returns a workspace group ID.
-	result.WorkspaceGroupID = plan.WorkspaceGroupID
-	if result.WorkspaceID.IsNull() || result.WorkspaceID.IsUnknown() {
-		result.WorkspaceID = plan.WorkspaceID
-	}
-	if result.ClusterID.IsNull() || result.ClusterID.IsUnknown() {
-		result.ClusterID = plan.ClusterID
-	}
+	preserveClusterAliases(&result, plan)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -289,14 +284,7 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 	}
 
 	updated := toPrivateConnectionModel(*privateConnection.JSON200)
-
-	updated.WorkspaceGroupID = state.WorkspaceGroupID
-	if updated.WorkspaceID.IsNull() || updated.WorkspaceID.IsUnknown() {
-		updated.WorkspaceID = state.WorkspaceID
-	}
-	if updated.ClusterID.IsNull() || updated.ClusterID.IsUnknown() {
-		updated.ClusterID = state.ClusterID
-	}
+	preserveClusterAliases(&updated, state)
 
 	diags = resp.State.Set(ctx, &updated)
 	resp.Diagnostics.Append(diags...)
@@ -306,7 +294,7 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *privateConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) { //nolint:cyclop
+func (r *privateConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var state PrivateConnectionModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -362,14 +350,7 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 	}
 
 	result := toPrivateConnectionModel(privateConnection)
-
-	result.WorkspaceGroupID = plan.WorkspaceGroupID
-	if result.WorkspaceID.IsNull() || result.WorkspaceID.IsUnknown() {
-		result.WorkspaceID = plan.WorkspaceID
-	}
-	if result.ClusterID.IsNull() || result.ClusterID.IsUnknown() {
-		result.ClusterID = plan.ClusterID
-	}
+	preserveClusterAliases(&result, plan)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -439,6 +420,27 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *privateConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
+}
+
+// preserveClusterAliases keeps the cluster identifiers from the plan or prior state where
+// the v2 API does not return them; it never returns a workspace group ID. Values that are
+// still unknown become null because Terraform rejects unknown values after apply.
+func preserveClusterAliases(result *PrivateConnectionModel, prior PrivateConnectionModel) {
+	result.WorkspaceGroupID = knownOrNull(prior.WorkspaceGroupID)
+	if result.WorkspaceID.IsNull() || result.WorkspaceID.IsUnknown() {
+		result.WorkspaceID = knownOrNull(prior.WorkspaceID)
+	}
+	if result.ClusterID.IsNull() || result.ClusterID.IsUnknown() {
+		result.ClusterID = knownOrNull(prior.ClusterID)
+	}
+}
+
+func knownOrNull(value types.String) types.String {
+	if value.IsUnknown() {
+		return types.StringNull()
+	}
+
+	return value
 }
 
 func toPrivateConnectionModel(privateConnection management.ClusterPrivateConnection) PrivateConnectionModel {

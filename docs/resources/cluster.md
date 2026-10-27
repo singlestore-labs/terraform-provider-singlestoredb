@@ -59,14 +59,14 @@ output "group_id" {
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the cluster. (see [below for nested schema](#nestedatt--auto_scale))
 - `auto_suspend` (Attributes) Auto suspend settings for the cluster. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the cluster. It can have one of the following values: 1, 2, or 4. Default is 1.
-- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'.
+- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'. If omitted together with region_name, the Management API picks the region and this attribute reports its provider.
 - `deployment_type` (String) The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
 - `expires_at` (String) The expiration timestamp of the cluster. If not specified, the cluster never expires. Upon expiration, the cluster is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
 - `kai` (Boolean) Whether SingleStore Kai (MongoDB compatibility) is enabled for the cluster.
 - `multi_az` (Boolean) Enables deployment across multiple availability zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
 - `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
-- `region_name` (String) The region code name used to resolve region.
+- `region_name` (String) The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
 - `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended.
 - `update_window` (Attributes) Details of the scheduled update window for the cluster. This is the time period during which any updates to the cluster will occur. (see [below for nested schema](#nestedatt--update_window))

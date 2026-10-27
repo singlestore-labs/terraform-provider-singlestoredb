@@ -93,3 +93,29 @@ func TestResolveClusterIDGroupLookupFailures(t *testing.T) {
 	require.NotNil(t, serr)
 	require.Equal(t, "No workspace found in workspace group", serr.Summary)
 }
+
+func TestResolveClusterIDAmbiguousWorkspaceGroup(t *testing.T) {
+	groupID := uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body, err := json.Marshal([]management.Workspace{
+			{WorkspaceGroupID: groupID, WorkspaceID: uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a"), State: management.WorkspaceStateACTIVE},
+			{WorkspaceGroupID: groupID, WorkspaceID: uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"), State: management.WorkspaceStateSUSPENDED},
+			{WorkspaceGroupID: groupID, WorkspaceID: uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"), State: management.WorkspaceStateTERMINATED},
+		})
+		require.NoError(t, err)
+		_, err = w.Write(body)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	_, serr := resolveClusterID(t.Context(), client, PrivateConnectionModel{
+		WorkspaceGroupID: types.StringValue(groupID.String()),
+	})
+	require.NotNil(t, serr)
+	require.Equal(t, "Ambiguous workspace group", serr.Summary)
+}
