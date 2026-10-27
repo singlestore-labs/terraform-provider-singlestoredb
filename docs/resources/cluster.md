@@ -55,7 +55,7 @@ output "group_id" {
 
 ### Optional
 
-- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. If not provided, the server will automatically generate a secure password. Must be at least 14 characters long.
+- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. If omitted, Management API /v2/clusters generates a password and Terraform stores that generated value. A configured password must have at least 14 characters, an uppercase letter, a lowercase letter, a digit, and a special character, at most 2 consecutive sequential characters (such as "ab" or "12"), and at most 3 identical characters in a row. The provider checks these rules during plan; set `skip_admin_password_validation = true` to turn the check off if the API rules have changed. If the API still does not accept the configured password on create, it generates a different one, so the provider deletes the new cluster and fails, rather than store a password that cannot log in.
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the cluster. (see [below for nested schema](#nestedatt--auto_scale))
 - `auto_suspend` (Attributes) Auto suspend settings for the cluster. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the cluster. It can have one of the following values: 1, 2, or 4. Default is 1.
@@ -68,6 +68,7 @@ output "group_id" {
 - `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
 - `region_name` (String) The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
+- `skip_admin_password_validation` (Boolean) Skip the provider's plan-time check of `admin_password` against the Management API password rules. Default is false. Set to true only if the API rules have changed and the provider rejects a password the API accepts. The create response is still checked: if the API does not accept the configured password, the provider deletes the new cluster and fails.
 - `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended.
 - `update_window` (Attributes) Details of the scheduled update window for the cluster. This is the time period during which any updates to the cluster will occur. (see [below for nested schema](#nestedatt--update_window))
 

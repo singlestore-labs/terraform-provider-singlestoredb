@@ -272,6 +272,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "cloud_provider", string(management.CloudProviderAWS)),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "region_name", region),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "admin_password", config.TestInitialAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "skip_admin_password_validation", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "deployment_type", string(defaultDeploymentType)),
@@ -568,4 +569,68 @@ func TestImmutableClusterAttributes(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestClusterRejectedAdminPassword(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
+	projectID := uuid.New()
+	const weakPassword = "abcdefghijklmn"
+	const generatedPassword = "Gen3rated!Pw-Xk9q" //nolint:gosec
+
+	var created, deleted bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		clusterPath := strings.Join([]string{pathV2Clusters, clusterID.String()}, "/")
+		switch {
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Project{{Name: config.TestInitialProjectName, ProjectID: projectID}}))
+			require.NoError(t, err)
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
+			require.False(t, created, "the cluster must be created once")
+			created = true
+			_, err := w.Write(testutil.MustJSON(struct {
+				AdminPassword string    `json:"adminPassword"`
+				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{AdminPassword: generatedPassword, ClusterID: clusterID, GroupID: groupID}))
+			require.NoError(t, err)
+		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
+			deleted = true
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: clusterID}))
+			require.NoError(t, err)
+		default:
+			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	weakConfig := testutil.UpdatableConfig(examples.ClustersResource).
+		WithClusterResource("this")("admin_password", cty.StringVal(weakPassword))
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				// The provider rejects the password during plan, before any API call.
+				Config:      weakConfig.String(),
+				ExpectError: regexp.MustCompile("Invalid admin password"),
+			},
+			{
+				// With the plan check skipped, the API replaces the password on create,
+				// so the provider deletes the new cluster and fails.
+				Config: weakConfig.
+					WithClusterResource("this")("skip_admin_password_validation", cty.BoolVal(true)).
+					String(),
+				ExpectError: regexp.MustCompile("Admin password was rejected"),
+			},
+		},
+	})
+
+	require.True(t, created)
+	require.True(t, deleted, "a rejected password must delete the new cluster")
 }

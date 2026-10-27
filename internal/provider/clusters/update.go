@@ -67,25 +67,17 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	id := uuid.MustParse(plan.ID.ValueString())
 	desiredSize := plan.Size.ValueString()
 
-	var projectID *uuid.UUID
-	if util.IsConfiguredString(plan.ProjectName) {
-		resolved, err := resolveProjectIDByName(ctx, c, plan.ProjectName.ValueString())
-		if err != nil {
-			return clusterResourceModel{}, err
-		}
-		projectID = resolved
-	} else {
-		current, gerr := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
-		if serr := util.StatusOK(current, gerr); serr != nil {
-			return clusterResourceModel{}, serr
-		}
-		projectID = &current.JSON200.ProjectID
+	// project_name cannot change, so reuse the cluster's project ID instead of
+	// resolving the name again.
+	current, gerr := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
+	if serr := util.StatusOK(current, gerr); serr != nil {
+		return clusterResourceModel{}, serr
 	}
 
 	firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 	patchBody := management.Cluster{
 		Name:      plan.Name.ValueString(),
-		ProjectID: *projectID,
+		ProjectID: current.JSON200.ProjectID,
 	}
 
 	if !plan.Size.Equal(state.Size) || !plan.CacheConfig.Equal(state.CacheConfig) || !plan.ScaleFactor.Equal(state.ScaleFactor) {

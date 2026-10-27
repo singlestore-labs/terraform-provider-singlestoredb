@@ -76,7 +76,14 @@ func ValidateTerraformSize(value string) error {
 		return SizeError(value)
 	}
 
-	_, err := strconv.ParseInt(value[2:], 10, 64)
+	digits := value[len(prefix):]
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return SizeError(value)
+		}
+	}
+
+	_, err := strconv.ParseInt(digits, 10, 64)
 	if err != nil {
 		return SizeError(value)
 	}
