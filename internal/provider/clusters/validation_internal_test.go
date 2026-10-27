@@ -116,7 +116,7 @@ func TestClusterModelHelpers(t *testing.T) {
 
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
-	model := toClusterResourceModel(management.Cluster{
+	model, modelDiags := toClusterResourceModel(management.Cluster{
 		Name:      "cluster",
 		ClusterID: &clusterID,
 		CreatedAt: &createdAt,
@@ -130,6 +130,7 @@ func TestClusterModelHelpers(t *testing.T) {
 		},
 		UpdateWindow: &management.UpdateWindow{Hour: 6, Day: 2},
 	}, "secret", nil, types.StringValue("Standard Project"))
+	require.False(t, modelDiags.HasError())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
 	require.True(t, model.Size.IsNull())
 	require.Equal(t, float32(120), model.AutoSuspend.SuspendAfterSeconds.ValueFloat32())
@@ -191,11 +192,32 @@ func TestClusterPlanConverters(t *testing.T) {
 		},
 	)
 	require.False(t, diags.HasError())
-	gotWindow := toManagementUpdateWindow(t.Context(), window)
+	gotWindow, windowDiags := toManagementUpdateWindow(t.Context(), window)
+	require.False(t, windowDiags.HasError())
 	require.Equal(t, float32(6), gotWindow.Hour)
 	require.Equal(t, float32(2), gotWindow.Day)
-	require.Nil(t, toManagementUpdateWindow(t.Context(), types.ObjectNull(updateWindowAttrTypes)))
-	require.Nil(t, toManagementUpdateWindow(t.Context(), types.ObjectUnknown(updateWindowAttrTypes)))
+	nullWindow, nullWindowDiags := toManagementUpdateWindow(t.Context(), types.ObjectNull(updateWindowAttrTypes))
+	require.False(t, nullWindowDiags.HasError())
+	require.Nil(t, nullWindow)
+	unknownWindow, unknownWindowDiags := toManagementUpdateWindow(t.Context(), types.ObjectUnknown(updateWindowAttrTypes))
+	require.False(t, unknownWindowDiags.HasError())
+	require.Nil(t, unknownWindow)
+
+	badWindow, badWindowDiags := types.ObjectValue(
+		map[string]attr.Type{
+			"hour": types.StringType,
+			"day":  types.Int64Type,
+		},
+		map[string]attr.Value{
+			"hour": types.StringValue("6"),
+			"day":  types.Int64Value(2),
+		},
+	)
+	require.False(t, badWindowDiags.HasError())
+	gotBadWindow, badConvDiags := toManagementUpdateWindow(t.Context(), badWindow)
+	require.Nil(t, gotBadWindow)
+	require.True(t, badConvDiags.HasError())
+	require.NotNil(t, errorFromDiagnostics(badConvDiags))
 
 	state := validClusterPlan()
 	badScale := validClusterPlan()
@@ -288,11 +310,6 @@ func projectClient(t *testing.T, status int, projects []management.Project) *man
 	require.NoError(t, err)
 
 	return client
-}
-
-var updateWindowAttrTypes = map[string]attr.Type{
-	"hour": types.Int64Type,
-	"day":  types.Int64Type,
 }
 
 func validClusterPlan() clusterResourceModel {

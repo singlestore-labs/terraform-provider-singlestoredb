@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -46,6 +47,11 @@ var (
 	_ resource.ResourceWithModifyPlan  = &clusterResource{}
 	_ resource.ResourceWithImportState = &clusterResource{}
 )
+
+var updateWindowAttrTypes = map[string]attr.Type{
+	"hour": types.Int64Type,
+	"day":  types.Int64Type,
+}
 
 // clusterResource is the resource implementation.
 type clusterResource struct {
@@ -381,6 +387,12 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
+	resp.Diagnostics.Append(updateWindowDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 	createBody := management.Cluster{
 		AdminPassword:       util.MaybeNonEmptyString(plan.AdminPassword),
@@ -401,7 +413,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 			ScaleFactor: util.MaybeFloat32(plan.ScaleFactor),
 			CacheConfig: util.MaybeFloat32(plan.CacheConfig),
 		},
-		UpdateWindow: toManagementUpdateWindow(ctx, plan.UpdateWindow),
+		UpdateWindow: updateWindow,
 	}
 
 	clusterCreateResponse, cerr := r.PostV2ClustersWithResponse(ctx, createBody)
@@ -422,10 +434,14 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	result := toClusterResourceModel(cluster, util.AdminPasswordForState(
+	result, modelDiags := toClusterResourceModel(cluster, util.AdminPasswordForState(
 		plan.AdminPassword.ValueString(),
 		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
 	), plan.FirewallRanges, plan.ProjectName)
+	resp.Diagnostics.Append(modelDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	result.SkipAdminPasswordValidation = plan.SkipAdminPasswordValidation
 
 	diags = resp.State.Set(ctx, &result)
@@ -485,7 +501,11 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	skipAdminPasswordValidation := types.BoolValue(state.SkipAdminPasswordValidation.ValueBool()) // Null after import.
-	state = toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName)
+	state, modelDiags := toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName)
+	resp.Diagnostics.Append(modelDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	state.SkipAdminPasswordValidation = skipAdminPasswordValidation
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -775,7 +795,7 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 	return nil
 }
 
-func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName types.String) clusterResourceModel {
+func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName types.String) (clusterResourceModel, diag.Diagnostics) {
 	size := types.StringNull()
 	scaleFactor := types.Float32Value(scaleX1)
 	cacheConfig := types.Float32Value(cacheMultiplierX1)
@@ -789,6 +809,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		}
 	}
 
+	updateWindow, diags := toUpdateWindowResourceModel(cluster.UpdateWindow)
 	model := clusterResourceModel{
 		ID:                  util.MaybeUUIDStringValue(cluster.ClusterID),
 		Name:                types.StringValue(cluster.Name),
@@ -812,10 +833,10 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		CreatedAt:           util.MaybeTimeValue(cluster.CreatedAt),
 		AutoScale:           toAutoScaleResourceModel(cluster),
 		AutoSuspend:         toAutoSuspendResourceModel(cluster),
-		UpdateWindow:        toUpdateWindowResourceModel(cluster.UpdateWindow),
+		UpdateWindow:        updateWindow,
 	}
 
-	return model
+	return model, diags
 }
 
 func normalizeCloudProvider(provider *management.CloudProvider) types.String {
@@ -928,43 +949,60 @@ func intPtrToFloat32(i *int) types.Float32 {
 	return types.Float32Value(float32(*i))
 }
 
-func toManagementUpdateWindow(ctx context.Context, uw types.Object) *management.UpdateWindow {
+func toManagementUpdateWindow(ctx context.Context, uw types.Object) (*management.UpdateWindow, diag.Diagnostics) {
 	if uw.IsNull() || uw.IsUnknown() {
-		return nil
+		return nil, nil
 	}
 
 	var model updateWindowResourceModel
-	uw.As(ctx, &model, basetypes.ObjectAsOptions{})
+	diags := uw.As(ctx, &model, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		return nil, diags
+	}
 
 	return &management.UpdateWindow{
 		Hour: float32(model.Hour.ValueInt64()),
 		Day:  float32(model.Day.ValueInt64()),
-	}
+	}, diags
 }
 
-func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) (types.Object, diag.Diagnostics) {
 	if uw == nil {
-		return types.ObjectNull(map[string]attr.Type{
-			"hour": types.Int64Type,
-			"day":  types.Int64Type,
-		})
+		return types.ObjectNull(updateWindowAttrTypes), nil
 	}
 
 	obj, diags := types.ObjectValue(
-		map[string]attr.Type{
-			"hour": types.Int64Type,
-			"day":  types.Int64Type,
-		},
+		updateWindowAttrTypes,
 		map[string]attr.Value{
 			"hour": types.Int64Value(int64(uw.Hour)),
 			"day":  types.Int64Value(int64(uw.Day)),
 		},
 	)
 	if diags.HasError() {
-		panic(fmt.Sprintf("failed to create update_window object: %v", diags.Errors()))
+		return types.ObjectNull(updateWindowAttrTypes), diags
 	}
 
-	return obj
+	return obj, diags
+}
+
+func errorFromDiagnostics(diags diag.Diagnostics) *util.SummaryWithDetailError {
+	if !diags.HasError() {
+		return nil
+	}
+
+	errs := diags.Errors()
+	details := make([]string, len(errs))
+	for i, d := range errs {
+		details[i] = d.Detail()
+		if details[i] == "" {
+			details[i] = d.Summary()
+		}
+	}
+
+	return &util.SummaryWithDetailError{
+		Summary: errs[0].Summary(),
+		Detail:  strings.Join(details, "\n"),
+	}
 }
 
 func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
