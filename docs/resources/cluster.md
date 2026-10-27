@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing singlestoredb_workspace and singlestoredb_workspace_group, remove both from state and import the workspace id as this resource. See the provider README, Upgrading from workspace resources.
+  Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing singlestoredb_workspace and singlestoredb_workspace_group, remove both from state and import the workspace id as this resource. See MIGRATING.md in the provider repository.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource. See the provider README, Upgrading from workspace resources.
+Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource. See MIGRATING.md in the provider repository.
 
 ## Example Usage
 

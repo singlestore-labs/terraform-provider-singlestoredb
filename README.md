@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work and are deprecated; see [Upgrading from workspace resources](#upgrading-from-workspace-resources).
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work and are deprecated; see [Migrating from workspace resources](MIGRATING.md).
 
 ## Prerequisites
 
@@ -122,49 +122,15 @@ resource "singlestoredb_cluster" "this" {
 
 ## Upgrading from workspace resources
 
-`singlestoredb_cluster` is the resource for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in this release. `terraform plan` prints a deprecation warning and does not change what those resources do.
+`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in this release, and `terraform plan` prints a warning. The next minor release rejects a plan that still uses them unless `allow_deprecated_workspace_resources` is set. They are removed in the first release on or after April 30, 2027.
 
-The next minor release rejects a plan that still contains `singlestoredb_workspace` or `singlestoredb_workspace_group`, unless the provider block sets `allow_deprecated_workspace_resources = true`. That argument does not exist yet. Leave it unset until that release, then set it only to keep an existing configuration running for one more release:
-
-```hcl
-provider "singlestoredb" {
-  allow_deprecated_workspace_resources = true
-}
-```
-
-New configurations use `singlestoredb_cluster`. These resources are removed in the first release on or after April 30, 2027.
-
-Move an existing deployment without creating a new one. The cluster `id` is the workspace id. A `moved` block cannot merge the two resources into one.
-
-```shell
-terraform state show singlestoredb_workspace.this
-terraform state rm singlestoredb_workspace.this
-terraform state rm singlestoredb_workspace_group.example
-terraform import singlestoredb_cluster.this <workspace-id>
-terraform plan
-```
-
-Copy the workspace group `admin_password` before `terraform state rm`. The API does not return it again. Set it as the cluster `admin_password`. Workspace groups required only 14 characters, so the copied password can fail the cluster plan check described in [Cluster admin password](#cluster-admin-password). In that case, set `skip_admin_password_validation = true` to keep the existing password, or set a new password that meets the rules. Set `name` to the name `/v2/clusters` returns, which is usually the workspace group name.
-
-After the other attributes match the imported state, `terraform plan` shows a single in-place update of `admin_password`. Import cannot read the password, so state holds an empty value, and the apply sends the configured password to the cluster. Any other change means the configuration does not match the live deployment. A plan that replaces the cluster means an identity field does not match. Fix the configuration before you apply. Applying a replacement destroys the cluster and its data.
-
-| Existing attribute | Cluster attribute |
-| --- | --- |
-| `singlestoredb_workspace.id` | `id` (import this value) |
-| `singlestoredb_workspace_group.id` | `group_id` (computed) |
-| `singlestoredb_workspace_group.name` | `name` (use the live API name) |
-| `singlestoredb_workspace.size` | `size` |
-| `singlestoredb_workspace.suspended` | `suspended` |
-| `singlestoredb_workspace_group.admin_password` | `admin_password` |
-| `singlestoredb_workspace_group.firewall_ranges` | `firewall_ranges` |
-| `singlestoredb_workspace_group.expires_at` | `expires_at` |
-| `singlestoredb_workspace_group.project_name` | `project_name` |
-| `singlestoredb_workspace_group.cloud_provider` | `cloud_provider` |
-| `singlestoredb_workspace_group.region_name` | `region_name` |
+Move an existing deployment onto `singlestoredb_cluster` without creating a new one. The cluster `id` is the workspace id. The state steps, attribute mapping, password handling, and resources that reference a workspace are in [Migrating from workspace resources](MIGRATING.md).
 
 ## Documentation
 
 For more detailed information about `terraform-provider-singlestoredb`, including advanced usage and configuration options, check out our [official documentation](./docs/index.md).
+
+To move an existing workspace and workspace group onto `singlestoredb_cluster`, see [Migrating from workspace resources](MIGRATING.md).
 
 ## Contributing
 
