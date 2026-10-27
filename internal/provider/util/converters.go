@@ -121,9 +121,35 @@ func MaybeExpiresAtStringValue(s *string) types.String {
 	return types.StringValue(NormalizeTimestampString(*s))
 }
 
+// ExpiresAtStateValue maps an API expiresAt onto Terraform state. When configured is
+// the same instant, its spelling is kept so create and update stay consistent with the plan.
+func ExpiresAtStateValue(apiValue *string, configured types.String) types.String {
+	normalized := MaybeExpiresAtStringValue(apiValue)
+	if apiValue == nil || !IsConfiguredString(configured) {
+		return normalized
+	}
+
+	apiTime, apiErr := parseFlexibleTimestamp(*apiValue)
+	configuredTime, configuredErr := parseFlexibleTimestamp(configured.ValueString())
+	if apiErr != nil || configuredErr != nil || !apiTime.Equal(configuredTime) {
+		return normalized
+	}
+
+	return configured
+}
+
 // NormalizeTimestampString parses common Management API timestamp spellings and
-// returns RFC3339. Unrecognized values are returned unchanged.
+// returns RFC3339 with fractional seconds preserved. Unrecognized values are returned unchanged.
 func NormalizeTimestampString(value string) string {
+	t, err := parseFlexibleTimestamp(value)
+	if err != nil {
+		return value
+	}
+
+	return t.Format(time.RFC3339Nano)
+}
+
+func parseFlexibleTimestamp(value string) (time.Time, error) {
 	layouts := []string{
 		time.RFC3339Nano,
 		time.RFC3339,
@@ -134,11 +160,11 @@ func NormalizeTimestampString(value string) string {
 	}
 	for _, layout := range layouts {
 		if t, err := time.Parse(layout, value); err == nil {
-			return t.UTC().Format(time.RFC3339)
+			return t.UTC(), nil
 		}
 	}
 
-	return value
+	return time.Time{}, fmt.Errorf("unrecognized timestamp %q", value)
 }
 
 func WorkspaceStateString(wgs types.String) *management.WorkspaceState {

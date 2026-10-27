@@ -16,6 +16,10 @@ type validationRule struct {
 }
 
 func ValidatePrivateConnection(plan PrivateConnectionModel, isUpdate bool) *util.SummaryWithDetailError {
+	if err := conflictingClusterIdentifiers(plan); err != nil {
+		return err
+	}
+
 	privateConnectionType, err := util.PrivateConnectionTypeString(plan.Type)
 	if err != nil {
 		return &util.SummaryWithDetailError{
@@ -90,6 +94,23 @@ func ValidatePrivateConnectionModifyPlan(plan, state PrivateConnectionModel) *ut
 	}
 
 	return nil
+}
+
+// conflictingClusterIdentifiers rejects cluster_id and workspace_id when both are set
+// to different values. Create would target cluster_id and then write that ID into both
+// attributes, which Terraform rejects as inconsistent with the plan.
+func conflictingClusterIdentifiers(plan PrivateConnectionModel) *util.SummaryWithDetailError {
+	if !isDefined(plan.ClusterID) || !isDefined(plan.WorkspaceID) {
+		return nil
+	}
+	if plan.ClusterID.ValueString() == plan.WorkspaceID.ValueString() {
+		return nil
+	}
+
+	return &util.SummaryWithDetailError{
+		Summary: "Conflicting cluster identifiers",
+		Detail:  "cluster_id and workspace_id are aliases for the same cluster and must be equal when both are set.",
+	}
 }
 
 func isDefined(field attr.Value) bool {

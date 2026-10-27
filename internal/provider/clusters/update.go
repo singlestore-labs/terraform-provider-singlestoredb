@@ -143,7 +143,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
@@ -160,7 +160,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
@@ -177,11 +177,11 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func clusterModelFromAPI(cluster management.Cluster, adminPassword string, firewallRanges []types.String, projectName types.String) (clusterResourceModel, *util.SummaryWithDetailError) {
-	model, diags := toClusterResourceModel(cluster, adminPassword, firewallRanges, projectName)
+func clusterModelFromAPI(cluster management.Cluster, adminPassword string, firewallRanges []types.String, projectName, expiresAt types.String) (clusterResourceModel, *util.SummaryWithDetailError) {
+	model, diags := toClusterResourceModel(cluster, adminPassword, firewallRanges, projectName, expiresAt)
 	if err := errorFromDiagnostics(diags); err != nil {
 		return clusterResourceModel{}, err
 	}

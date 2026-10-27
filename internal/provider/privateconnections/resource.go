@@ -392,21 +392,31 @@ func (r *privateConnectionResource) Configure(_ context.Context, req resource.Co
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan PrivateConnectionModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if conflict := conflictingClusterIdentifiers(plan); conflict != nil {
+		resp.Diagnostics.AddError(conflict.Summary, conflict.Detail)
+
+		return
+	}
+
 	var state *PrivateConnectionModel
-	diags := req.State.Get(ctx, &state)
+	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() || state == nil {
 		return
 	}
 
-	var plan *PrivateConnectionModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	verr := ValidatePrivateConnectionModifyPlan(*plan, *state)
+	verr := ValidatePrivateConnectionModifyPlan(plan, *state)
 	if verr != nil {
 		resp.Diagnostics.AddError(
 			verr.Summary,

@@ -160,35 +160,43 @@ func (r *teamRoleGrantResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	if IsRoleChanged(plan.Role, state.Role) {
-		if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to update user role",
-				"An error occurred while updating user role: "+err.Error(),
-			)
-
-			return
+	if !IsRoleChanged(plan.Role, state.Role) {
+		if next, ok := roleWithPlannedSpelling(plan.Role, state.Role); ok {
+			state.Role = next
+			diags = resp.State.Set(ctx, state)
+			resp.Diagnostics.Append(diags...)
 		}
 
-		roles, err := getTeamRolesAndValidate(ctx, r, plan.TeamID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to fetch and validate user roles",
-				"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
-			)
-
-			return
-		}
-
-		result := TeamRoleGrantModel{
-			ID:     plan.TeamID,
-			TeamID: plan.TeamID,
-			Role:   roles[0],
-		}
-
-		diags = resp.State.Set(ctx, &result)
-		resp.Diagnostics.Append(diags...)
+		return
 	}
+
+	if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to update user role",
+			"An error occurred while updating user role: "+err.Error(),
+		)
+
+		return
+	}
+
+	roles, err := getTeamRolesAndValidate(ctx, r, plan.TeamID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch and validate user roles",
+			"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
+		)
+
+		return
+	}
+
+	result := TeamRoleGrantModel{
+		ID:     plan.TeamID,
+		TeamID: plan.TeamID,
+		Role:   roles[0],
+	}
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *teamRoleGrantResource) handleRoleUpdate(ctx context.Context, planResourceID, stateResourceID types.String, plan, state *TeamRoleGrantModel) error {

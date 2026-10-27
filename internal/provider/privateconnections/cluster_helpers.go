@@ -10,8 +10,13 @@ import (
 )
 
 // resolveClusterID prefers cluster_id, then workspace_id (a workspace ID is a cluster ID),
-// then the only active workspace in workspace_group_id.
+// then the only active workspace in workspace_group_id. cluster_id and workspace_id are
+// aliases, so both may be set only when they are the same value.
 func resolveClusterID(ctx context.Context, c management.ClientWithResponsesInterface, plan PrivateConnectionModel) (uuid.UUID, *util.SummaryWithDetailError) {
+	if err := conflictingClusterIdentifiers(plan); err != nil {
+		return uuid.UUID{}, err
+	}
+
 	if util.IsConfiguredString(plan.ClusterID) {
 		return uuid.MustParse(plan.ClusterID.ValueString()), nil
 	}

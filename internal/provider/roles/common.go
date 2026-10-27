@@ -290,9 +290,10 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	return validateRoles(ctx, entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)
 }
 
-// alignClusterRoleResourceIDs rewrites Cluster role resource IDs from cluster IDs to the
-// identifier form used in Terraform (typically workspace group ID). When expected/unexpected
-// roles are provided, prefer that configured identifier if it refers to the same cluster/group.
+// alignClusterRoleResourceIDs rewrites a Cluster grant's resource ID to the identifier
+// configured in Terraform when that identifier is the cluster ID or its parent workspace
+// group ID. Grants with no matching configured identifier keep the API cluster ID, so a
+// later apply does not retarget the whole workspace group.
 func alignClusterRoleResourceIDs(
 	ctx context.Context,
 	c management.ClientWithResponsesInterface,
@@ -350,12 +351,23 @@ func alignOneClusterRoleResourceID(
 	}
 	if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
 		role.ResourceID = util.UUIDStringValue(id)
-
-		return role
 	}
-	role.ResourceID = util.UUIDStringValue(groupID)
 
 	return role
+}
+
+// roleWithPlannedSpelling keeps access-control matching case-insensitive while storing
+// the planned role_name and resource_type spelling. Call it only when IsRoleChanged is
+// false, so a case-only change such as Owner to owner is persisted without an API call.
+func roleWithPlannedSpelling(plan, state RoleAttributesModel) (RoleAttributesModel, bool) {
+	if plan.RoleName.Equal(state.RoleName) && plan.ResourceType.Equal(state.ResourceType) {
+		return state, false
+	}
+
+	state.RoleName = plan.RoleName
+	state.ResourceType = plan.ResourceType
+
+	return state, true
 }
 
 func configuredClusterResourceIDs(expectedRoles, unexpectedRoles *[]RoleAttributesModel) []uuid.UUID {

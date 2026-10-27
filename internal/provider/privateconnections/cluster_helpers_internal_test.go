@@ -16,9 +16,16 @@ func TestResolveClusterIDPrefersExplicitIDs(t *testing.T) {
 	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
 	workspaceID := uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 
-	got, err := resolveClusterID(t.Context(), nil, PrivateConnectionModel{
+	_, err := resolveClusterID(t.Context(), nil, PrivateConnectionModel{
 		ClusterID:   types.StringValue(clusterID.String()),
 		WorkspaceID: types.StringValue(workspaceID.String()),
+	})
+	require.NotNil(t, err)
+	require.Equal(t, "Conflicting cluster identifiers", err.Summary)
+
+	got, err := resolveClusterID(t.Context(), nil, PrivateConnectionModel{
+		ClusterID:   types.StringValue(clusterID.String()),
+		WorkspaceID: types.StringValue(clusterID.String()),
 	})
 	require.Nil(t, err)
 	require.Equal(t, clusterID, got)

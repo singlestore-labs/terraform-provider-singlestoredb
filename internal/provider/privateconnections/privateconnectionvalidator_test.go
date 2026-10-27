@@ -25,6 +25,14 @@ func TestValidatePrivateConnection(t *testing.T) {
 	require.Equal(t, "allow_list configuration is required for INBOUND private connections.", err.Detail)
 
 	plan.AllowList = types.StringValue("12345")
+	plan.ClusterID = types.StringValue("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	plan.WorkspaceID = types.StringValue("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
+
+	err = privateconnections.ValidatePrivateConnection(plan, false)
+	require.NotNil(t, err)
+	require.Equal(t, "Conflicting cluster identifiers", err.Summary)
+
+	plan.WorkspaceID = plan.ClusterID
 
 	err = privateconnections.ValidatePrivateConnection(plan, false)
 	require.Nil(t, err)
@@ -39,6 +47,8 @@ func TestValidatePrivateConnection(t *testing.T) {
 	require.Equal(t, "service_name configuration is not allowed for INBOUND private connections.", err.Detail)
 
 	plan.ServiceName = types.StringNull()
+	plan.WorkspaceID = types.StringNull()
+	plan.ClusterID = types.StringNull()
 	plan.KaiEndpointID = types.StringValue("vce-test")
 	plan.ClusterID = types.StringValue("vce-testfa3d7868-fd40-40b5-8001-4b73de5d94c1")
 

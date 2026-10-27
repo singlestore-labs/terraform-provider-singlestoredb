@@ -116,10 +116,13 @@ func TestClusterModelHelpers(t *testing.T) {
 
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	apiExpiresAt := "2222-01-01 00:00:00.123 +0000 UTC"
+	configuredExpiresAt := "2222-01-01T00:00:00.123000Z"
 	model, modelDiags := toClusterResourceModel(management.Cluster{
 		Name:      "cluster",
 		ClusterID: &clusterID,
 		CreatedAt: &createdAt,
+		ExpiresAt: &apiExpiresAt,
 		AutoSuspend: &management.AutoSuspend{
 			SuspendType:      util.Ptr(management.AutoSuspendSuspendTypeIDLE),
 			IdleAfterSeconds: util.Ptr(120),
@@ -129,9 +132,10 @@ func TestClusterModelHelpers(t *testing.T) {
 			Sensitivity:    util.Ptr(management.LOW),
 		},
 		UpdateWindow: &management.UpdateWindow{Hour: 6, Day: 2},
-	}, "secret", nil, types.StringValue("Standard Project"))
+	}, "secret", nil, types.StringValue("Standard Project"), types.StringValue(configuredExpiresAt))
 	require.False(t, modelDiags.HasError())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
+	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
 	require.True(t, model.Size.IsNull())
 	require.Equal(t, float32(120), model.AutoSuspend.SuspendAfterSeconds.ValueFloat32())
 	require.False(t, model.UpdateWindow.IsNull())
@@ -249,6 +253,18 @@ func TestFirewallRangeHelpers(t *testing.T) {
 		[]types.String{types.StringValue("10.0.0.0/8")},
 		management.Cluster{FirewallRanges: util.Ptr([]string{"10.1.0.0/8"})},
 	))
+
+	configured := []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
+	require.Equal(t, configured, firewallRangesForState(configured, management.Cluster{
+		FirewallRanges: util.Ptr([]string{"10.0.0.0/8", "192.168.0.0/16"}),
+	}))
+	drifted := firewallRangesForState(configured, management.Cluster{
+		FirewallRanges: util.Ptr([]string{"10.1.0.0/8"}),
+	})
+	require.Equal(t, []types.String{types.StringValue("10.1.0.0/8")}, drifted)
+	require.Equal(t, []types.String{types.StringValue(unrestrictedCIDR)}, firewallRangesForState(nil, management.Cluster{
+		AllowAllTraffic: util.Ptr(true),
+	}))
 }
 
 func TestResolveProjectLookup(t *testing.T) {
