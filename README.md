@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work and are deprecated; see [Migrating from workspace resources](MIGRATING.md).
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work in v0.2.0 and are removed in v0.3.0, the first release on or after April 30, 2027; see [Migrating from workspace resources](MIGRATING.md).
 
 ## Prerequisites
 
@@ -122,7 +122,7 @@ resource "singlestoredb_cluster" "this" {
 
 ## Upgrading from workspace resources
 
-`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in this release, and `terraform plan` prints a warning. The next minor release rejects a plan that still uses them unless `allow_deprecated_workspace_resources` is set. They are removed in the first release on or after April 30, 2027.
+`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0, and `terraform plan` prints a warning. They are removed in v0.3.0, the first release on or after April 30, 2027.
 
 Move an existing deployment onto `singlestoredb_cluster` without creating a new one. The cluster `id` is the workspace id. The state steps, attribute mapping, password handling, and resources that reference a workspace are in [Migrating from workspace resources](MIGRATING.md).
 

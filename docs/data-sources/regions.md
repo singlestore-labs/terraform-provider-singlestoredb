@@ -40,7 +40,7 @@ output "all_regions" {
 
 Read-Only:
 
-- `id` (String, Deprecated) Deprecated. The unique identifier for the region. The regions[*].id attribute of singlestoredb_regions is deprecated and must not be used anymore. It is removed in the v0.2.0 release. Use regions[*].provider and regions[*].region_name instead, for example as cloud_provider and region_name of singlestoredb_cluster.
+- `id` (String, Deprecated) Deprecated. The unique identifier for the region. The regions[*].id attribute of singlestoredb_regions is deprecated and must not be used anymore. It is removed in v0.3.0, the first release on or after April 30, 2027. Use regions[*].provider and regions[*].region_name instead, for example as cloud_provider and region_name of singlestoredb_cluster.
 - `provider` (String) The name of the cloud provider hosting the region.
 - `region` (String) The name of the region.
 - `region_name` (String) The region code name.

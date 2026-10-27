@@ -8,17 +8,9 @@ This adopts the deployment that is already running. It does not create a second 
 
 ## Schedule
 
-`singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in this release. `terraform plan` prints a deprecation warning.
+`singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning.
 
-The next minor release rejects a plan that still contains either resource, unless the provider block sets `allow_deprecated_workspace_resources = true`. That argument does not exist yet. Leave it unset until that release, then set it only to keep an existing configuration running for one more release:
-
-```hcl
-provider "singlestoredb" {
-  allow_deprecated_workspace_resources = true
-}
-```
-
-New configurations use `singlestoredb_cluster`. These resources are removed in the first release on or after April 30, 2027. `singlestoredb_private_connection.workspace_id` and `workspace_group_id` are removed in that same release.
+These resources are removed in v0.3.0, the first release on or after April 30, 2027. `singlestoredb_private_connection.workspace_id` and `workspace_group_id` are removed in that same release. New configurations use `singlestoredb_cluster`.
 
 ## Before you edit configuration
 
@@ -156,7 +148,7 @@ These attributes have no cluster argument:
 
 - `singlestoredb_workspace.name`. The cluster name comes from the clusters API.
 - `singlestoredb_workspace.workspace_group_id`. Use the computed `group_id`.
-- `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`. `singlestoredb_regions.regions[*].id` is removed in v0.2.0; use `regions[*].provider` and `regions[*].region_name`.
+- `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`. `singlestoredb_regions.regions[*].id` is removed in v0.3.0, the first release on or after April 30, 2027; use `regions[*].provider` and `regions[*].region_name`.
 - `singlestoredb_workspace.created_at` and `singlestoredb_workspace_group.created_at`. The cluster `created_at` is the cluster's own timestamp.
 - The workspace data source attribute `last_resumed_at`.
 
@@ -244,7 +236,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 
 On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at` and `allow_all_traffic` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.
 
-The workspace data sources still read the v1 API in this release. New configuration uses the cluster data sources.
+The workspace data sources still read the v1 API in v0.2.0. New configuration uses the cluster data sources.
 
 ## Resources that point at a workspace
 
@@ -268,7 +260,7 @@ resource "singlestoredb_flow" "this" {
 
 Set `cluster_id` to `singlestoredb_cluster.this.id`. That is the same UUID as `workspace_id`. The provider rejects a plan that changes `cluster_id`, `workspace_id`, or `workspace_group_id` to a different value.
 
-`workspace_id` is a deprecated alias for `cluster_id`. `workspace_group_id` is a deprecated alias used only when `cluster_id` and `workspace_id` are unset. A group id on its own selects the cluster when the group contains exactly one non-terminated workspace. A group with several workspaces needs `cluster_id`. Both aliases are removed in the first release on or after April 30, 2027.
+`workspace_id` is a deprecated alias for `cluster_id`. `workspace_group_id` is a deprecated alias used only when `cluster_id` and `workspace_id` are unset. A group id on its own selects the cluster when the group contains exactly one non-terminated workspace. A group with several workspaces needs `cluster_id`. Both aliases are removed in v0.3.0, the first release on or after April 30, 2027.
 
 ```hcl
 resource "singlestoredb_private_connection" "this" {

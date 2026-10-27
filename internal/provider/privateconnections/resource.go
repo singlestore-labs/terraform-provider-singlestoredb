@@ -152,14 +152,14 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in the first release on or after April 30, 2027. When set alone, the group must contain exactly one active workspace, which is used as the cluster.",
-				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in the first release on or after April 30, 2027.",
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027. When set alone, the group must contain exactly one active workspace, which is used as the cluster.",
+				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
 			"workspace_id": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in the first release on or after April 30, 2027.",
-				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in the first release on or after April 30, 2027.",
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
+				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
 			"cluster_id": schema.StringAttribute{
 				Optional:            true,
