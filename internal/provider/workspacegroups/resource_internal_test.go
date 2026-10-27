@@ -12,18 +12,14 @@ import (
 
 func TestToManagementUpdateWindow(t *testing.T) {
 	t.Run("null object returns nil", func(t *testing.T) {
-		result := toManagementUpdateWindow(t.Context(), types.ObjectNull(map[string]attr.Type{
-			"hour": types.Int64Type,
-			"day":  types.Int64Type,
-		}))
+		result, diags := toManagementUpdateWindow(t.Context(), types.ObjectNull(updateWindowAttrTypes))
+		require.False(t, diags.HasError())
 		require.Nil(t, result)
 	})
 
 	t.Run("unknown object returns nil", func(t *testing.T) {
-		result := toManagementUpdateWindow(t.Context(), types.ObjectUnknown(map[string]attr.Type{
-			"hour": types.Int64Type,
-			"day":  types.Int64Type,
-		}))
+		result, diags := toManagementUpdateWindow(t.Context(), types.ObjectUnknown(updateWindowAttrTypes))
+		require.False(t, diags.HasError())
 		require.Nil(t, result)
 	})
 
@@ -40,7 +36,8 @@ func TestToManagementUpdateWindow(t *testing.T) {
 		)
 		require.False(t, diags.HasError())
 
-		result := toManagementUpdateWindow(t.Context(), obj)
+		result, convDiags := toManagementUpdateWindow(t.Context(), obj)
+		require.False(t, convDiags.HasError())
 		require.NotNil(t, result)
 		require.Equal(t, float32(12), result.Hour)
 		require.Equal(t, float32(3), result.Day)
@@ -59,16 +56,36 @@ func TestToManagementUpdateWindow(t *testing.T) {
 		)
 		require.False(t, diags.HasError())
 
-		result := toManagementUpdateWindow(t.Context(), obj)
+		result, convDiags := toManagementUpdateWindow(t.Context(), obj)
+		require.False(t, convDiags.HasError())
 		require.NotNil(t, result)
 		require.Equal(t, float32(0), result.Hour)
 		require.Equal(t, float32(6), result.Day)
+	})
+
+	t.Run("mismatched attribute type returns diagnostics", func(t *testing.T) {
+		obj, diags := types.ObjectValue(
+			map[string]attr.Type{
+				"hour": types.StringType,
+				"day":  types.Int64Type,
+			},
+			map[string]attr.Value{
+				"hour": types.StringValue("12"),
+				"day":  types.Int64Value(3),
+			},
+		)
+		require.False(t, diags.HasError())
+
+		result, convDiags := toManagementUpdateWindow(t.Context(), obj)
+		require.Nil(t, result)
+		require.True(t, convDiags.HasError())
 	})
 }
 
 func TestToUpdateWindowResourceModel(t *testing.T) {
 	t.Run("nil pointer returns null object", func(t *testing.T) {
-		result := toUpdateWindowResourceModel(nil)
+		result, diags := toUpdateWindowResourceModel(nil)
+		require.False(t, diags.HasError())
 		require.True(t, result.IsNull())
 	})
 
@@ -78,7 +95,8 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 			Day:  2,
 		}
 
-		result := toUpdateWindowResourceModel(uw)
+		result, convDiags := toUpdateWindowResourceModel(uw)
+		require.False(t, convDiags.HasError())
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel
@@ -95,7 +113,8 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 			Day:  0,
 		}
 
-		result := toUpdateWindowResourceModel(uw)
+		result, convDiags := toUpdateWindowResourceModel(uw)
+		require.False(t, convDiags.HasError())
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel
@@ -112,7 +131,8 @@ func TestToUpdateWindowResourceModel(t *testing.T) {
 			Day:  5.0,
 		}
 
-		result := toUpdateWindowResourceModel(uw)
+		result, convDiags := toUpdateWindowResourceModel(uw)
+		require.False(t, convDiags.HasError())
 		require.False(t, result.IsNull())
 
 		var model updateWindowResourceModel

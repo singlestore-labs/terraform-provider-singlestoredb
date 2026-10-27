@@ -25,6 +25,8 @@ New configurations use `singlestoredb_cluster`. These resources are removed in t
 Run this while the workspace resources are still in state. Replace the addresses with yours.
 
 ```shell
+touch terraform.tfstate.backup
+chmod 600 terraform.tfstate.backup
 terraform state pull > terraform.tfstate.backup
 terraform state show singlestoredb_workspace.this
 terraform state show singlestoredb_workspace_group.example
@@ -34,7 +36,7 @@ Save these values outside the terminal scrollback:
 
 - The workspace `id`. This is the import id.
 - The workspace group `id`. After import it is `group_id` on the cluster. You do not set it.
-- `admin_password` from the workspace group. `terraform state show` prints it. The Management API does not return it again, and `terraform state rm` drops it from state. The state backup above also contains it. Keep both out of shared logs.
+- `admin_password` from the workspace group. `terraform state show` redacts sensitive values, so retrieve it from the protected raw-state backup above or an existing sensitive output. The Management API does not return it again, and `terraform state rm` drops it from state. Keep the password and backup out of shared logs.
 
 Resume a suspended workspace before you migrate. The first apply after import updates `admin_password`, and the provider rejects any configuration change, including that password update, while the cluster is suspended. It also rejects changing `suspended` in the same apply as any other configuration. Resume with the workspace resource, migrate, then set `suspended = true` on the cluster in a later apply if the deployment should be suspended again.
 

@@ -115,7 +115,11 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	}
 
 	if !plan.UpdateWindow.Equal(state.UpdateWindow) {
-		patchBody.UpdateWindow = toManagementUpdateWindow(ctx, plan.UpdateWindow)
+		updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
+		if err := errorFromDiagnostics(updateWindowDiags); err != nil {
+			return clusterResourceModel{}, err
+		}
+		patchBody.UpdateWindow = updateWindow
 	}
 
 	clusterUpdateResponse, uerr := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patchBody)
@@ -139,7 +143,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		return clusterResourceModel{}, werr
 	}
 
-	return toClusterResourceModel(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName), nil
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
 }
 
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
@@ -156,7 +160,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return clusterResourceModel{}, werr
 	}
 
-	return toClusterResourceModel(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName), nil
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
 }
 
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
@@ -173,5 +177,14 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return clusterResourceModel{}, werr
 	}
 
-	return toClusterResourceModel(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName), nil
+	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName)
+}
+
+func clusterModelFromAPI(cluster management.Cluster, adminPassword string, firewallRanges []types.String, projectName types.String) (clusterResourceModel, *util.SummaryWithDetailError) {
+	model, diags := toClusterResourceModel(cluster, adminPassword, firewallRanges, projectName)
+	if err := errorFromDiagnostics(diags); err != nil {
+		return clusterResourceModel{}, err
+	}
+
+	return model, nil
 }
