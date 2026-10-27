@@ -119,6 +119,10 @@ func TestIsRoleChanged(t *testing.T) {
 
 	assert.False(t, roles.IsRoleChanged(roleA, roleB))
 	assert.True(t, roles.IsRoleChanged(roleA, roleC))
+
+	roleD := roleA
+	roleD.RoleName = types.StringValue("Role1")
+	assert.False(t, roles.IsRoleChanged(roleA, roleD))
 }
 
 func TestMatchedRoles(t *testing.T) {

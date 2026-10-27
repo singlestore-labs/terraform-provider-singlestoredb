@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/stretchr/testify/require"
 )
@@ -170,6 +171,111 @@ func TestGetWorkspaceGroupRolesUsesWorkspaceGroupAPI(t *testing.T) {
 	roles, err := (&rolesDataSourceList{ClientWithResponsesInterface: client}).getWorkspaceGroupRoles(t.Context(), groupID)
 	require.NoError(t, err)
 	require.Equal(t, []management.ResourceRole{{Role: "Owner"}}, *roles)
+}
+
+func TestAlignClusterRoleResourceIDsKeepsAPIClusterID(t *testing.T) {
+	clusterID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	groupID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	otherID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v2/clusters", r.URL.Path)
+		writeJSON(t, w, http.StatusOK, []management.Cluster{{
+			Name:      "child",
+			ClusterID: &clusterID,
+			GroupID:   &groupID,
+		}})
+	})
+
+	apiRole := clusterGrant(clusterID.String())
+	organizationRole := RoleAttributesModel{
+		RoleName:     types.StringValue("Reader"),
+		ResourceType: types.StringValue(string(ResourceTypeOrganization)),
+		ResourceID:   types.StringValue(otherID.String()),
+	}
+	invalidID := clusterGrant("not-a-uuid")
+	got, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole, organizationRole, invalidID}, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, clusterID.String(), got[0].ResourceID.ValueString())
+	require.Equal(t, otherID.String(), got[1].ResourceID.ValueString())
+	require.Equal(t, "not-a-uuid", got[2].ResourceID.ValueString())
+
+	configuredGroup := []RoleAttributesModel{clusterGrant(groupID.String())}
+	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole}, &configuredGroup, nil)
+	require.NoError(t, err)
+	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
+
+	configuredCluster := []RoleAttributesModel{clusterGrant(clusterID.String())}
+	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole}, nil, &configuredCluster)
+	require.NoError(t, err)
+	require.Equal(t, clusterID.String(), got[0].ResourceID.ValueString())
+
+	unrelated := []RoleAttributesModel{clusterGrant(otherID.String())}
+	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole}, &unrelated, nil)
+	require.NoError(t, err)
+	require.Equal(t, clusterID.String(), got[0].ResourceID.ValueString())
+
+	groupRole := clusterGrant(groupID.String())
+	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{groupRole}, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
+}
+
+func TestAlignClusterRoleResourceIDsReportsAPIError(t *testing.T) {
+	client := accessControlClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})
+	})
+
+	_, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{
+		clusterGrant("44444444-4444-4444-4444-444444444444"),
+	}, nil, nil)
+	require.Error(t, err)
+}
+
+func TestAlignClusterRoleResourceIDsSkipsNonClusterGrants(t *testing.T) {
+	role := RoleAttributesModel{
+		RoleName:     types.StringValue("Owner"),
+		ResourceType: types.StringValue(string(ResourceTypeTeam)),
+		ResourceID:   types.StringValue("not-a-uuid"),
+	}
+
+	got, err := alignClusterRoleResourceIDs(t.Context(), nil, []RoleAttributesModel{role}, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, role, got[0])
+}
+
+func TestRoleWithPlannedSpelling(t *testing.T) {
+	state := RoleAttributesModel{
+		RoleName:     types.StringValue("Owner"),
+		ResourceType: types.StringValue("Cluster"),
+		ResourceID:   types.StringValue("resource"),
+	}
+	plan := state
+	plan.RoleName = types.StringValue("owner")
+	require.False(t, IsRoleChanged(plan, state))
+
+	next, ok := roleWithPlannedSpelling(plan, state)
+	require.True(t, ok)
+	require.Equal(t, "owner", next.RoleName.ValueString())
+	require.Equal(t, state.ResourceID, next.ResourceID)
+
+	plan = state
+	plan.ResourceType = types.StringValue("cluster")
+	next, ok = roleWithPlannedSpelling(plan, state)
+	require.True(t, ok)
+	require.Equal(t, "cluster", next.ResourceType.ValueString())
+
+	next, ok = roleWithPlannedSpelling(state, state)
+	require.False(t, ok)
+	require.Equal(t, state, next)
+}
+
+func clusterGrant(id string) RoleAttributesModel {
+	return RoleAttributesModel{
+		RoleName:     types.StringValue("Owner"),
+		ResourceType: types.StringValue(string(ResourceTypeWorkspaceGroup)),
+		ResourceID:   types.StringValue(id),
+	}
 }
 
 func accessControlClient(t *testing.T, handler http.HandlerFunc) management.ClientWithResponsesInterface {

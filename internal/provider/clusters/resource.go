@@ -437,7 +437,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	result, modelDiags := toClusterResourceModel(cluster, util.AdminPasswordForState(
 		plan.AdminPassword.ValueString(),
 		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
-	), plan.FirewallRanges, plan.ProjectName)
+	), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -500,8 +500,9 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		projectName = resolved
 	}
 
+	configuredExpiresAt := state.ExpiresAt
 	skipAdminPasswordValidation := types.BoolValue(state.SkipAdminPasswordValidation.ValueBool()) // Null after import.
-	state, modelDiags := toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName)
+	state, modelDiags := toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName, configuredExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -795,7 +796,7 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 	return nil
 }
 
-func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName types.String) (clusterResourceModel, diag.Diagnostics) {
+func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName, configuredExpiresAt types.String) (clusterResourceModel, diag.Diagnostics) {
 	size := types.StringNull()
 	scaleFactor := types.Float32Value(scaleX1)
 	cacheConfig := types.Float32Value(cacheMultiplierX1)
@@ -822,7 +823,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		Kai:                 types.BoolValue(util.Deref(cluster.Kai)),
 		AdminPassword:       types.StringValue(adminPassword),
 		FirewallRanges:      firewallRangesForState(configuredFirewallRanges, cluster),
-		ExpiresAt:           util.MaybeExpiresAtStringValue(cluster.ExpiresAt),
+		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, configuredExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
 		DeploymentType:      util.StringValueOrNull(cluster.DeploymentType),
