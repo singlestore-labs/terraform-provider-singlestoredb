@@ -2,9 +2,11 @@ package clusters_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -633,4 +635,49 @@ func TestClusterRejectedAdminPassword(t *testing.T) {
 
 	require.True(t, created)
 	require.True(t, deleted, "a rejected password must delete the new cluster")
+}
+
+func TestClusterResourceIntegration(t *testing.T) {
+	adminPassword := config.TestInitialAdminPassword
+	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
+
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(adminPassword)).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("singlestoredb_cluster.this", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "name", config.TestClusterName),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "project_name", config.TestInitialProjectName),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "suspended", "false"),
+					resource.TestCheckResourceAttrWith("singlestoredb_cluster.this", "expires_at", integrationExpiresAtIsSoon),
+					resource.TestCheckResourceAttrWith("singlestoredb_cluster.this", "endpoint", isConnectable),
+				),
+			},
+		},
+	})
+}
+
+func integrationExpiresAtIsSoon(value string) error {
+	expires, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return fmt.Errorf("expires_at %q is not a timestamp", value)
+	}
+
+	now := time.Now().UTC()
+	if !expires.After(now) {
+		return fmt.Errorf("expires_at %s is not in the future", value)
+	}
+
+	latest := now.Add(config.TestWorkspaceGroupExpiration + 15*time.Minute)
+	if expires.After(latest) {
+		return fmt.Errorf("expires_at %s is later than the integration-test safeguard of %s", value, config.TestWorkspaceGroupExpiration)
+	}
+
+	return nil
 }

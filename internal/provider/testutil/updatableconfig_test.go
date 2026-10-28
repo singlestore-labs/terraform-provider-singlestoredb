@@ -1,6 +1,7 @@
 package testutil_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -63,6 +64,40 @@ func TestWithWorkspaceGroupResource(t *testing.T) {
 	uc = uc.WithWorkspaceGroupResource("this")(config.IDAttribute, cty.StringVal(id))
 	require.Contains(t, uc, config.IDAttribute)
 	require.Contains(t, uc, id)
+}
+
+func TestWithIntegrationSafeguards(t *testing.T) {
+	expiresAt := "2026-10-28T14:00:00Z"
+	original := testutil.UpdatableConfig(`
+resource "singlestoredb_workspace_group" "example" {
+  name       = "group"
+  expires_at = "2222-01-01T00:00:00Z"
+}
+
+resource "singlestoredb_workspace" "this" {
+  name = "workspace-1"
+}
+
+resource "singlestoredb_workspace" "reader" {
+  name = "workspace-2"
+}
+
+resource "singlestoredb_cluster" "this" {
+  name       = "cluster-1"
+  expires_at = "2222-01-01T00:00:00Z"
+}
+`)
+
+	got := original.WithIntegrationSafeguards(expiresAt).String()
+
+	require.NotContains(t, got, "2222-01-01T00:00:00Z")
+	require.NotContains(t, got, config.TestWorkspaceName)
+	require.Contains(t, got, config.TestReaderWorkspaceName)
+	require.Contains(t, got, expiresAt)
+	require.Equal(t, 2, strings.Count(got, config.TestClusterName))
+
+	untouched := testutil.UpdatableConfig(`data "singlestoredb_regions" "all" {}`)
+	require.Equal(t, untouched.String(), untouched.WithIntegrationSafeguards(expiresAt).String())
 }
 
 func TestWithAPIKey(t *testing.T) {

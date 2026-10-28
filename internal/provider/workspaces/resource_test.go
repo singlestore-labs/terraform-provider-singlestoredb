@@ -383,7 +383,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 				})).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestClusterName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
@@ -397,7 +397,7 @@ func TestWorkspaceResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestClusterName),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "suspended", "false"),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isConnectable),
