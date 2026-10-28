@@ -87,6 +87,9 @@ const (
 	TestInitialUpdateWindowHour = 14
 	// TestWorkspaceName is the default workspace name in examples.
 	TestWorkspaceName = "workspace-1"
+	// TestClusterName is the cluster name integration tests apply.
+	// Leftover CI deployments are then identifiable, and they do not keep the example name workspace-1.
+	TestClusterName = "terraform-cluster"
 	// TestReaderWorkspaceName is the reader workspace name in the workspace_with_sql example.
 	TestReaderWorkspaceName = "workspace-2"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
@@ -95,8 +98,9 @@ const (
 	TestMaxIdleConns = 16
 	// TestMaxOpenConns is the maximum number of open connections for a SQL mysql connection for tests.
 	TestMaxOpenConns = 64
-	// TestWorkspaceGroupExpiration is the time after which a workspace group auto-terminates.
-	// This is an extra safeguard to cleanup resources after running integration tests.
+	// TestWorkspaceGroupExpiration is the time after which an integration-test
+	// workspace group or cluster auto-terminates. This cleans up resources when a
+	// run does not reach destroy.
 	TestWorkspaceGroupExpiration = 2 * time.Hour
 	// ResourceTypeName is a type name for accessing resource objects in *.tf files. The other types are data source and provider.
 	ResourceTypeName = "resource"
