@@ -361,7 +361,7 @@ func validClusterPlan() clusterResourceModel {
 		CacheConfig:         types.Float32Value(1),
 		Suspended:           types.BoolValue(false),
 		Kai:                 types.BoolValue(false),
-		AdminPassword:       types.StringValue("moc_kPas$word193!"),
+		AdminPassword:       types.StringValue("mockPassword193!"),
 		FirewallRanges:      []types.String{types.StringValue("0.0.0.0/0")},
 		ExpiresAt:           types.StringNull(),
 		CloudProvider:       types.StringValue("AWS"),

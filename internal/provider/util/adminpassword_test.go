@@ -124,6 +124,7 @@ func TestRejectReplacedAdminPassword(t *testing.T) {
 		require.Contains(t, got.Detail, "was deleted")
 		require.Contains(t, got.Detail, util.AdminPasswordRules())
 		require.Contains(t, got.Detail, "must include an uppercase letter")
+		require.Contains(t, got.Detail, "https://docs.singlestore.com/cloud/security/database-access/configuring-a-password-policy/")
 		require.Contains(t, got.Detail, "Remove admin_password")
 		require.NotContains(t, got.Detail, generated)
 	})
@@ -142,6 +143,7 @@ func TestRejectReplacedAdminPassword(t *testing.T) {
 		got := util.RejectReplacedAdminPassword(t.Context(), client, clusterID, config.TestInitialAdminPassword, generated)
 		require.NotNil(t, got)
 		require.Contains(t, got.Detail, "API rules have likely changed")
+		require.Contains(t, got.Detail, "https://docs.singlestore.com/cloud/security/database-access/configuring-a-password-policy/")
 	})
 
 	t.Run("reports a cluster that could not be deleted", func(t *testing.T) {
