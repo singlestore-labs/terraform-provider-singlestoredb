@@ -8,9 +8,9 @@ This adopts the deployment that is already running. It does not create a second 
 
 ## Schedule
 
-`singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning.
+`singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning. The data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` do the same.
 
-These resources are removed in v0.3.0, the first release on or after April 30, 2027. `singlestoredb_private_connection.workspace_id` and `workspace_group_id` are removed in that same release. New configurations use `singlestoredb_cluster`.
+These resources and data sources are removed in v0.3.0, the first release on or after April 30, 2027. `singlestoredb_private_connection.workspace_id` and `workspace_group_id` are removed in that same release. New configurations use `singlestoredb_cluster`.
 
 ## Before you edit configuration
 
@@ -236,7 +236,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 
 On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at` and `allow_all_traffic` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.
 
-The workspace data sources still read the v1 API in v0.2.0. New configuration uses the cluster data sources.
+The workspace data sources still read the v1 API in v0.2.0, and `terraform plan` prints a deprecation warning. New configuration uses the cluster data sources.
 
 ## Resources that point at a workspace
 
