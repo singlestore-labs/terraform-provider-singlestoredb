@@ -17,6 +17,9 @@ import (
 const (
 	adminPasswordMaxSequential = 2
 	adminPasswordMaxRepeat     = 3
+	// passwordPolicyDocsURL documents the engine password complexity variables
+	// that /v2/clusters enforces. The provider's checks can lag those variables.
+	passwordPolicyDocsURL = "https://docs.singlestore.com/cloud/security/database-access/configuring-a-password-policy/" //nolint:gosec
 )
 
 // SkipAdminPasswordValidationAttribute turns off the provider's admin_password
@@ -240,9 +243,11 @@ func RejectReplacedAdminPassword(ctx context.Context, c management.ClientWithRes
 
 func adminPasswordFixInstructions(configured string) string {
 	known := "The configured password meets the rules the provider knows, so the API rules have likely changed. " +
-		"Check the SingleStore documentation for the current password requirements."
+		"Check the SingleStore password policy documentation for the current password requirements: " +
+		passwordPolicyDocsURL
 	if problems := AdminPasswordProblems(configured); len(problems) > 0 {
-		known = "The configured password fails these rules: it " + strings.Join(problems, "; ") + "."
+		known = "The configured password fails these rules: it " + strings.Join(problems, "; ") + ". " +
+			"See " + passwordPolicyDocsURL
 	}
 
 	return "To fix this, do one of the following, then apply again:\n" +
