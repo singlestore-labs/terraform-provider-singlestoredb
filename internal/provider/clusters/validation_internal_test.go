@@ -138,6 +138,8 @@ func TestClusterModelHelpers(t *testing.T) {
 	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
 	require.True(t, model.Size.IsNull())
 	require.Equal(t, float32(120), model.AutoSuspend.SuspendAfterSeconds.ValueFloat32())
+	require.Equal(t, float32(2), model.AutoScale.MaxScaleFactor.ValueFloat32())
+	require.Equal(t, string(management.LOW), model.AutoScale.Sensitivity.ValueString())
 	require.False(t, model.UpdateWindow.IsNull())
 
 	scheduled := toAutoSuspendResourceModel(management.Cluster{AutoSuspend: &management.AutoSuspend{
@@ -145,6 +147,28 @@ func TestClusterModelHelpers(t *testing.T) {
 		ScheduledAfterSeconds: util.Ptr(30),
 	}})
 	require.Equal(t, float32(30), scheduled.SuspendAfterSeconds.ValueFloat32())
+
+	omittedSuspend := toAutoSuspendResourceModel(management.Cluster{})
+	require.True(t, omittedSuspend.SuspendAfterSeconds.IsNull())
+	require.False(t, omittedSuspend.SuspendAfterSeconds.IsUnknown())
+	require.Equal(t, string(management.AutoSuspendSuspendTypeDISABLED), omittedSuspend.SuspendType.ValueString())
+
+	disabled := toAutoSuspendResourceModel(management.Cluster{AutoSuspend: &management.AutoSuspend{
+		SuspendType: util.Ptr(management.AutoSuspendSuspendTypeDISABLED),
+	}})
+	require.True(t, disabled.SuspendAfterSeconds.IsNull())
+
+	partialScale := toAutoScaleResourceModel(management.Cluster{AutoScale: &management.AutoScale{
+		MaxScaleFactor: util.Ptr[float32](1),
+	}})
+	require.Equal(t, float32(scaleX1), partialScale.MaxScaleFactor.ValueFloat32())
+	require.Equal(t, string(management.NORMAL), partialScale.Sensitivity.ValueString())
+
+	omittedFactor := toAutoScaleResourceModel(management.Cluster{AutoScale: &management.AutoScale{
+		Sensitivity: util.Ptr(management.LOW),
+	}})
+	require.Equal(t, float32(scaleX1), omittedFactor.MaxScaleFactor.ValueFloat32())
+	require.Equal(t, string(management.LOW), omittedFactor.Sensitivity.ValueString())
 
 	plan := validClusterPlan()
 	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)

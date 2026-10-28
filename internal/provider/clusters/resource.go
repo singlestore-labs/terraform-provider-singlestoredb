@@ -877,17 +877,24 @@ func toAutoScale(plan clusterResourceModel) *management.AutoScale {
 }
 
 func toAutoScaleResourceModel(cluster management.Cluster) *autoScaleResourceModel {
+	// Omitted API fields use the schema defaults. A null or unknown value here
+	// disagrees with the plan and keeps proposing updates after a scale-down to 1,
+	// which sends auto_scale without sensitivity.
+	model := &autoScaleResourceModel{
+		MaxScaleFactor: types.Float32Value(scaleX1),
+		Sensitivity:    types.StringValue(string(management.NORMAL)),
+	}
 	if cluster.AutoScale == nil {
-		return &autoScaleResourceModel{
-			MaxScaleFactor: types.Float32Value(scaleX1),
-			Sensitivity:    types.StringValue(string(management.NORMAL)),
-		}
+		return model
+	}
+	if cluster.AutoScale.MaxScaleFactor != nil {
+		model.MaxScaleFactor = types.Float32Value(*cluster.AutoScale.MaxScaleFactor)
+	}
+	if cluster.AutoScale.Sensitivity != nil {
+		model.Sensitivity = types.StringValue(string(*cluster.AutoScale.Sensitivity))
 	}
 
-	return &autoScaleResourceModel{
-		MaxScaleFactor: types.Float32PointerValue(cluster.AutoScale.MaxScaleFactor),
-		Sensitivity:    util.StringValueOrNull(cluster.AutoScale.Sensitivity),
-	}
+	return model
 }
 
 func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
@@ -912,8 +919,10 @@ func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 
 func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResourceModel {
 	if cluster.AutoSuspend == nil || cluster.AutoSuspend.SuspendType == nil {
+		// A zero Float32 is unknown. The plan default for suspend_after_seconds is null.
 		return &autoSuspendResourceModel{
-			SuspendType: types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED)),
+			SuspendAfterSeconds: types.Float32Null(),
+			SuspendType:         types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED)),
 		}
 	}
 
