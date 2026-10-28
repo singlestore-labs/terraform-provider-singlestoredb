@@ -122,7 +122,7 @@ resource "singlestoredb_cluster" "this" {
 
 ## Upgrading from workspace resources
 
-`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0, and `terraform plan` prints a warning. They are removed in v0.3.0, the first release on or after April 30, 2027.
+`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated, as are the data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups`. They keep their current behavior in v0.2.0, and `terraform plan` prints a warning. They are removed in v0.3.0, the first release on or after April 30, 2027.
 
 Move an existing deployment onto `singlestoredb_cluster` without creating a new one. The cluster `id` is the workspace id. The state steps, attribute mapping, password handling, and resources that reference a workspace are in [Migrating from workspace resources](MIGRATING.md).
 

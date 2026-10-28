@@ -49,6 +49,11 @@ const (
 	// singlestoredb_workspace or singlestoredb_workspace_group.
 	// v0.2.0 keeps the resources and warns. v0.3.0, the first release on or after April 30, 2027, removes them.
 	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v0.3.0, the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See MIGRATING.md in the provider repository."
+	// WorkspaceDataSourceDeprecationMessage is shown on every plan that uses
+	// singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group,
+	// or singlestoredb_workspace_groups.
+	// v0.2.0 keeps the data sources and warns. v0.3.0, the first release on or after April 30, 2027, removes them.
+	WorkspaceDataSourceDeprecationMessage = "Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v0.3.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository."
 	// RegionIDDeprecationMessage is shown on every read of the singlestoredb_regions data source
 	// because Terraform does not warn when a deprecated computed attribute is referenced.
 	// v0.2.0 still returns the attribute. v0.3.0, the first release on or after April 30, 2027, removes it.
