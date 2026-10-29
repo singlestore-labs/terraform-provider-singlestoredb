@@ -126,3 +126,48 @@ func TestResolveClusterIDAmbiguousWorkspaceGroup(t *testing.T) {
 	require.NotNil(t, serr)
 	require.Equal(t, "Ambiguous workspace group", serr.Summary)
 }
+
+func TestLookupWorkspaceGroupID(t *testing.T) {
+	groupID := uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
+	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/workspaces/" + clusterID.String():
+			body, err := json.Marshal(management.Workspace{
+				WorkspaceGroupID: groupID,
+				WorkspaceID:      clusterID,
+				State:            management.WorkspaceStateACTIVE,
+			})
+			require.NoError(t, err)
+			_, err = w.Write(body)
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	got, serr := lookupWorkspaceGroupID(t.Context(), client, clusterID)
+	require.Nil(t, serr)
+	require.NotNil(t, got)
+	require.Equal(t, groupID, *got)
+
+	missing, serr := lookupWorkspaceGroupID(t.Context(), client, uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"))
+	require.Nil(t, serr)
+	require.Nil(t, missing)
+
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(errorServer.Close)
+	errorClient, err := management.NewClientWithResponses(errorServer.URL)
+	require.NoError(t, err)
+
+	_, serr = lookupWorkspaceGroupID(t.Context(), errorClient, clusterID)
+	require.NotNil(t, serr)
+}

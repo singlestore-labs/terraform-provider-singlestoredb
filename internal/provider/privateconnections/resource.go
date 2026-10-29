@@ -156,14 +156,20 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
 			"workspace_id": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
 			"cluster_id": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				MarkdownDescription: "The ID of the cluster to connect with.",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
@@ -285,6 +291,17 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 
 	updated := toPrivateConnectionModel(*privateConnection.JSON200)
 	preserveClusterAliases(&updated, state)
+	if !util.IsConfiguredString(updated.WorkspaceGroupID) && util.IsConfiguredString(updated.ClusterID) {
+		groupID, gerr := lookupWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, uuid.MustParse(updated.ClusterID.ValueString()))
+		if gerr != nil {
+			resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
+
+			return
+		}
+		if groupID != nil {
+			updated.WorkspaceGroupID = util.UUIDStringValue(*groupID)
+		}
+	}
 
 	diags = resp.State.Set(ctx, &updated)
 	resp.Diagnostics.Append(diags...)

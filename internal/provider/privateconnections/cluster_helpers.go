@@ -35,6 +35,23 @@ func resolveClusterID(ctx context.Context, c management.ClientWithResponsesInter
 	return resolveClusterIDFromGroup(ctx, c, uuid.MustParse(plan.WorkspaceGroupID.ValueString()))
 }
 
+// lookupWorkspaceGroupID finds the group for a cluster. The v2 private connection
+// API does not return a workspace group ID, so import has to look it up. A missing
+// workspace leaves the alias unset instead of failing the read.
+func lookupWorkspaceGroupID(ctx context.Context, c management.ClientWithResponsesInterface, clusterID uuid.UUID) (*uuid.UUID, *util.SummaryWithDetailError) {
+	workspace, err := c.GetV1WorkspacesWorkspaceIDWithResponse(ctx, clusterID, &management.GetV1WorkspacesWorkspaceIDParams{})
+	if serr := util.StatusOK(workspace, err, util.ReturnNilOnNotFound); serr != nil {
+		return nil, serr
+	}
+	if workspace == nil || workspace.JSON200 == nil {
+		return nil, nil
+	}
+
+	groupID := workspace.JSON200.WorkspaceGroupID
+
+	return &groupID, nil
+}
+
 func resolveClusterIDFromGroup(ctx context.Context, c management.ClientWithResponsesInterface, groupID uuid.UUID) (uuid.UUID, *util.SummaryWithDetailError) {
 	workspacesResp, err := c.GetV1WorkspacesWithResponse(ctx, &management.GetV1WorkspacesParams{WorkspaceGroupID: groupID})
 	if serr := util.StatusOK(workspacesResp, err); serr != nil {
