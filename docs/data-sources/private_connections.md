@@ -63,5 +63,5 @@ Read-Only:
 - `type` (String) The private connection type.
 - `updated_at` (String) The timestamp of when the private connection was updated.
 - `web_socket_port` (Number) The websockets port.
-- `workspace_group_id` (String) Deprecated temporary alias. Previously the workspace group ID; no longer returned by the v2 API. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.
+- `workspace_group_id` (String) Deprecated temporary alias. The workspace group ID for a workspace-backed connection, looked up from the cluster. Empty when the cluster is not a workspace. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.
 - `workspace_id` (String) Deprecated temporary alias for cluster_id. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.

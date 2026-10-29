@@ -52,6 +52,22 @@ func lookupWorkspaceGroupID(ctx context.Context, c management.ClientWithResponse
 	return &groupID, nil
 }
 
+// restoreWorkspaceGroupID fills the deprecated alias when the v2 connection does not
+// return it and state does not already have it. A missing workspace leaves the alias unset.
+func restoreWorkspaceGroupID(ctx context.Context, c management.ClientWithResponsesInterface, model *PrivateConnectionModel) *util.SummaryWithDetailError {
+	if util.IsConfiguredString(model.WorkspaceGroupID) || !util.IsConfiguredString(model.ClusterID) {
+		return nil
+	}
+
+	groupID, gerr := lookupWorkspaceGroupID(ctx, c, uuid.MustParse(model.ClusterID.ValueString()))
+	if gerr != nil || groupID == nil {
+		return gerr
+	}
+	model.WorkspaceGroupID = util.UUIDStringValue(*groupID)
+
+	return nil
+}
+
 func resolveClusterIDFromGroup(ctx context.Context, c management.ClientWithResponsesInterface, groupID uuid.UUID) (uuid.UUID, *util.SummaryWithDetailError) {
 	workspacesResp, err := c.GetV1WorkspacesWithResponse(ctx, &management.GetV1WorkspacesParams{WorkspaceGroupID: groupID})
 	if serr := util.StatusOK(workspacesResp, err); serr != nil {

@@ -275,9 +275,9 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	}
 
 	roles := util.Map(util.Deref(jsonRoles), toRoleAttributesModel)
-	// Identity roles for resource_type=Cluster return cluster IDs, while Terraform configs
-	// historically use singlestoredb_workspace_group.id (group ID). Align IDs so validation
-	// and state match the configured resource_id.
+	// A config may name a cluster by its ID or by a parent group ID that resolves to that
+	// same access-control target. Align only those identifiers. A workspace-group grant and
+	// a grant on a child cluster stay distinct.
 	roles, err := alignClusterRoleResourceIDs(ctx, r, roles, expectedRoles, unexpectedRoles)
 	if err != nil {
 		return nil, err
@@ -291,15 +291,21 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 }
 
 // alignClusterRoleResourceIDs rewrites a Cluster grant's resource ID to the identifier
-// configured in Terraform when that identifier is the cluster ID or its parent workspace
-// group ID. Grants with no matching configured identifier keep the API cluster ID, so a
-// later apply does not retarget the whole workspace group.
+// configured in Terraform when both identifiers resolve to the same access-control target.
+// A workspace-group grant and a child-cluster grant use different endpoints, so a child
+// grant is never rewritten to the group ID. Grants with no matching configured identifier
+// keep the API ID. Role enumeration that does not name a cluster skips the cluster list.
 func alignClusterRoleResourceIDs(
 	ctx context.Context,
 	c management.ClientWithResponsesInterface,
 	roles []RoleAttributesModel,
 	expectedRoles, unexpectedRoles *[]RoleAttributesModel,
 ) ([]RoleAttributesModel, error) {
+	configuredIDs := configuredClusterResourceIDs(expectedRoles, unexpectedRoles)
+	if len(configuredIDs) == 0 {
+		return roles, nil
+	}
+
 	needsAlign := false
 	for _, role := range roles {
 		if ResourceTypeString(role.ResourceType) == ResourceTypeWorkspaceGroup {
@@ -317,43 +323,102 @@ func alignClusterRoleResourceIDs(
 		return nil, serr
 	}
 
-	clusterToGroup := make(map[uuid.UUID]uuid.UUID)
-	for _, cluster := range util.Deref(list.JSON200) {
-		if cluster.ClusterID != nil && cluster.GroupID != nil {
-			clusterToGroup[*cluster.ClusterID] = *cluster.GroupID
-		}
-	}
+	clusterToGroup := clusterToGroupIDs(util.Deref(list.JSON200))
 
-	configuredIDs := configuredClusterResourceIDs(expectedRoles, unexpectedRoles)
 	aligned := make([]RoleAttributesModel, len(roles))
 	for i, role := range roles {
-		aligned[i] = alignOneClusterRoleResourceID(role, clusterToGroup, configuredIDs)
+		next, aerr := alignOneClusterRoleResourceID(ctx, c, role, clusterToGroup, configuredIDs)
+		if aerr != nil {
+			return nil, aerr
+		}
+		aligned[i] = next
 	}
 
 	return aligned, nil
 }
 
+func clusterToGroupIDs(clusters []management.Cluster) map[uuid.UUID]uuid.UUID {
+	clusterToGroup := make(map[uuid.UUID]uuid.UUID, len(clusters))
+	for _, cluster := range clusters {
+		if cluster.ClusterID == nil || cluster.GroupID == nil {
+			continue
+		}
+
+		clusterToGroup[*cluster.ClusterID] = *cluster.GroupID
+	}
+
+	return clusterToGroup
+}
+
 func alignOneClusterRoleResourceID(
+	ctx context.Context,
+	c management.ClientWithResponsesInterface,
 	role RoleAttributesModel,
 	clusterToGroup map[uuid.UUID]uuid.UUID,
 	configuredIDs []uuid.UUID,
-) RoleAttributesModel {
+) (RoleAttributesModel, error) {
 	if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
-		return role
+		return role, nil
 	}
-	resourceID, err := uuid.Parse(role.ResourceID.ValueString())
-	if err != nil {
-		return role
+	resourceID, ok := parseUUID(role.ResourceID.ValueString())
+	if !ok {
+		return role, nil
 	}
 	groupID, isClusterID := clusterToGroup[resourceID]
 	if !isClusterID {
-		return role
+		return role, nil
 	}
-	if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
-		role.ResourceID = util.UUIDStringValue(id)
+	configuredID, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID)
+	if !ok || configuredID == resourceID {
+		return role, nil
+	}
+	same, err := sameClusterAccessTarget(ctx, c, resourceID, configuredID, clusterToGroup)
+	if err != nil || !same {
+		return role, err
+	}
+	role.ResourceID = util.UUIDStringValue(configuredID)
+
+	return role, nil
+}
+
+func parseUUID(id string) (uuid.UUID, bool) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.UUID{}, false
 	}
 
-	return role
+	return parsed, true
+}
+
+// sameClusterAccessTarget reports whether two IDs grant through the same endpoint.
+// A cluster ID and its workspace group ID do not: the group stays on the v1 workspace-group
+// API, and the cluster uses the v2 cluster API. A parent group ID that is not itself a
+// workspace group resolves to the child cluster, and that pair does match.
+func sameClusterAccessTarget(
+	ctx context.Context,
+	c management.ClientWithResponsesInterface,
+	clusterID, configuredID uuid.UUID,
+	clusterToGroup map[uuid.UUID]uuid.UUID,
+) (bool, error) {
+	if configuredID == clusterID {
+		return true, nil
+	}
+	if _, isCluster := clusterToGroup[configuredID]; isCluster {
+		return false, nil
+	}
+
+	isWorkspaceGroup, err := workspaceGroupExists(ctx, c, configuredID)
+	if err != nil || isWorkspaceGroup {
+		return false, err
+	}
+
+	for id, groupID := range clusterToGroup {
+		if groupID == configuredID && id == clusterID {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // roleWithPlannedSpelling keeps access-control matching case-insensitive while storing

@@ -73,6 +73,11 @@ func (d *privateConnectionDataSourceGet) Read(ctx context.Context, req datasourc
 	}
 
 	result := toPrivateConnectionModel(*privateConnection.JSON200)
+	if gerr := restoreWorkspaceGroupID(ctx, d.ClientWithResponsesInterface, &result); gerr != nil {
+		resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
+
+		return
+	}
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -148,7 +153,7 @@ func newPrivateConnectionDataSourceSchemaAttributes() map[string]schema.Attribut
 		},
 		"workspace_group_id": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "Deprecated temporary alias. Previously the workspace group ID; no longer returned by the v2 API. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
+			MarkdownDescription: "Deprecated temporary alias. The workspace group ID for a workspace-backed connection, looked up from the cluster. Empty when the cluster is not a workspace. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 		},
 		"workspace_id": schema.StringAttribute{
 			Computed:            true,

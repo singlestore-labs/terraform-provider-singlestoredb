@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const v2ClustersPath = "/v2/clusters"
+
 func TestResolveClusterAccessTargetUsesClusterAPI(t *testing.T) {
 	clusterID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +53,7 @@ func TestResolveClusterAccessTargetMapsParentGroupToCluster(t *testing.T) {
 		switch r.URL.Path {
 		case "/v2/clusters/" + groupID.String(), "/v1/workspaceGroups/" + groupID.String():
 			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
-		case "/v2/clusters":
+		case v2ClustersPath:
 			writeJSON(t, w, http.StatusOK, []management.Cluster{{
 				Name:      "child",
 				ClusterID: &clusterID,
@@ -74,7 +76,7 @@ func TestResolveClusterAccessTargetNotFound(t *testing.T) {
 		switch r.URL.Path {
 		case "/v2/clusters/" + resourceID.String(), "/v1/workspaceGroups/" + resourceID.String():
 			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
-		case "/v2/clusters":
+		case v2ClustersPath:
 			writeJSON(t, w, http.StatusOK, []management.Cluster{})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -179,7 +181,7 @@ func TestAlignClusterRoleResourceIDsKeepsAPIClusterID(t *testing.T) {
 	otherID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/v2/clusters", r.URL.Path)
+		require.Equal(t, v2ClustersPath, r.URL.Path)
 		writeJSON(t, w, http.StatusOK, []management.Cluster{{
 			Name:      "child",
 			ClusterID: &clusterID,
@@ -200,11 +202,6 @@ func TestAlignClusterRoleResourceIDsKeepsAPIClusterID(t *testing.T) {
 	require.Equal(t, otherID.String(), got[1].ResourceID.ValueString())
 	require.Equal(t, "not-a-uuid", got[2].ResourceID.ValueString())
 
-	configuredGroup := []RoleAttributesModel{clusterGrant(groupID.String())}
-	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole}, &configuredGroup, nil)
-	require.NoError(t, err)
-	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
-
 	configuredCluster := []RoleAttributesModel{clusterGrant(clusterID.String())}
 	got, err = alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{apiRole}, nil, &configuredCluster)
 	require.NoError(t, err)
@@ -221,14 +218,63 @@ func TestAlignClusterRoleResourceIDsKeepsAPIClusterID(t *testing.T) {
 	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
 }
 
+func TestAlignClusterRoleResourceIDsKeepsWorkspaceGroupScope(t *testing.T) {
+	clusterID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	groupID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{{
+				Name:      "child",
+				ClusterID: &clusterID,
+				GroupID:   &groupID,
+			}})
+		case "/v1/workspaceGroups/" + groupID.String():
+			writeJSON(t, w, http.StatusOK, management.WorkspaceGroup{Name: "group"})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	configuredGroup := []RoleAttributesModel{clusterGrant(groupID.String())}
+	got, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{clusterGrant(clusterID.String())}, &configuredGroup, nil)
+	require.NoError(t, err)
+	require.Equal(t, clusterID.String(), got[0].ResourceID.ValueString())
+}
+
+func TestAlignClusterRoleResourceIDsAlignsParentGroupAlias(t *testing.T) {
+	clusterID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	groupID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{{
+				Name:      "child",
+				ClusterID: &clusterID,
+				GroupID:   &groupID,
+			}})
+		case "/v1/workspaceGroups/" + groupID.String():
+			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	configuredGroup := []RoleAttributesModel{clusterGrant(groupID.String())}
+	got, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{clusterGrant(clusterID.String())}, &configuredGroup, nil)
+	require.NoError(t, err)
+	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
+}
+
 func TestAlignClusterRoleResourceIDsReportsAPIError(t *testing.T) {
 	client := accessControlClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})
 	})
 
+	configured := []RoleAttributesModel{clusterGrant("44444444-4444-4444-4444-444444444444")}
 	_, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{
 		clusterGrant("44444444-4444-4444-4444-444444444444"),
-	}, nil, nil)
+	}, &configured, nil)
 	require.Error(t, err)
 }
 

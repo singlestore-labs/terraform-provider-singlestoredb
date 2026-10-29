@@ -291,16 +291,10 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 
 	updated := toPrivateConnectionModel(*privateConnection.JSON200)
 	preserveClusterAliases(&updated, state)
-	if !util.IsConfiguredString(updated.WorkspaceGroupID) && util.IsConfiguredString(updated.ClusterID) {
-		groupID, gerr := lookupWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, uuid.MustParse(updated.ClusterID.ValueString()))
-		if gerr != nil {
-			resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
+	if gerr := restoreWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, &updated); gerr != nil {
+		resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
 
-			return
-		}
-		if groupID != nil {
-			updated.WorkspaceGroupID = util.UUIDStringValue(*groupID)
-		}
+		return
 	}
 
 	diags = resp.State.Set(ctx, &updated)
