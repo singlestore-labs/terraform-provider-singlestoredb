@@ -45,6 +45,10 @@ const (
 	SupportURL = "https://www.singlestore.com/support/"
 	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
+	// RegionIDDeprecationMessage is shown on every read of the singlestoredb_regions data source
+	// because Terraform does not warn when a deprecated computed attribute is referenced.
+	// v0.2.0 still returns the attribute. v0.3.0, the first release on or after April 30, 2027, removes it.
+	RegionIDDeprecationMessage = "The regions[*].id attribute of singlestoredb_regions is deprecated and must not be used anymore. It is removed in v0.3.0, the first release on or after April 30, 2027. Use regions[*].provider and regions[*].region_name instead, for example as cloud_provider and region_name of singlestoredb_cluster."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

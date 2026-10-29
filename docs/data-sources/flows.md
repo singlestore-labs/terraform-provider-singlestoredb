@@ -45,4 +45,4 @@ Read-Only:
 - `id` (String) The unique identifier of the Flow instance. Either `id` or `name` must be specified.
 - `name` (String) The name of the Flow instance. Either `id` or `name` must be specified.
 - `size` (String) The size of the Flow instance (in Flow size notation), such as 'F1'.
-- `workspace_id` (String) The unique identifier of the workspace associated with the Flow instance.
+- `workspace_id` (String) The cluster ID associated with the Flow instance. This is `singlestoredb_cluster.id` (or the deprecated `singlestoredb_workspace.id`).

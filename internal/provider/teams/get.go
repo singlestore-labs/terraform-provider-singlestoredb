@@ -128,7 +128,7 @@ func (d *teamsDataSourceGet) teamByID(ctx context.Context, data TeamDataSourceMo
 		return nil
 	}
 
-	result, err := d.GetV1TeamsTeamIDWithResponse(ctx, id)
+	result, err := d.GetV2TeamsTeamIDWithResponse(ctx, id)
 	if serr := util.StatusOK(result, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -151,7 +151,7 @@ func (d *teamsDataSourceGet) teamByID(ctx context.Context, data TeamDataSourceMo
 }
 
 func (d *teamsDataSourceGet) teamByName(ctx context.Context, data TeamDataSourceModel, resp *datasource.ReadResponse) *management.Team {
-	teams, err := d.GetV1TeamsWithResponse(ctx, &management.GetV1TeamsParams{Name: util.Ptr(data.Name.ValueString())})
+	teams, err := d.GetV2TeamsWithResponse(ctx, &management.GetV2TeamsParams{Name: util.Ptr(data.Name.ValueString())})
 	if serr := util.StatusOK(teams, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,

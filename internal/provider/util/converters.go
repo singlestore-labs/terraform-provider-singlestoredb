@@ -135,10 +135,10 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	return convert(*input)
 }
 
-func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateType, error) {
-	for _, s := range []management.PrivateConnectionCreateType{
-		management.PrivateConnectionCreateTypeINBOUND,
-		management.PrivateConnectionCreateTypeOUTBOUND,
+func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateV2Type, error) {
+	for _, s := range []management.PrivateConnectionCreateV2Type{
+		management.INBOUND,
+		management.OUTBOUND,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return s, nil
@@ -186,9 +186,9 @@ func WorkspaceCreateAutoSuspendSuspendTypeString(wgs types.String) *management.W
 
 func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceUpdateAutoSuspendSuspendType {
 	for _, s := range []management.WorkspaceUpdateAutoSuspendSuspendType{
-		management.IDLE,
-		management.DISABLED,
-		management.SCHEDULED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeIDLE,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeDISABLED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeSCHEDULED,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return &s
