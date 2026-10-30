@@ -73,11 +73,7 @@ func (d *privateConnectionDataSourceGet) Read(ctx context.Context, req datasourc
 	}
 
 	result := toPrivateConnectionModel(*privateConnection.JSON200)
-	if gerr := restoreWorkspaceGroupID(ctx, d.ClientWithResponsesInterface, &result); gerr != nil {
-		resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
-
-		return
-	}
+	restoreWorkspaceGroupID(ctx, d.ClientWithResponsesInterface, &result)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)

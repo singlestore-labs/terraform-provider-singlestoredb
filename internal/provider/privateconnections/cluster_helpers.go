@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
@@ -53,19 +54,27 @@ func lookupWorkspaceGroupID(ctx context.Context, c management.ClientWithResponse
 }
 
 // restoreWorkspaceGroupID fills the deprecated alias when the v2 connection does not
-// return it and state does not already have it. A missing workspace leaves the alias unset.
-func restoreWorkspaceGroupID(ctx context.Context, c management.ClientWithResponsesInterface, model *PrivateConnectionModel) *util.SummaryWithDetailError {
+// return it and state does not already have it. The lookup is best-effort for a
+// deprecated field: a missing workspace, or any other lookup failure (403, 5xx, etc.),
+// leaves the alias unset and logs a warning instead of failing the whole read.
+func restoreWorkspaceGroupID(ctx context.Context, c management.ClientWithResponsesInterface, model *PrivateConnectionModel) {
 	if util.IsConfiguredString(model.WorkspaceGroupID) || !util.IsConfiguredString(model.ClusterID) {
-		return nil
+		return
 	}
 
 	groupID, gerr := lookupWorkspaceGroupID(ctx, c, uuid.MustParse(model.ClusterID.ValueString()))
-	if gerr != nil || groupID == nil {
-		return gerr
+	if gerr != nil {
+		tflog.Warn(ctx, "failed to look up the deprecated workspace_group_id alias", map[string]any{
+			"cluster_id": model.ClusterID.ValueString(),
+			"error":      gerr.Detail,
+		})
+
+		return
+	}
+	if groupID == nil {
+		return
 	}
 	model.WorkspaceGroupID = util.UUIDStringValue(*groupID)
-
-	return nil
 }
 
 func resolveClusterIDFromGroup(ctx context.Context, c management.ClientWithResponsesInterface, groupID uuid.UUID) (uuid.UUID, *util.SummaryWithDetailError) {
@@ -76,7 +85,7 @@ func resolveClusterIDFromGroup(ctx context.Context, c management.ClientWithRespo
 
 	var candidates []uuid.UUID
 	for _, workspace := range util.Deref(workspacesResp.JSON200) {
-		if workspace.WorkspaceGroupID == groupID && workspace.State != management.WorkspaceStateTERMINATED {
+		if workspace.WorkspaceGroupID == groupID && workspace.State == management.WorkspaceStateACTIVE {
 			candidates = append(candidates, workspace.WorkspaceID)
 		}
 	}
