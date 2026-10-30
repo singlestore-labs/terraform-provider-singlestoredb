@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
@@ -23,9 +25,10 @@ const (
 )
 
 var (
-	_ resource.ResourceWithConfigure   = &privateConnectionResource{}
-	_ resource.ResourceWithModifyPlan  = &privateConnectionResource{}
-	_ resource.ResourceWithImportState = &privateConnectionResource{}
+	_ resource.ResourceWithConfigure        = &privateConnectionResource{}
+	_ resource.ResourceWithConfigValidators = &privateConnectionResource{}
+	_ resource.ResourceWithModifyPlan       = &privateConnectionResource{}
+	_ resource.ResourceWithImportState      = &privateConnectionResource{}
 )
 
 // privateConnectionResource is the resource implementation.
@@ -152,6 +155,7 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Validators:          []validator.String{util.NewUUIDValidator()},
 				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027. When set alone, the group must contain exactly one active workspace, which is used as the cluster.",
 				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
@@ -161,6 +165,7 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+				Validators:          []validator.String{util.NewUUIDValidator()},
 				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
@@ -291,11 +296,7 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 
 	updated := toPrivateConnectionModel(*privateConnection.JSON200)
 	preserveClusterAliases(&updated, state)
-	if gerr := restoreWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, &updated); gerr != nil {
-		resp.Diagnostics.AddError(gerr.Summary, gerr.Detail)
-
-		return
-	}
+	restoreWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, &updated)
 
 	diags = resp.State.Set(ctx, &updated)
 	resp.Diagnostics.Append(diags...)
@@ -414,25 +415,30 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 		return
 	}
 
-	if conflict := conflictingClusterIdentifiers(plan); conflict != nil {
-		resp.Diagnostics.AddError(conflict.Summary, conflict.Detail)
-
-		return
-	}
-
 	var state *PrivateConnectionModel
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	verr := ValidatePrivateConnectionModifyPlan(plan, *state)
-	if verr != nil {
-		resp.Diagnostics.AddError(
-			verr.Summary,
-			verr.Detail,
-		)
+	// Check the specific "changing X is not supported" rules before the generic
+	// cluster_id/workspace_id conflict check below. workspace_id and workspace_group_id
+	// are Optional+Computed with UseStateForUnknown, so when a config changes only
+	// cluster_id and leaves the deprecated aliases unset, the plan still carries their
+	// stale prior-state values. Checking the generic conflict first would then report
+	// "cluster_id and workspace_id must be equal" instead of the intended
+	// "Changing cluster_id is not supported".
+	if state != nil {
+		if verr := ValidatePrivateConnectionModifyPlan(plan, *state); verr != nil {
+			resp.Diagnostics.AddError(verr.Summary, verr.Detail)
+
+			return
+		}
+	}
+
+	if conflict := conflictingClusterIdentifiers(plan); conflict != nil {
+		resp.Diagnostics.AddError(conflict.Summary, conflict.Detail)
 
 		return
 	}
@@ -441,6 +447,19 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *privateConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
+}
+
+// ConfigValidators requires at least one cluster identifier at plan time. Without this,
+// a config with none of cluster_id/workspace_id/workspace_group_id set passes plan and
+// only fails later, mid-apply, inside resolveClusterID.
+func (r *privateConnectionResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.AtLeastOneOf(
+			path.MatchRoot("cluster_id"),
+			path.MatchRoot("workspace_id"),
+			path.MatchRoot("workspace_group_id"),
+		),
+	}
 }
 
 // preserveClusterAliases keeps the cluster identifiers from the plan or prior state where
