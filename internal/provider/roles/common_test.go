@@ -119,6 +119,10 @@ func TestIsRoleChanged(t *testing.T) {
 
 	assert.False(t, roles.IsRoleChanged(roleA, roleB))
 	assert.True(t, roles.IsRoleChanged(roleA, roleC))
+
+	roleD := roleA
+	roleD.RoleName = types.StringValue("Role1")
+	assert.False(t, roles.IsRoleChanged(roleA, roleD))
 }
 
 func TestMatchedRoles(t *testing.T) {
@@ -182,8 +186,8 @@ type MockClientWithResponses struct {
 	management.ClientWithResponsesInterface
 }
 
-func (m *MockClientWithResponses) GetV1OrganizationsCurrentWithResponse(ctx context.Context, _ ...management.RequestEditorFn) (*management.GetV1OrganizationsCurrentResponse, error) {
-	return &management.GetV1OrganizationsCurrentResponse{
+func (m *MockClientWithResponses) GetV2OrganizationsCurrentWithResponse(ctx context.Context, _ ...management.RequestEditorFn) (*management.GetV2OrganizationsCurrentResponse, error) {
+	return &management.GetV2OrganizationsCurrentResponse{
 		JSON200: &management.Organization{
 			OrgID: uuid.New(),
 		},

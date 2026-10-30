@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
@@ -23,9 +25,10 @@ const (
 )
 
 var (
-	_ resource.ResourceWithConfigure   = &privateConnectionResource{}
-	_ resource.ResourceWithModifyPlan  = &privateConnectionResource{}
-	_ resource.ResourceWithImportState = &privateConnectionResource{}
+	_ resource.ResourceWithConfigure        = &privateConnectionResource{}
+	_ resource.ResourceWithConfigValidators = &privateConnectionResource{}
+	_ resource.ResourceWithModifyPlan       = &privateConnectionResource{}
+	_ resource.ResourceWithImportState      = &privateConnectionResource{}
 )
 
 // privateConnectionResource is the resource implementation.
@@ -51,6 +54,7 @@ type PrivateConnectionModel struct {
 	UpdatedAt         types.String  `tfsdk:"updated_at"`
 	WorkspaceGroupID  types.String  `tfsdk:"workspace_group_id"`
 	WorkspaceID       types.String  `tfsdk:"workspace_id"`
+	ClusterID         types.String  `tfsdk:"cluster_id"`
 }
 
 const (
@@ -125,9 +129,9 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				Computed:            true,
 				MarkdownDescription: "The private connection type.",
 				Validators: []validator.String{
-					stringvalidator.OneOf(string(management.PrivateConnectionCreateTypeINBOUND), string(management.PrivateConnectionCreateTypeOUTBOUND)),
+					stringvalidator.OneOf(string(management.INBOUND), string(management.OUTBOUND)),
 				},
-				Default: stringdefault.StaticString(string(management.PrivateConnectionCreateTypeINBOUND)),
+				Default: stringdefault.StaticString(string(management.INBOUND)),
 			},
 			"status": schema.StringAttribute{
 				Computed:            true,
@@ -146,12 +150,33 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				Default:             float32default.StaticFloat32(defaultWebsocketPort),
 			},
 			"workspace_group_id": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The ID of the workspace group containing the private connection.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators:          []validator.String{util.NewUUIDValidator()},
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027. When set alone, the group must contain exactly one active workspace, which is used as the cluster.",
+				MarkdownDescription: "Deprecated temporary alias. The ID of the workspace group; used to resolve a cluster ID when cluster_id and workspace_id are unset. Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
 			},
 			"workspace_id": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "The ID of the workspace to connect with.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators:          []validator.String{util.NewUUIDValidator()},
+				DeprecationMessage:  "Use cluster_id instead. This temporary alias for cluster_id is removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
+				MarkdownDescription: "Deprecated temporary alias for cluster_id (the cluster to connect with). Removed with the workspace resources in v0.3.0, the first release on or after April 30, 2027.",
+			},
+			"cluster_id": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				MarkdownDescription: "The ID of the cluster to connect with.",
+				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 		},
 	}
@@ -186,10 +211,11 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	var workspaceID *uuid.UUID
-	if !plan.WorkspaceID.IsNull() {
-		parsedID := uuid.MustParse(plan.WorkspaceID.String())
-		workspaceID = &parsedID
+	clusterID, rerr := resolveClusterID(ctx, r.ClientWithResponsesInterface, plan)
+	if rerr != nil {
+		resp.Diagnostics.AddError(rerr.Summary, rerr.Detail)
+
+		return
 	}
 
 	// If custom socket are not enabled, sqlPort and websocketPort must be empty
@@ -203,15 +229,14 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 		websocketPort = util.MaybeFloat32(plan.WebsocketsPort)
 	}
 
-	privateConnectionCreateResponse, err := r.PostV1PrivateConnectionsWithResponse(ctx, management.PostV1PrivateConnectionsJSONRequestBody{
-		AllowList:        util.MaybeString(plan.AllowList),
-		KaiEndpointID:    util.MaybeString(plan.KaiEndpointID),
-		ServiceName:      util.MaybeString(plan.ServiceName),
-		SqlPort:          sqlPort,
-		Type:             &privateConnectionType,
-		WebsocketsPort:   websocketPort,
-		WorkspaceGroupID: uuid.MustParse(plan.WorkspaceGroupID.String()),
-		WorkspaceID:      workspaceID,
+	privateConnectionCreateResponse, err := r.PostV2PrivateConnectionsWithResponse(ctx, management.PostV2PrivateConnectionsJSONRequestBody{
+		AllowList:      util.MaybeString(plan.AllowList),
+		KaiEndpointID:  util.MaybeString(plan.KaiEndpointID),
+		ServiceName:    util.MaybeString(plan.ServiceName),
+		SqlPort:        sqlPort,
+		Type:           &privateConnectionType,
+		WebsocketsPort: websocketPort,
+		ClusterID:      clusterID,
 	})
 
 	if serr := util.StatusOK(privateConnectionCreateResponse, err); serr != nil {
@@ -224,7 +249,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	id := privateConnectionCreateResponse.JSON200.PrivateConnectionID
-	con, werr := WaitPrivateConnectionStatus(ctx, r.ClientWithResponsesInterface, id, waitConditionStatus(management.PrivateConnectionStatusACTIVE))
+	con, werr := WaitPrivateConnectionStatus(ctx, r.ClientWithResponsesInterface, id, waitConditionStatus(management.ClusterPrivateConnectionStatusACTIVE))
 	if werr != nil {
 		resp.Diagnostics.AddError(
 			werr.Summary,
@@ -234,13 +259,8 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	result, terr := toPrivateConnectionModel(con)
-
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
+	result := toPrivateConnectionModel(con)
+	preserveClusterAliases(&result, plan)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -255,9 +275,9 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	privateConnection, err := r.GetV1PrivateConnectionsConnectionIDWithResponse(ctx,
+	privateConnection, err := r.GetV2PrivateConnectionsConnectionIDWithResponse(ctx,
 		uuid.MustParse(state.ID.ValueString()),
-		&management.GetV1PrivateConnectionsConnectionIDParams{},
+		&management.GetV2PrivateConnectionsConnectionIDParams{},
 	)
 	if serr := util.StatusOK(privateConnection, err); serr != nil {
 		resp.Diagnostics.AddError(
@@ -268,20 +288,17 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	if privateConnection.JSON200.Status != nil && *privateConnection.JSON200.Status == management.PrivateConnectionStatusDELETED {
+	if privateConnection.JSON200.Status != nil && *privateConnection.JSON200.Status == management.ClusterPrivateConnectionStatusDELETED {
 		resp.State.RemoveResource(ctx)
 
 		return // The resource got deleted externally, deleting it from the state file to recreate.
 	}
 
-	state, terr := toPrivateConnectionModel(*privateConnection.JSON200)
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
+	updated := toPrivateConnectionModel(*privateConnection.JSON200)
+	preserveClusterAliases(&updated, state)
+	restoreWorkspaceGroupID(ctx, r.ClientWithResponsesInterface, &updated)
 
-		return
-	}
-
-	diags = resp.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &updated)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -320,8 +337,8 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 
 	id := uuid.MustParse(plan.ID.ValueString())
 
-	privateConnectionUpdateResponse, err := r.PatchV1PrivateConnectionsConnectionIDWithResponse(ctx, id,
-		management.PrivateConnectionUpdate{
+	privateConnectionUpdateResponse, err := r.PatchV2PrivateConnectionsConnectionIDWithResponse(ctx, id,
+		management.PrivateConnectionUpdateV2{
 			AllowList: util.MaybeString(plan.AllowList),
 		},
 	)
@@ -344,13 +361,8 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	result, terr := toPrivateConnectionModel(privateConnection)
-
-	if terr != nil {
-		resp.Diagnostics.AddError(terr.Summary, terr.Detail)
-
-		return
-	}
+	result := toPrivateConnectionModel(privateConnection)
+	preserveClusterAliases(&result, plan)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -368,7 +380,7 @@ func (r *privateConnectionResource) Delete(ctx context.Context, req resource.Del
 		return
 	}
 
-	privateConnectionDeleteResponse, err := r.DeleteV1PrivateConnectionsConnectionIDWithResponse(ctx,
+	privateConnectionDeleteResponse, err := r.DeleteV2PrivateConnectionsConnectionIDWithResponse(ctx,
 		uuid.MustParse(state.ID.ValueString()),
 	)
 	if serr := util.StatusOK(privateConnectionDeleteResponse, err); serr != nil {
@@ -392,26 +404,41 @@ func (r *privateConnectionResource) Configure(_ context.Context, req resource.Co
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan PrivateConnectionModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	var state *PrivateConnectionModel
-	diags := req.State.Get(ctx, &state)
+	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var plan *PrivateConnectionModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
+	// Check the specific "changing X is not supported" rules before the generic
+	// cluster_id/workspace_id conflict check below. workspace_id and workspace_group_id
+	// are Optional+Computed with UseStateForUnknown, so when a config changes only
+	// cluster_id and leaves the deprecated aliases unset, the plan still carries their
+	// stale prior-state values. Checking the generic conflict first would then report
+	// "cluster_id and workspace_id must be equal" instead of the intended
+	// "Changing cluster_id is not supported".
+	if state != nil {
+		if verr := ValidatePrivateConnectionModifyPlan(plan, *state); verr != nil {
+			resp.Diagnostics.AddError(verr.Summary, verr.Detail)
+
+			return
+		}
 	}
 
-	verr := ValidatePrivateConnectionModifyPlan(*plan, *state)
-	if verr != nil {
-		resp.Diagnostics.AddError(
-			verr.Summary,
-			verr.Detail,
-		)
+	if conflict := conflictingClusterIdentifiers(plan); conflict != nil {
+		resp.Diagnostics.AddError(conflict.Summary, conflict.Detail)
 
 		return
 	}
@@ -422,7 +449,41 @@ func (r *privateConnectionResource) ImportState(ctx context.Context, req resourc
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toPrivateConnectionModel(privateConnection management.PrivateConnection) (PrivateConnectionModel, *util.SummaryWithDetailError) {
+// ConfigValidators requires at least one cluster identifier at plan time. Without this,
+// a config with none of cluster_id/workspace_id/workspace_group_id set passes plan and
+// only fails later, mid-apply, inside resolveClusterID.
+func (r *privateConnectionResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.AtLeastOneOf(
+			path.MatchRoot("cluster_id"),
+			path.MatchRoot("workspace_id"),
+			path.MatchRoot("workspace_group_id"),
+		),
+	}
+}
+
+// preserveClusterAliases keeps the cluster identifiers from the plan or prior state where
+// the v2 API does not return them; it never returns a workspace group ID. Values that are
+// still unknown become null because Terraform rejects unknown values after apply.
+func preserveClusterAliases(result *PrivateConnectionModel, prior PrivateConnectionModel) {
+	result.WorkspaceGroupID = knownOrNull(prior.WorkspaceGroupID)
+	if result.WorkspaceID.IsNull() || result.WorkspaceID.IsUnknown() {
+		result.WorkspaceID = knownOrNull(prior.WorkspaceID)
+	}
+	if result.ClusterID.IsNull() || result.ClusterID.IsUnknown() {
+		result.ClusterID = knownOrNull(prior.ClusterID)
+	}
+}
+
+func knownOrNull(value types.String) types.String {
+	if value.IsUnknown() {
+		return types.StringNull()
+	}
+
+	return value
+}
+
+func toPrivateConnectionModel(privateConnection management.ClusterPrivateConnection) PrivateConnectionModel {
 	var kaiEndpointID types.String
 	if privateConnection.AllowedPrivateLinkIDs != nil && len(*privateConnection.AllowedPrivateLinkIDs) > 0 {
 		kaiEndpointID = types.StringValue((*privateConnection.AllowedPrivateLinkIDs)[0])
@@ -440,8 +501,9 @@ func toPrivateConnectionModel(privateConnection management.PrivateConnection) (P
 		KaiEndpointID:     kaiEndpointID,
 		Type:              util.StringValueOrNull(privateConnection.Type),
 		UpdatedAt:         util.MaybeStringValue(privateConnection.UpdatedAt),
-		WorkspaceGroupID:  util.UUIDStringValue(privateConnection.WorkspaceGroupID),
-		WorkspaceID:       util.MaybeUUIDStringValue(privateConnection.WorkspaceID),
+		ClusterID:         util.MaybeUUIDStringValue(privateConnection.ClusterID),
+		WorkspaceID:       util.MaybeUUIDStringValue(privateConnection.ClusterID), // deprecated alias
+		WorkspaceGroupID:  types.StringNull(),
 		SQLPort:           types.Float32PointerValue(privateConnection.SqlPort),
 		WebsocketsPort:    types.Float32PointerValue(privateConnection.WebsocketsPort),
 	}
@@ -452,5 +514,5 @@ func toPrivateConnectionModel(privateConnection management.PrivateConnection) (P
 		model.WebsocketsPort = types.Float32Value(defaultWebsocketPort)
 	}
 
-	return model, nil
+	return model
 }
