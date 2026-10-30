@@ -337,6 +337,33 @@ func TestAlignClusterRoleResourceIDsScopesByRoleName(t *testing.T) {
 	require.Equal(t, groupID.String(), got[1].ResourceID.ValueString(), "Owner is aligned to its own configured group ID, not Reader's cluster ID")
 }
 
+// TestGetRolesAndValidateSkipsClusterListWhenNothingToCheck guards the data-source read
+// path. Those callers pass no expected or unexpected roles, so a Cluster grant in the
+// identity-roles response must not trigger GET /v2/clusters. A 500 from that list would
+// otherwise fail a refresh that never uses the result.
+func TestGetRolesAndValidateSkipsClusterListWhenNothingToCheck(t *testing.T) {
+	userID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	clusterID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == v2ClustersPath {
+			t.Fatalf("GET /v2/clusters must not run when no roles are being checked")
+		}
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v2/users/"+userID.String()+"/identityRoles", r.URL.Path)
+		writeJSON(t, w, http.StatusOK, []management.IdentityRole{{
+			Role:         "Owner",
+			ResourceType: string(ResourceTypeWorkspaceGroup),
+			ResourceID:   clusterID,
+		}})
+	})
+
+	roles, err := getRolesAndValidate(t.Context(), client, userID.String(), EntityTypeUser, nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, roles, 1)
+	require.Equal(t, clusterID.String(), roles[0].ResourceID.ValueString())
+	require.Equal(t, string(ResourceTypeWorkspaceGroup), roles[0].ResourceType.ValueString())
+}
+
 func TestAlignClusterRoleResourceIDsReportsAPIError(t *testing.T) {
 	client := accessControlClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})

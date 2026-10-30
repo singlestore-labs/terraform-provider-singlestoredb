@@ -294,16 +294,20 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	}
 
 	roles := util.Map(util.Deref(jsonRoles), toRoleAttributesModel)
+	// Enumeration (the user/team roles data sources) names no cluster to align and does
+	// not check the result against a config. Skip alignment — and its /v2/clusters list —
+	// so a key that cannot list clusters, or a transient failure, does not fail a read
+	// that never uses the list.
+	if expectedRoles == nil && unexpectedRoles == nil {
+		return roles, nil
+	}
+
 	// A config may name a cluster by its ID or by a parent group ID that resolves to that
 	// same access-control target. Align only those identifiers. A workspace-group grant and
 	// a grant on a child cluster stay distinct.
 	roles, err := alignClusterRoleResourceIDs(ctx, r, roles, expectedRoles, unexpectedRoles)
 	if err != nil {
 		return nil, err
-	}
-
-	if expectedRoles == nil && unexpectedRoles == nil {
-		return roles, nil
 	}
 
 	return validateRoles(ctx, entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)

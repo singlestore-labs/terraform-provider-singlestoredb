@@ -1,7 +1,6 @@
 package roles
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -38,7 +37,7 @@ func requireAttributeRequiresReplace(t *testing.T, r resource.Resource, attrName
 
 	var found bool
 	for _, modifier := range attr.PlanModifiers {
-		if modifier.Description(context.Background()) == requiresReplaceDescription {
+		if modifier.Description(t.Context()) == requiresReplaceDescription {
 			found = true
 
 			break
