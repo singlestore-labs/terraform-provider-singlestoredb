@@ -1,14 +1,12 @@
 package regions_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"regexp"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
@@ -31,14 +29,6 @@ func TestReadsRegions(t *testing.T) {
 		},
 	}
 
-	legacyRegions := []management.Region{
-		{
-			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
-			Region:   regions[0].Region,
-			Provider: regions[0].Provider,
-		},
-	}
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
 
@@ -47,7 +37,9 @@ func TestReadsRegions(t *testing.T) {
 		case "/v2/regions":
 			body = testutil.MustJSON(regions)
 		case "/v1/regions":
-			body = testutil.MustJSON(legacyRegions)
+			require.Fail(t, "singlestoredb_regions must not call the v1 regions API")
+
+			return
 		default:
 			require.Failf(t, "unexpected path", "path: %s", r.URL.Path)
 		}
@@ -70,8 +62,8 @@ func TestReadsRegions(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region", regions[0].Region),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.provider", string(regions[0].Provider)),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region_name", regions[0].RegionName),
-					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), legacyRegions[0].RegionID.String()),
-					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", "regions.0.id"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", "regions.1.id"),
 				),
 			},
 		},

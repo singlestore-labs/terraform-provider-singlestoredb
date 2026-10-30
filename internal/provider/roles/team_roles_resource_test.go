@@ -13,7 +13,6 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
-	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -60,28 +59,21 @@ func TestGrantRevokeTeamRoles(t *testing.T) {
 	}
 
 	clusterResolveHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		clusterPath := strings.Join([]string{"/v2/clusters", grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID.String()}, "/")
-		switch {
-		case r.URL.Path == "/v2/clusters" && r.Method == http.MethodGet:
-			// alignClusterRoleResourceIDs lists clusters; empty list leaves IDs unchanged.
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON([]management.Cluster{}))
-			require.NoError(t, err)
-
-			return true
-		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
-			w.Header().Add("Content-Type", "json")
-			_, err := w.Write(testutil.MustJSON(management.Cluster{
-				Name:      "mock-cluster",
-				ClusterID: util.Ptr(grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID),
-				ProjectID: grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID,
-			}))
-			require.NoError(t, err)
-
-			return true
-		default:
+		if r.URL.Path != "/v2/clusters" || r.Method != http.MethodGet {
 			return false
 		}
+
+		// One list answers both alignment and cluster resolution. The cluster has no
+		// group ID, so alignment leaves the configured resource ID unchanged.
+		clusterID := grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Cluster{{
+			Name:      "mock-cluster",
+			ClusterID: &clusterID,
+		}}))
+		require.NoError(t, err)
+
+		return true
 	}
 
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{

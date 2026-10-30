@@ -64,6 +64,8 @@ func (r *userRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 }
 
 func (r *userRoleGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var plan UserRoleGrantModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -112,6 +114,8 @@ func (r *userRoleGrantResource) Create(ctx context.Context, req resource.CreateR
 }
 
 func (r *userRoleGrantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -149,6 +153,8 @@ func (r *userRoleGrantResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *userRoleGrantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state *UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -232,6 +238,8 @@ func (r *userRoleGrantResource) handleRoleUpdate(ctx context.Context, planResour
 }
 
 func (r *userRoleGrantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)

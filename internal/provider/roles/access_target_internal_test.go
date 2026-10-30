@@ -17,8 +17,11 @@ const v2ClustersPath = "/v2/clusters"
 func TestResolveClusterAccessTargetUsesClusterAPI(t *testing.T) {
 	clusterID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v2/clusters/"+clusterID.String(), r.URL.Path)
-		writeJSON(t, w, http.StatusOK, management.Cluster{Name: "cluster"})
+		require.Equal(t, v2ClustersPath, r.URL.Path)
+		writeJSON(t, w, http.StatusOK, []management.Cluster{{
+			Name:      "cluster",
+			ClusterID: &clusterID,
+		}})
 	})
 
 	target, err := resolveClusterAccessTarget(t.Context(), client, clusterID)
@@ -31,8 +34,8 @@ func TestResolveClusterAccessTargetUsesWorkspaceGroupAPI(t *testing.T) {
 	groupID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/clusters/" + groupID.String():
-			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{})
 		case "/v1/workspaceGroups/" + groupID.String():
 			writeJSON(t, w, http.StatusOK, management.WorkspaceGroup{Name: "group"})
 		default:
@@ -113,10 +116,52 @@ func TestResolveClusterAccessTargetNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), resourceID.String())
 }
 
+// TestClusterCatalogListsOncePerOperation guards against listing clusters, or looking
+// up the same workspace group, once per grant and again during validation.
+func TestClusterCatalogListsOncePerOperation(t *testing.T) {
+	clusterID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	groupID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	var clusterLists, groupLookups int
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case v2ClustersPath:
+			clusterLists++
+			writeJSON(t, w, http.StatusOK, []management.Cluster{{
+				Name:      "child",
+				ClusterID: &clusterID,
+				GroupID:   &groupID,
+			}})
+		case "/v1/workspaceGroups/" + groupID.String():
+			groupLookups++
+			writeJSON(t, w, http.StatusOK, management.WorkspaceGroup{Name: "group"})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	ctx := withClusterCatalog(t.Context(), client)
+	clusterTarget, err := resolveClusterAccessTarget(ctx, client, clusterID)
+	require.NoError(t, err)
+	require.Equal(t, clusterAccessEndpointV2Cluster, clusterTarget.endpoint)
+
+	groupTarget, err := resolveClusterAccessTarget(ctx, client, groupID)
+	require.NoError(t, err)
+	require.Equal(t, clusterAccessEndpointV1WorkspaceGroup, groupTarget.endpoint)
+
+	configured := []RoleAttributesModel{clusterGrant(groupID.String())}
+	_, err = alignClusterRoleResourceIDs(ctx, client, []RoleAttributesModel{clusterGrant(clusterID.String())}, &configured, nil)
+	require.NoError(t, err)
+
+	// Aligning a cluster ID to its workspace group asks whether that group is a v1
+	// workspace group. The grant above already answered that.
+	require.Equal(t, 1, clusterLists)
+	require.Equal(t, 1, groupLookups)
+}
+
 func TestResolveClusterAccessTargetReportsAPIError(t *testing.T) {
 	resourceID := uuid.MustParse("99999999-9999-9999-9999-999999999999")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v2/clusters/"+resourceID.String(), r.URL.Path)
+		require.Equal(t, v2ClustersPath, r.URL.Path)
 		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})
 	})
 
@@ -144,8 +189,8 @@ func TestApplyWorkspaceGroupAccessControlsChoosesEndpoint(t *testing.T) {
 
 	groupClient := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/clusters/" + groupID.String():
-			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{})
 		case "/v1/workspaceGroups/" + groupID.String():
 			writeJSON(t, w, http.StatusOK, management.WorkspaceGroup{Name: "group"})
 		case "/v1/workspaceGroups/" + groupID.String() + "/accessControls":
@@ -161,13 +206,11 @@ func TestApplyWorkspaceGroupAccessControlsChoosesEndpoint(t *testing.T) {
 
 	clusterClient := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/clusters/" + clusterID.String():
-			if r.Method == http.MethodGet {
-				writeJSON(t, w, http.StatusOK, management.Cluster{Name: "cluster"})
-
-				return
-			}
-			t.Fatalf("unexpected method %s", r.Method)
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{{
+				Name:      "cluster",
+				ClusterID: &clusterID,
+			}})
 		case "/v2/clusters/" + clusterID.String() + "/accessControls":
 			require.Equal(t, http.MethodPatch, r.Method)
 			writeJSON(t, w, http.StatusOK, map[string]string{})
@@ -184,8 +227,8 @@ func TestGetWorkspaceGroupRolesUsesWorkspaceGroupAPI(t *testing.T) {
 	groupID := uuid.MustParse("88888888-8888-8888-8888-888888888888")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/clusters/" + groupID.String():
-			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{})
 		case "/v1/workspaceGroups/" + groupID.String():
 			writeJSON(t, w, http.StatusOK, management.WorkspaceGroup{Name: "group"})
 		case "/v1/workspaceGroups/" + groupID.String() + "/accessControls":

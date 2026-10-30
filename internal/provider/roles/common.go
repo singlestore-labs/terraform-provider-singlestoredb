@@ -3,7 +3,6 @@ package roles
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
@@ -341,12 +340,12 @@ func alignClusterRoleResourceIDs(
 		return roles, nil
 	}
 
-	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
-	if serr := util.StatusOK(list, err); serr != nil {
-		return nil, serr
+	catalog := clusterCatalogFrom(ctx, c)
+	if err := catalog.ensureLoaded(ctx); err != nil {
+		return nil, err
 	}
 
-	clusterToGroup := clusterToGroupIDs(util.Deref(list.JSON200))
+	clusterToGroup := catalog.clusterToGroup
 
 	aligned := make([]RoleAttributesModel, len(roles))
 	for i, role := range roles {
@@ -365,19 +364,6 @@ func alignClusterRoleResourceIDs(
 type configuredClusterRoleID struct {
 	roleName string
 	id       uuid.UUID
-}
-
-func clusterToGroupIDs(clusters []management.Cluster) map[uuid.UUID]uuid.UUID {
-	clusterToGroup := make(map[uuid.UUID]uuid.UUID, len(clusters))
-	for _, cluster := range clusters {
-		if cluster.ClusterID == nil || cluster.GroupID == nil {
-			continue
-		}
-
-		clusterToGroup[*cluster.ClusterID] = *cluster.GroupID
-	}
-
-	return clusterToGroup
 }
 
 func alignOneClusterRoleResourceID(
@@ -442,7 +428,7 @@ func sameClusterAccessTarget(
 		return false, nil
 	}
 
-	isWorkspaceGroup, err := workspaceGroupExists(ctx, c, configuredID)
+	isWorkspaceGroup, err := clusterCatalogFrom(ctx, c).workspaceGroupExists(ctx, configuredID)
 	if err != nil || isWorkspaceGroup {
 		return false, err
 	}
@@ -683,15 +669,15 @@ type clusterAccessTarget struct {
 // Terraform configs pass singlestoredb_workspace_group.id for resource_type = "Cluster".
 // That ID is the group, not a v2 cluster, so access controls stay on the workspace group.
 func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (clusterAccessTarget, error) {
-	isCluster, err := clusterExists(ctx, c, resourceID)
-	if err != nil {
+	catalog := clusterCatalogFrom(ctx, c)
+	if err := catalog.ensureLoaded(ctx); err != nil {
 		return clusterAccessTarget{}, err
 	}
-	if isCluster {
+	if catalog.isCluster(resourceID) {
 		return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: resourceID}, nil
 	}
 
-	isWorkspaceGroup, err := workspaceGroupExists(ctx, c, resourceID)
+	isWorkspaceGroup, err := catalog.workspaceGroupExists(ctx, resourceID)
 	if err != nil {
 		return clusterAccessTarget{}, err
 	}
@@ -699,27 +685,14 @@ func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResp
 		return clusterAccessTarget{endpoint: clusterAccessEndpointV1WorkspaceGroup, id: resourceID}, nil
 	}
 
-	return resolveSoleClusterInGroup(ctx, c, resourceID)
+	return soleClusterInGroup(resourceID, catalog.children[resourceID])
 }
 
-// resolveSoleClusterInGroup looks up every cluster whose GroupID matches resourceID and
-// resolves to it only when exactly one such cluster exists. Picking an arbitrary child
-// when there are several would grant/revoke access on the wrong cluster if the list order
-// ever changes, silently leaking or losing access, so the caller must name the specific
-// cluster instead.
-func resolveSoleClusterInGroup(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (clusterAccessTarget, error) {
-	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
-	if serr := util.StatusOK(list, err); serr != nil {
-		return clusterAccessTarget{}, serr
-	}
-
-	var children []uuid.UUID
-	for _, cluster := range util.Deref(list.JSON200) {
-		if cluster.GroupID != nil && *cluster.GroupID == resourceID && cluster.ClusterID != nil {
-			children = append(children, *cluster.ClusterID)
-		}
-	}
-
+// soleClusterInGroup resolves a parent group ID to its only child cluster.
+// Picking an arbitrary child when there are several would grant or revoke access
+// on the wrong cluster if the list order ever changes, so the caller must name
+// the specific cluster instead.
+func soleClusterInGroup(resourceID uuid.UUID, children []uuid.UUID) (clusterAccessTarget, error) {
 	switch len(children) {
 	case 0:
 		return clusterAccessTarget{}, &util.SummaryWithDetailError{
@@ -734,28 +707,6 @@ func resolveSoleClusterInGroup(ctx context.Context, c management.ClientWithRespo
 			Detail:  fmt.Sprintf("Resource ID %s is not a cluster or a workspace group, and it contains %d clusters. Set resource_id to the specific cluster ID instead.", resourceID, len(children)),
 		}
 	}
-}
-
-// clusterExists reports false only on 404. Other failures are returned so they
-// are not mistaken for a missing cluster.
-func clusterExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
-	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
-	if serr := util.StatusOK(direct, err, util.ReturnNilOnNotFound); serr != nil {
-		return false, serr
-	}
-
-	return direct.StatusCode() == http.StatusOK && direct.JSON200 != nil, nil
-}
-
-// workspaceGroupExists reports false only on 404. Other failures are returned so
-// they are not mistaken for a missing workspace group.
-func workspaceGroupExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
-	group, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, resourceID, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
-	if serr := util.StatusOK(group, err, util.ReturnNilOnNotFound); serr != nil {
-		return false, serr
-	}
-
-	return group.StatusCode() == http.StatusOK && group.JSON200 != nil, nil
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {

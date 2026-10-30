@@ -66,6 +66,8 @@ func (r *teamRolesGrantResource) Schema(_ context.Context, _ resource.SchemaRequ
 }
 
 func (r *teamRolesGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var plan TeamRolesGrantModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -120,6 +122,8 @@ func (r *teamRolesGrantResource) Create(ctx context.Context, req resource.Create
 }
 
 func (r *teamRolesGrantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state TeamRolesGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -153,6 +157,8 @@ func (r *teamRolesGrantResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *teamRolesGrantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state *TeamRolesGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -216,6 +222,8 @@ func (r *teamRolesGrantResource) doUpdate(ctx context.Context, teamID types.Stri
 }
 
 func (r *teamRolesGrantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state TeamRolesGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -265,6 +265,8 @@ func (d *rolesDataSourceList) getOrganizationRoles(ctx context.Context, resource
 }
 
 func (d *rolesDataSourceList) getWorkspaceGroupRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
+	ctx = withClusterCatalog(ctx, d.ClientWithResponsesInterface)
+
 	target, err := resolveClusterAccessTarget(ctx, d.ClientWithResponsesInterface, resourceID)
 	if err != nil {
 		return nil, err
