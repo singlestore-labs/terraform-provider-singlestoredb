@@ -48,7 +48,10 @@ func (r *teamRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 				MarkdownDescription: "The unique identifier of the granted role.",
 			},
 			"team_id": schema.StringAttribute{
-				Required:            true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				MarkdownDescription: "The unique identifier of the team.",
 			},
 			"role": schema.SingleNestedAttribute{
@@ -255,29 +258,4 @@ func (r *teamRoleGrantResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func (r *teamRoleGrantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *TeamRoleGrantModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *TeamRoleGrantModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	if plan.TeamID != state.TeamID {
-		resp.Diagnostics.AddError(
-			"Cannot update team ID",
-			"Updating the team_id is not permitted. Please explicitly delete(revoke) the granted role before changing the team_id.",
-		)
-
-		return
-	}
 }

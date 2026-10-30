@@ -48,7 +48,10 @@ func (r *userRolesGrantResource) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "The unique identifier of the granted roles.",
 			},
 			"user_id": schema.StringAttribute{
-				Required:            true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				MarkdownDescription: "The unique identifier of the user.",
 			},
 			"roles": schema.ListNestedAttribute{
@@ -227,31 +230,6 @@ func (r *userRolesGrantResource) Configure(_ context.Context, req resource.Confi
 	}
 
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func (r *userRolesGrantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *UserRolesGrantModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *UserRolesGrantModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	if plan.UserID != state.UserID {
-		resp.Diagnostics.AddError(
-			"Cannot update user ID",
-			"Updating the user_id is not permitted. Please explicitly delete(revoke) the granted roles before changing the user_id.",
-		)
-
-		return
-	}
 }
 
 func toUserRolesGrantModel(userID types.String, roles []RoleAttributesModel) UserRolesGrantModel {
