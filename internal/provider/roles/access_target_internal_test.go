@@ -70,6 +70,31 @@ func TestResolveClusterAccessTargetMapsParentGroupToCluster(t *testing.T) {
 	require.Equal(t, clusterID, target.id)
 }
 
+func TestResolveClusterAccessTargetAmbiguousChildrenFailsClosed(t *testing.T) {
+	groupID := uuid.MustParse("12121212-1212-1212-1212-121212121212")
+	clusterA := uuid.MustParse("aaaaaaaa-1212-1212-1212-121212121212")
+	clusterB := uuid.MustParse("bbbbbbbb-1212-1212-1212-121212121212")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/clusters/" + groupID.String(), "/v1/workspaceGroups/" + groupID.String():
+			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{
+				{Name: "a", ClusterID: &clusterA, GroupID: &groupID},
+				{Name: "b", ClusterID: &clusterB, GroupID: &groupID},
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	// A group ID that resolves to more than one cluster must fail instead of silently
+	// picking one; picking the wrong one on a later grant/revoke leaks or drops access.
+	_, err := resolveClusterAccessTarget(t.Context(), client, groupID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Ambiguous cluster group")
+}
+
 func TestResolveClusterAccessTargetNotFound(t *testing.T) {
 	resourceID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
 	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -266,6 +291,52 @@ func TestAlignClusterRoleResourceIDsAlignsParentGroupAlias(t *testing.T) {
 	require.Equal(t, groupID.String(), got[0].ResourceID.ValueString())
 }
 
+// TestAlignClusterRoleResourceIDsScopesByRoleName guards against pooling configured IDs
+// across unrelated roles. A Reader grant configured at the cluster ID must not let an
+// Owner row (configured at the parent group ID, reported by the API at the same cluster
+// ID because the group resolves to that single child cluster) match on Reader's ID and
+// stay stuck there instead of being aligned to Owner's own configured group ID.
+func TestAlignClusterRoleResourceIDsScopesByRoleName(t *testing.T) {
+	clusterID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	groupID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	client := accessControlClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case v2ClustersPath:
+			writeJSON(t, w, http.StatusOK, []management.Cluster{{
+				Name:      "child",
+				ClusterID: &clusterID,
+				GroupID:   &groupID,
+			}})
+		case "/v1/workspaceGroups/" + groupID.String():
+			// groupID is not itself a v1 workspace group, so it resolves to its only
+			// child cluster and the Owner grant lands directly on clusterID.
+			writeJSON(t, w, http.StatusNotFound, map[string]string{"message": "not found"})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	readerRow := RoleAttributesModel{
+		RoleName:     types.StringValue("Reader"),
+		ResourceType: types.StringValue(string(ResourceTypeWorkspaceGroup)),
+		ResourceID:   types.StringValue(clusterID.String()),
+	}
+	ownerRow := RoleAttributesModel{
+		RoleName:     types.StringValue("Owner"),
+		ResourceType: types.StringValue(string(ResourceTypeWorkspaceGroup)),
+		ResourceID:   types.StringValue(clusterID.String()),
+	}
+	configured := []RoleAttributesModel{
+		{RoleName: types.StringValue("Reader"), ResourceType: types.StringValue(string(ResourceTypeWorkspaceGroup)), ResourceID: types.StringValue(clusterID.String())},
+		{RoleName: types.StringValue("Owner"), ResourceType: types.StringValue(string(ResourceTypeWorkspaceGroup)), ResourceID: types.StringValue(groupID.String())},
+	}
+
+	got, err := alignClusterRoleResourceIDs(t.Context(), client, []RoleAttributesModel{readerRow, ownerRow}, &configured, nil)
+	require.NoError(t, err)
+	require.Equal(t, clusterID.String(), got[0].ResourceID.ValueString(), "Reader stays on its own configured cluster ID")
+	require.Equal(t, groupID.String(), got[1].ResourceID.ValueString(), "Owner is aligned to its own configured group ID, not Reader's cluster ID")
+}
+
 func TestAlignClusterRoleResourceIDsReportsAPIError(t *testing.T) {
 	client := accessControlClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, http.StatusInternalServerError, map[string]string{"message": "boom"})
@@ -314,6 +385,22 @@ func TestRoleWithPlannedSpelling(t *testing.T) {
 	next, ok = roleWithPlannedSpelling(state, state)
 	require.False(t, ok)
 	require.Equal(t, state, next)
+}
+
+// TestAPIResourceTypeFilterSkipsClusterServerSideFilter guards against regressing to a
+// server-side resourceType=Cluster filter, which would silently drop rows the API reports
+// as ClusterGroup (workspace-group scoped grants) before normalization ever sees them.
+func TestAPIResourceTypeFilterSkipsClusterServerSideFilter(t *testing.T) {
+	require.Nil(t, apiResourceTypeFilter(nil))
+
+	cluster := string(ResourceTypeWorkspaceGroup)
+	require.Nil(t, apiResourceTypeFilter(&cluster), "Cluster filter is dropped so ClusterGroup rows are not excluded server-side")
+
+	lowercaseCluster := "cluster"
+	require.Nil(t, apiResourceTypeFilter(&lowercaseCluster))
+
+	team := string(ResourceTypeTeam)
+	require.Equal(t, &team, apiResourceTypeFilter(&team), "non-Cluster filters pass through unchanged")
 }
 
 func clusterGrant(id string) RoleAttributesModel {

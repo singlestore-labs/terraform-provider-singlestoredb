@@ -3,7 +3,6 @@ package roles
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -49,7 +48,10 @@ func (r *userRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 				MarkdownDescription: "The unique identifier of the granted role.",
 			},
 			"user_id": schema.StringAttribute{
-				Required:            true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				MarkdownDescription: "The unique identifier of the user.",
 			},
 			"role": schema.SingleNestedAttribute{
@@ -255,29 +257,4 @@ func (r *userRoleGrantResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func (r *userRoleGrantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *UserRoleGrantModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *UserRoleGrantModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	if plan.UserID != state.UserID {
-		resp.Diagnostics.AddError(
-			"Cannot update user ID",
-			fmt.Sprintf("Updating the user_id is not permitted. Please explicitly delete(revoke) the granted role before changing the user_id: %s != %s", plan.UserID, state.UserID),
-		)
-
-		return
-	}
 }
