@@ -3,7 +3,6 @@ package roles
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -49,7 +48,10 @@ func (r *userRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 				MarkdownDescription: "The unique identifier of the granted role.",
 			},
 			"user_id": schema.StringAttribute{
-				Required:            true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				MarkdownDescription: "The unique identifier of the user.",
 			},
 			"role": schema.SingleNestedAttribute{
@@ -62,6 +64,8 @@ func (r *userRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 }
 
 func (r *userRoleGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var plan UserRoleGrantModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -110,6 +114,8 @@ func (r *userRoleGrantResource) Create(ctx context.Context, req resource.CreateR
 }
 
 func (r *userRoleGrantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -147,6 +153,8 @@ func (r *userRoleGrantResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *userRoleGrantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state *UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -161,35 +169,43 @@ func (r *userRoleGrantResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	if IsRoleChanged(plan.Role, state.Role) {
-		if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to update user role",
-				"An error occurred while updating user role: "+err.Error(),
-			)
-
-			return
+	if !IsRoleChanged(plan.Role, state.Role) {
+		if next, ok := roleWithPlannedSpelling(plan.Role, state.Role); ok {
+			state.Role = next
+			diags = resp.State.Set(ctx, state)
+			resp.Diagnostics.Append(diags...)
 		}
 
-		roles, err := getUserRolesAndValidate(ctx, r, plan.UserID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to fetch and validate user roles",
-				"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
-			)
-
-			return
-		}
-
-		result := UserRoleGrantModel{
-			ID:     plan.UserID,
-			UserID: plan.UserID,
-			Role:   roles[0],
-		}
-
-		diags = resp.State.Set(ctx, &result)
-		resp.Diagnostics.Append(diags...)
+		return
 	}
+
+	if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to update user role",
+			"An error occurred while updating user role: "+err.Error(),
+		)
+
+		return
+	}
+
+	roles, err := getUserRolesAndValidate(ctx, r, plan.UserID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch and validate user roles",
+			"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
+		)
+
+		return
+	}
+
+	result := UserRoleGrantModel{
+		ID:     plan.UserID,
+		UserID: plan.UserID,
+		Role:   roles[0],
+	}
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *userRoleGrantResource) handleRoleUpdate(ctx context.Context, planResourceID, stateResourceID types.String, plan, state *UserRoleGrantModel) error {
@@ -222,6 +238,8 @@ func (r *userRoleGrantResource) handleRoleUpdate(ctx context.Context, planResour
 }
 
 func (r *userRoleGrantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state UserRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -247,29 +265,4 @@ func (r *userRoleGrantResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func (r *userRoleGrantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *UserRoleGrantModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *UserRoleGrantModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	if plan.UserID != state.UserID {
-		resp.Diagnostics.AddError(
-			"Cannot update user ID",
-			fmt.Sprintf("Updating the user_id is not permitted. Please explicitly delete(revoke) the granted role before changing the user_id: %s != %s", plan.UserID, state.UserID),
-		)
-
-		return
-	}
 }
