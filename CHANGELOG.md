@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- `singlestoredb_cluster` resource and `singlestoredb_cluster` / `singlestoredb_clusters` data sources. Use the cluster resource for new deployments.
+- `singlestoredb_cluster.admin_password` is checked against the Management API password rules during plan. If the API still replaces the configured password with a generated one on create, the provider deletes the new cluster and fails with an error that explains how to set a valid password. `skip_admin_password_validation = true` turns off the plan check, for use when the API rules change before the provider is updated.
+
+### Changed
+
+- `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The resources are removed in v0.3.0, the first release on or after April 30, 2027. The move onto `singlestoredb_cluster` is documented in `MIGRATING.md`.
+- `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` data sources are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The data sources are removed in v0.3.0, the first release on or after April 30, 2027. Use `singlestoredb_cluster` and `singlestoredb_clusters`. The move is documented in `MIGRATING.md`.
+- `singlestoredb_regions` reads regions from the v2 Management API and adds `regions[*].region_name`. `regions[*].id` is deprecated and must not be used anymore. It keeps returning the region ID in v0.2.0, every read of the data source prints a deprecation warning, and it is removed in v0.3.0, the first release on or after April 30, 2027. Use `regions[*].provider` and `regions[*].region_name` instead.
+- `singlestoredb_private_connection` targets a cluster. When only the deprecated `workspace_group_id` is set, the group must contain exactly one active workspace, which is used as the cluster; otherwise create fails and asks for `cluster_id`. Previously, a `workspace_group_id`-only configuration created a workspace group level connection.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").

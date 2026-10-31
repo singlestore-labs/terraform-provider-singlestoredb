@@ -2,10 +2,12 @@ package testutil
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/clusters"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
@@ -126,6 +128,18 @@ func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) Attribut
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(sql.ResourceName), sqlExecuteName})
 }
 
+func (uc UpdatableConfig) WithClusterGetDataSource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceGetName), clusterName})
+}
+
+func (uc UpdatableConfig) WithClusterListDataSource(clusterListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceListName), clusterListName})
+}
+
+func (uc UpdatableConfig) WithClusterResource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(clusters.ResourceName), clusterName})
+}
+
 func (uc UpdatableConfig) WithSQLQueryDataSource(sqlQueryName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(sql.DataSourceName), sqlQueryName})
 }
@@ -162,6 +176,82 @@ func (uc UpdatableConfig) WithAPIServiceURL(url string) UpdatableConfig {
 // String shows the resulting *.tf config with all the overrides applied.
 func (uc UpdatableConfig) String() string {
 	return string(uc)
+}
+
+// WithIntegrationSafeguards sets a short expires_at on every workspace group and
+// cluster in the config, and names those clusters config.TestClusterName.
+// Workspaces that still use the example name workspace-1 are renamed the same way,
+// because the clusters API reports that workspace name.
+// Configs that create neither are returned unchanged.
+func (uc UpdatableConfig) WithIntegrationSafeguards(expiresAt string) UpdatableConfig {
+	file, diags := hclwrite.ParseConfig([]byte(uc), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		panic(diags)
+	}
+
+	changed := false
+	expires := cty.StringVal(expiresAt)
+	clusterName := cty.StringVal(config.TestClusterName)
+
+	for _, block := range file.Body().Blocks() {
+		if applyIntegrationSafeguard(block, expires, clusterName) {
+			changed = true
+		}
+	}
+
+	if !changed {
+		return uc
+	}
+
+	return UpdatableConfig(file.Bytes())
+}
+
+func applyIntegrationSafeguard(block *hclwrite.Block, expires, clusterName cty.Value) bool {
+	labels := block.Labels()
+	if block.Type() != config.ResourceTypeName || len(labels) == 0 {
+		return false
+	}
+
+	switch labels[0] {
+	case resourceTypeName(workspacegroups.ResourceName):
+		_ = block.Body().SetAttributeValue("expires_at", expires)
+
+		return true
+	case resourceTypeName(clusters.ResourceName):
+		_ = block.Body().SetAttributeValue("expires_at", expires)
+		_ = block.Body().SetAttributeValue("name", clusterName)
+
+		return true
+	case resourceTypeName(workspaces.ResourceName):
+		return renameExampleWorkspace(block, clusterName)
+	default:
+		return false
+	}
+}
+
+func renameExampleWorkspace(block *hclwrite.Block, clusterName cty.Value) bool {
+	current, ok := hclStringLiteral(block.Body().GetAttribute("name"))
+	if !ok || current != config.TestWorkspaceName {
+		return false
+	}
+
+	_ = block.Body().SetAttributeValue("name", clusterName)
+
+	return true
+}
+
+func hclStringLiteral(attr *hclwrite.Attribute) (string, bool) {
+	if attr == nil {
+		return "", false
+	}
+
+	raw := strings.TrimSpace(string(attr.Expr().BuildTokens(nil).Bytes()))
+	value, err := strconv.Unquote(raw)
+	if err != nil {
+		return "", false
+	}
+
+	return value, true
 }
 
 // withAttribute accesses a resource, data source, or a provider defined by the typeName and labels,

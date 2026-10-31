@@ -681,7 +681,7 @@ func TestSQLExecuteResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestClusterName),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
 					resource.TestCheckResourceAttrSet("singlestoredb_sql_execute.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_sql_execute.this", "query_results.#", "1"),
@@ -705,7 +705,7 @@ func TestWorkspaceWithSQLResourceIntegration(t *testing.T) {
 					WithWorkspaceGroupResource("example")("admin_password", cty.StringVal(adminPassword)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestWorkspaceName),
+					resource.TestCheckResourceAttr("singlestoredb_workspace.this", "name", config.TestClusterName),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.this", "endpoint", isDataAPIReady),
 					resource.TestCheckResourceAttr("singlestoredb_workspace.reader", "name", config.TestReaderWorkspaceName),
 					resource.TestCheckResourceAttrWith("singlestoredb_workspace.reader", "endpoint", isDataAPIReady),

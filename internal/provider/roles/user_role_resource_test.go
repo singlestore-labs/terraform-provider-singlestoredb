@@ -197,7 +197,7 @@ func accessControlsPatchHandler(t *testing.T, w http.ResponseWriter, r *http.Req
 	case "Secret":
 		url = strings.Join([]string{"/v1/secrets", resourceID.String(), "accessControls"}, "/")
 	case "Cluster":
-		url = strings.Join([]string{"/v1/workspaceGroups", resourceID.String(), "accessControls"}, "/")
+		url = strings.Join([]string{"/v2/clusters", resourceID.String(), "accessControls"}, "/")
 	default:
 		t.Fatalf("%s resource type is not supported", resourceType)
 	}

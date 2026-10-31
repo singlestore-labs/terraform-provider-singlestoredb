@@ -265,12 +265,29 @@ func (d *rolesDataSourceList) getOrganizationRoles(ctx context.Context, resource
 }
 
 func (d *rolesDataSourceList) getWorkspaceGroupRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
-	response, err := d.GetV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, resourceID)
-	if serr := util.StatusOK(response, err); serr != nil {
-		return nil, serr
+	target, err := resolveClusterAccessTarget(ctx, d.ClientWithResponsesInterface, resourceID)
+	if err != nil {
+		return nil, err
 	}
 
-	return response.JSON200, nil
+	switch target.endpoint {
+	case clusterAccessEndpointV1WorkspaceGroup:
+		response, gerr := d.GetV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, target.id)
+		if serr := util.StatusOK(response, gerr); serr != nil {
+			return nil, serr
+		}
+
+		return response.JSON200, nil
+	case clusterAccessEndpointV2Cluster:
+		response, gerr := d.GetV2ClustersClusterIDAccessControlsWithResponse(ctx, target.id)
+		if serr := util.StatusOK(response, gerr); serr != nil {
+			return nil, serr
+		}
+
+		return response.JSON200, nil
+	default:
+		return nil, fmt.Errorf("unsupported cluster access endpoint")
+	}
 }
 
 func (d *rolesDataSourceList) getTeamRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {

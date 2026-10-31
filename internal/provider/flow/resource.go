@@ -70,7 +70,7 @@ func (r *flowInstanceResource) Schema(_ context.Context, _ resource.SchemaReques
 			},
 			"workspace_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The unique identifier of the workspace to associate the Flow instance with.",
+				MarkdownDescription: "The cluster ID to associate the Flow instance with. Set this to `singlestoredb_cluster.id` (or the deprecated `singlestoredb_workspace.id`).",
 				Validators:          []validator.String{util.NewUUIDValidator()},
 			},
 			"user_name": schema.StringAttribute{
@@ -118,8 +118,8 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 	createBody := management.FlowCreate{
 		Name:         plan.Name.ValueString(),
 		WorkspaceID:  workspaceID,
-		UserName:     plan.UserName.ValueString(),
-		DatabaseName: plan.DatabaseName.ValueString(),
+		UserName:     util.Ptr(plan.UserName.ValueString()),
+		DatabaseName: util.Ptr(plan.DatabaseName.ValueString()),
 		Size:         util.Ptr(plan.Size.ValueString()),
 	}
 

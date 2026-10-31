@@ -24,7 +24,7 @@ var (
 	createAt1 = time.Now().Local()
 	id1       = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	email1    = "user1@user.com"
-	state1    = management.Pending
+	state1    = management.UserInvitationStatePending
 	teams1    = []uuid.UUID{
 		uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
 		uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
@@ -32,7 +32,7 @@ var (
 	createAt2 = time.Now().Local().Add(-1 * time.Hour)
 	id2       = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
 	email2    = "user2@user.com"
-	state2    = management.Pending
+	state2    = management.UserInvitationStatePending
 )
 
 func TestReadsInvitation(t *testing.T) {

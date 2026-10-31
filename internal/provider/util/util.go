@@ -58,6 +58,13 @@ func Ptr[A any](a A) *A {
 	return &a
 }
 
+// AdminPasswordForState returns the password to persist after create.
+// When the configuration sets admin_password, Terraform requires state to match
+// that planned sensitive value. When unset, use the API-generated password.
+func AdminPasswordForState(configured, apiReturned string) string {
+	return FirstNotEmpty(configured, apiReturned)
+}
+
 // FirstNotEmpty returns the first encountered not empty string if present.
 func FirstNotEmpty(ss ...string) string {
 	for _, s := range ss {

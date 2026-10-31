@@ -42,4 +42,4 @@ output "this_flow" {
 - `deleted_at` (String) The timestamp indicating when the Flow instance was terminated. If the Flow instance is active, this attribute will not be set.
 - `endpoint` (String) The endpoint to connect to the Flow instance.
 - `size` (String) The size of the Flow instance (in Flow size notation), such as 'F1'.
-- `workspace_id` (String) The unique identifier of the workspace associated with the Flow instance.
+- `workspace_id` (String) The cluster ID associated with the Flow instance. This is `singlestoredb_cluster.id` (or the deprecated `singlestoredb_workspace.id`).

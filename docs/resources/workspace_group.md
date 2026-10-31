@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace_group Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB workspace groups with this resource.
+  Deprecated. Manage an existing SingleStoreDB workspace group. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v0.3.0, the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See MIGRATING.md in the provider repository.
 ---
 
 # singlestoredb_workspace_group (Resource)
 
-Manage SingleStoreDB workspace groups with this resource.
+Deprecated. Manage an existing SingleStoreDB workspace group. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v0.3.0, the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See MIGRATING.md in the provider repository.
 
 ## Example Usage
 

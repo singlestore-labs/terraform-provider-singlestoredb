@@ -3,6 +3,7 @@ package roles
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
@@ -169,6 +170,10 @@ const (
 	ResourceTypeUnknown        ResourceType = "Unknown"
 )
 
+// identityRolesClusterGroupType is returned by identity-roles APIs for workspace-group
+// scoped cluster grants. Terraform continues to use resource_type = "Cluster".
+const identityRolesClusterGroupType = "ClusterGroup"
+
 var ResourceTypeList = []ResourceType{
 	ResourceTypeOrganization,
 	ResourceTypeWorkspaceGroup,
@@ -177,15 +182,20 @@ var ResourceTypeList = []ResourceType{
 }
 
 func ResourceTypeString(provider types.String) ResourceType {
+	value := provider.ValueString()
 	for _, s := range []ResourceType{
 		ResourceTypeOrganization,
 		ResourceTypeWorkspaceGroup,
 		ResourceTypeTeam,
 		ResourceTypeSecret,
 	} {
-		if strings.EqualFold(provider.ValueString(), string(s)) {
+		if strings.EqualFold(value, string(s)) {
 			return s
 		}
+	}
+	// Identity-roles APIs report workspace-group grants as ClusterGroup.
+	if strings.EqualFold(value, identityRolesClusterGroupType) {
+		return ResourceTypeWorkspaceGroup
 	}
 
 	return ResourceTypeUnknown
@@ -218,9 +228,16 @@ type RoleAttributesModel struct {
 }
 
 func toRoleAttributesModel(role management.IdentityRole) RoleAttributesModel {
+	resourceType := role.ResourceType
+	// Normalize API ClusterGroup → Terraform Cluster so configs using
+	// resource_type = "Cluster" with singlestoredb_workspace_group.id keep working.
+	if ResourceTypeString(types.StringValue(resourceType)) == ResourceTypeWorkspaceGroup {
+		resourceType = string(ResourceTypeWorkspaceGroup)
+	}
+
 	return RoleAttributesModel{
 		RoleName:     types.StringValue(role.Role),
-		ResourceType: types.StringValue(role.ResourceType),
+		ResourceType: types.StringValue(resourceType),
 		ResourceID:   util.UUIDStringValue(role.ResourceID),
 	}
 }
@@ -258,11 +275,133 @@ func getRolesAndValidate(ctx context.Context, r management.ClientWithResponsesIn
 	}
 
 	roles := util.Map(util.Deref(jsonRoles), toRoleAttributesModel)
+	// Identity roles for resource_type=Cluster return cluster IDs, while Terraform configs
+	// historically use singlestoredb_workspace_group.id (group ID). Align IDs so validation
+	// and state match the configured resource_id.
+	roles, err := alignClusterRoleResourceIDs(ctx, r, roles, expectedRoles, unexpectedRoles)
+	if err != nil {
+		return nil, err
+	}
+
 	if expectedRoles == nil && unexpectedRoles == nil {
 		return roles, nil
 	}
 
 	return validateRoles(ctx, entityIDstr, entityType, resourceType, roles, expectedRoles, unexpectedRoles)
+}
+
+// alignClusterRoleResourceIDs rewrites a Cluster grant's resource ID to the identifier
+// configured in Terraform when that identifier is the cluster ID or its parent workspace
+// group ID. Grants with no matching configured identifier keep the API cluster ID, so a
+// later apply does not retarget the whole workspace group.
+func alignClusterRoleResourceIDs(
+	ctx context.Context,
+	c management.ClientWithResponsesInterface,
+	roles []RoleAttributesModel,
+	expectedRoles, unexpectedRoles *[]RoleAttributesModel,
+) ([]RoleAttributesModel, error) {
+	needsAlign := false
+	for _, role := range roles {
+		if ResourceTypeString(role.ResourceType) == ResourceTypeWorkspaceGroup {
+			needsAlign = true
+
+			break
+		}
+	}
+	if !needsAlign {
+		return roles, nil
+	}
+
+	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(list, err); serr != nil {
+		return nil, serr
+	}
+
+	clusterToGroup := make(map[uuid.UUID]uuid.UUID)
+	for _, cluster := range util.Deref(list.JSON200) {
+		if cluster.ClusterID != nil && cluster.GroupID != nil {
+			clusterToGroup[*cluster.ClusterID] = *cluster.GroupID
+		}
+	}
+
+	configuredIDs := configuredClusterResourceIDs(expectedRoles, unexpectedRoles)
+	aligned := make([]RoleAttributesModel, len(roles))
+	for i, role := range roles {
+		aligned[i] = alignOneClusterRoleResourceID(role, clusterToGroup, configuredIDs)
+	}
+
+	return aligned, nil
+}
+
+func alignOneClusterRoleResourceID(
+	role RoleAttributesModel,
+	clusterToGroup map[uuid.UUID]uuid.UUID,
+	configuredIDs []uuid.UUID,
+) RoleAttributesModel {
+	if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
+		return role
+	}
+	resourceID, err := uuid.Parse(role.ResourceID.ValueString())
+	if err != nil {
+		return role
+	}
+	groupID, isClusterID := clusterToGroup[resourceID]
+	if !isClusterID {
+		return role
+	}
+	if id, ok := pickConfiguredClusterResourceID(configuredIDs, resourceID, groupID); ok {
+		role.ResourceID = util.UUIDStringValue(id)
+	}
+
+	return role
+}
+
+// roleWithPlannedSpelling keeps access-control matching case-insensitive while storing
+// the planned role_name and resource_type spelling. Call it only when IsRoleChanged is
+// false, so a case-only change such as Owner to owner is persisted without an API call.
+func roleWithPlannedSpelling(plan, state RoleAttributesModel) (RoleAttributesModel, bool) {
+	if plan.RoleName.Equal(state.RoleName) && plan.ResourceType.Equal(state.ResourceType) {
+		return state, false
+	}
+
+	state.RoleName = plan.RoleName
+	state.ResourceType = plan.ResourceType
+
+	return state, true
+}
+
+func configuredClusterResourceIDs(expectedRoles, unexpectedRoles *[]RoleAttributesModel) []uuid.UUID {
+	var ids []uuid.UUID
+	for _, list := range []*[]RoleAttributesModel{expectedRoles, unexpectedRoles} {
+		if list == nil {
+			continue
+		}
+		for _, role := range *list {
+			if ResourceTypeString(role.ResourceType) != ResourceTypeWorkspaceGroup {
+				continue
+			}
+			id, err := uuid.Parse(role.ResourceID.ValueString())
+			if err != nil {
+				continue
+			}
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+func pickConfiguredClusterResourceID(configured []uuid.UUID, clusterID, groupID uuid.UUID) (uuid.UUID, bool) {
+	// An exact cluster ID match wins over its group ID.
+	for _, want := range []uuid.UUID{clusterID, groupID} {
+		for _, id := range configured {
+			if id == want {
+				return id, true
+			}
+		}
+	}
+
+	return uuid.UUID{}, false
 }
 
 func validateRoles(ctx context.Context, entityIDstr string, entityType EntityType, resourceType *string, roles []RoleAttributesModel, expectedRoles, unexpectedRoles *[]RoleAttributesModel) ([]RoleAttributesModel, error) {
@@ -386,15 +525,104 @@ func applyOrganizationAccessControls(ctx context.Context, r management.ClientWit
 }
 
 func applyWorkspaceGroupAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
-	response, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, resourceID, management.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsJSONRequestBody{
+	target, err := resolveClusterAccessTarget(ctx, r, resourceID)
+	if err != nil {
+		return false, err
+	}
+
+	body := management.ControlAccessAction{
 		Grants:  grants,
 		Revokes: revokes,
-	})
+	}
+	var response util.StatusCoder
+	switch target.endpoint {
+	case clusterAccessEndpointV1WorkspaceGroup:
+		response, err = r.PatchV1WorkspaceGroupsWorkspaceGroupIDAccessControlsWithResponse(ctx, target.id, body)
+	case clusterAccessEndpointV2Cluster:
+		response, err = r.PatchV2ClustersClusterIDAccessControlsWithResponse(ctx, target.id, body)
+	default:
+		return false, fmt.Errorf("unsupported cluster access endpoint")
+	}
 	if serr := util.StatusOK(response, err); serr != nil {
 		return false, serr
 	}
 
 	return true, nil
+}
+
+// clusterAccessEndpoint selects the access-control API for a Cluster role.
+// A workspace group ID keeps using the v1 workspace-group API. A cluster ID,
+// including one resolved from a parent group that is not itself a workspace group,
+// uses the v2 cluster API.
+type clusterAccessEndpoint int
+
+const (
+	clusterAccessEndpointV2Cluster clusterAccessEndpoint = iota
+	clusterAccessEndpointV1WorkspaceGroup
+)
+
+type clusterAccessTarget struct {
+	endpoint clusterAccessEndpoint
+	id       uuid.UUID
+}
+
+// resolveClusterAccessTarget accepts a cluster ID or a workspace group ID.
+// Terraform configs pass singlestoredb_workspace_group.id for resource_type = "Cluster".
+// That ID is the group, not a v2 cluster, so access controls stay on the workspace group.
+func resolveClusterAccessTarget(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (clusterAccessTarget, error) {
+	isCluster, err := clusterExists(ctx, c, resourceID)
+	if err != nil {
+		return clusterAccessTarget{}, err
+	}
+	if isCluster {
+		return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: resourceID}, nil
+	}
+
+	isWorkspaceGroup, err := workspaceGroupExists(ctx, c, resourceID)
+	if err != nil {
+		return clusterAccessTarget{}, err
+	}
+	if isWorkspaceGroup {
+		return clusterAccessTarget{endpoint: clusterAccessEndpointV1WorkspaceGroup, id: resourceID}, nil
+	}
+
+	list, err := c.GetV2ClustersWithResponse(ctx, &management.GetV2ClustersParams{})
+	if serr := util.StatusOK(list, err); serr != nil {
+		return clusterAccessTarget{}, serr
+	}
+
+	for _, cluster := range util.Deref(list.JSON200) {
+		if cluster.GroupID != nil && *cluster.GroupID == resourceID && cluster.ClusterID != nil {
+			return clusterAccessTarget{endpoint: clusterAccessEndpointV2Cluster, id: *cluster.ClusterID}, nil
+		}
+	}
+
+	return clusterAccessTarget{}, &util.SummaryWithDetailError{
+		Summary: "Failed to resolve cluster ID",
+		Detail:  fmt.Sprintf("No cluster or workspace group was found for resource ID %s (tried as cluster ID, as workspace group ID, and as the group that contains a cluster).", resourceID),
+	}
+}
+
+// clusterExists reports false only on 404. Other failures are returned so they
+// are not mistaken for a missing cluster.
+func clusterExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
+	direct, err := c.GetV2ClustersClusterIDWithResponse(ctx, resourceID, &management.GetV2ClustersClusterIDParams{})
+	if serr := util.StatusOK(direct, err, util.ReturnNilOnNotFound); serr != nil {
+		return false, serr
+	}
+
+	return direct.StatusCode() == http.StatusOK && direct.JSON200 != nil, nil
+}
+
+// workspaceGroupExists reports false only on 404. Other failures are returned so
+// they are not mistaken for a missing workspace group.
+func workspaceGroupExists(ctx context.Context, c management.ClientWithResponsesInterface, resourceID uuid.UUID) (bool, error) {
+	group, err := c.GetV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, resourceID, &management.GetV1WorkspaceGroupsWorkspaceGroupIDParams{})
+	if serr := util.StatusOK(group, err, util.ReturnNilOnNotFound); serr != nil {
+		return false, serr
+	}
+
+	return group.StatusCode() == http.StatusOK && group.JSON200 != nil, nil
 }
 
 func applyTeamAccessControls(ctx context.Context, r management.ClientWithResponsesInterface, resourceID uuid.UUID, grants, revokes []management.ControlAccessRole) (bool, error) {
@@ -459,9 +687,14 @@ func mapRoleAttributes(entityType EntityType, entityID uuid.UUID, roles *[]RoleA
 }
 
 func IsRoleChanged(plan, state RoleAttributesModel) bool {
-	return plan.ResourceID != state.ResourceID ||
-		plan.ResourceType != state.ResourceType ||
-		plan.RoleName != state.RoleName
+	if !strings.EqualFold(plan.RoleName.ValueString(), state.RoleName.ValueString()) {
+		return true
+	}
+	if !strings.EqualFold(plan.ResourceType.ValueString(), state.ResourceType.ValueString()) {
+		return true
+	}
+
+	return plan.ResourceID.ValueString() != state.ResourceID.ValueString()
 }
 
 func SubtractRoles(a, b []RoleAttributesModel) []RoleAttributesModel {
@@ -488,7 +721,9 @@ func MatchedRoles(a, b []RoleAttributesModel) []RoleAttributesModel {
 	for _, role := range a {
 		for _, mappedRole := range b {
 			if !IsRoleChanged(role, mappedRole) {
-				result = append(result, mappedRole)
+				// Prefer the configured role (a) so Cluster resource_id stays as the
+				// workspace group ID from Terraform config when IDs were aligned.
+				result = append(result, role)
 
 				break
 			}
