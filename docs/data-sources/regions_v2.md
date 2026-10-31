@@ -41,5 +41,5 @@ output "all_regions" {
 Read-Only:
 
 - `provider` (String) The name of the cloud provider hosting the region.
-- `region` (String) The name of the region.
-- `region_name` (String) The region code name.
+- `region` (String) The display name of the region, for example `East US 1 (Virginia)`.
+- `region_name` (String) The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.

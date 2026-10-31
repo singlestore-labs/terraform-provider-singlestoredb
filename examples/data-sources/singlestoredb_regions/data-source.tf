@@ -4,6 +4,7 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
+# Deprecated. Use singlestoredb_regions_v2 instead. Removed in v0.3.0, the first release on or after April 30, 2027.
 data "singlestoredb_regions" "all" {}
 
 output "all_regions" {
