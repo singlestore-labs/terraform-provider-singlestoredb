@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- `singlestoredb_private_connection` targets a cluster. When only the deprecated `workspace_group_id` is set, the group must contain exactly one active workspace, which is used as the cluster; otherwise create fails and asks for `cluster_id`. Previously, a `workspace_group_id`-only configuration created a workspace group level connection.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").

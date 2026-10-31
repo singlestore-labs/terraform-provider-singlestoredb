@@ -2,10 +2,12 @@ package privateconnections_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +59,7 @@ var (
 		ScaleFactor:      util.MaybeFloat32(types.Float32Value(1)),
 	}
 
-	privateConnection = management.PrivateConnection{
+	privateConnection = management.ClusterPrivateConnection{
 		ActiveAt:            util.Ptr("2025-01-21T11:11:38.145343Z"),
 		AllowList:           util.Ptr(allowedList),
 		CreatedAt:           util.Ptr("2025-01-21T11:11:38.145343Z"),
@@ -66,10 +68,9 @@ var (
 		OutboundAllowList:   util.Ptr("127.0.0.0"),
 		PrivateConnectionID: privateConnectionID,
 		ServiceName:         util.Ptr("test name"),
-		Status:              util.Ptr(management.PrivateConnectionStatusACTIVE),
-		Type:                util.Ptr(management.PrivateConnectionTypeINBOUND),
-		WorkspaceID:         util.Ptr(workspaceID),
-		WorkspaceGroupID:    workspaceGroupID,
+		Status:              util.Ptr(management.ClusterPrivateConnectionStatusACTIVE),
+		Type:                util.Ptr(management.ClusterPrivateConnectionTypeINBOUND),
+		ClusterID:           util.Ptr(workspaceID),
 	}
 )
 
@@ -140,7 +141,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 
 	returnNotFound := true
 	privateConnectionsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v1/privateConnections", privateConnectionID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v2/privateConnections", privateConnectionID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -157,17 +158,17 @@ func TestCRUDPrivateConnection(t *testing.T) {
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(privateConnection))
 		require.NoError(t, err)
-		privateConnection.Status = util.Ptr(management.PrivateConnectionStatusACTIVE) // Marking the state as ACTIVE to end polling.
+		privateConnection.Status = util.Ptr(management.ClusterPrivateConnectionStatusACTIVE) // Marking the state as ACTIVE to end polling.
 
 		return true
 	}
 
 	privateConnectionsPostHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/privateConnections", r.URL.Path)
+		require.Equal(t, "/v2/privateConnections", r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		var input management.PrivateConnectionCreate
+		var input management.PrivateConnectionCreateV2
 		require.NoError(t, json.Unmarshal(body, &input))
 		w.Header().Add("Content-Type", "json")
 		_, err = w.Write(testutil.MustJSON(
@@ -182,7 +183,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 
 	returnInternalError := true
 	privateConnectionsPatchHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/privateConnections", privateConnectionID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v2/privateConnections", privateConnectionID.String()}, "/"), r.URL.Path)
 
 		if returnInternalError {
 			w.Header().Add("Content-Type", "json")
@@ -196,7 +197,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 		require.Equal(t, http.MethodPatch, r.Method)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		var input management.PrivateConnectionUpdate
+		var input management.PrivateConnectionUpdateV2
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Equal(t, updateAllowedList, util.Deref(input.AllowList))
 		w.Header().Add("Content-Type", "json")
@@ -212,7 +213,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 	}
 
 	privateConnectionsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/privateConnections", privateConnectionID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v2/privateConnections", privateConnectionID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "json")
@@ -276,6 +277,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", "ACTIVE"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", "INBOUND"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "cluster_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", "a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", "2025-01-21T11:11:38.145343Z"),
 				),
@@ -295,6 +297,7 @@ func TestCRUDPrivateConnection(t *testing.T) {
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "status", "ACTIVE"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "type", "INBOUND"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "cluster_id", "283d4b0d-b0d6-485a-bc2d-a763c523c68a"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "workspace_group_id", "a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09"),
 					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "updated_at", "2025-01-21T11:11:38.145343Z"),
 				),
@@ -303,6 +306,155 @@ func TestCRUDPrivateConnection(t *testing.T) {
 	})
 
 	require.Empty(t, writeHandlers, "all the mutating REST calls should have been called, but %d is left not called yet", len(writeHandlers))
+}
+
+// TestMalformedWorkspaceIdentifierAliasesFailAtPlan guards against uuid.MustParse
+// panicking during Create/resolveClusterID. Only cluster_id originally had a UUID
+// validator; a malformed workspace_id or workspace_group_id must now be rejected at
+// plan time too, instead of passing plan and crashing the provider later.
+func TestMalformedWorkspaceIdentifierAliasesFailAtPlan(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		attribute string
+	}{
+		{name: "workspace_id", attribute: "workspace_id"},
+		{name: "workspace_group_id", attribute: "workspace_group_id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testutil.UnitTest(t, testutil.UnitTestConfig{
+				APIKey: testutil.UnusedAPIKey,
+			}, resource.TestCase{
+				Steps: []resource.TestStep{
+					{
+						Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_private_connection" "this" {
+  type         = "OUTBOUND"
+  service_name = "test-service"
+  %s           = "not-a-uuid"
+}
+`, tc.attribute),
+						PlanOnly:    true,
+						ExpectError: regexp.MustCompile(`(?i)uuid`),
+					},
+				},
+			})
+		})
+	}
+}
+
+// TestChangingClusterIDAloneReportsChangingClusterIDNotSupported guards against the
+// generic "cluster_id and workspace_id must be equal" conflict check firing first when
+// only cluster_id changes. workspace_id is Optional+Computed with UseStateForUnknown, so
+// an unset workspace_id still plans to its prior-state value (the old cluster_id), which
+// would otherwise look like a conflict with the newly configured cluster_id. The specific
+// "Changing the cluster_id configuration is not supported" error must win instead.
+func TestChangingClusterIDAloneReportsChangingClusterIDNotSupported(t *testing.T) {
+	oldClusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	newClusterID := uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
+
+	privateConnectionsGetHandler := createGetHandler(t, strings.Join([]string{"/v2/privateConnections", privateConnectionID.String()}, "/"), http.MethodGet, management.ClusterPrivateConnection{
+		AllowList:           util.Ptr(allowedList),
+		PrivateConnectionID: privateConnectionID,
+		Status:              util.Ptr(management.ClusterPrivateConnectionStatusACTIVE),
+		Type:                util.Ptr(management.ClusterPrivateConnectionTypeINBOUND),
+		ClusterID:           util.Ptr(oldClusterID),
+	})
+	privateConnectionsPostHandler := func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v2/privateConnections", r.URL.Path)
+		require.Equal(t, http.MethodPost, r.Method)
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(struct{ PrivateConnectionID uuid.UUID }{PrivateConnectionID: privateConnectionID}))
+		require.NoError(t, err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if privateConnectionsGetHandler(w, r) {
+			return
+		}
+		if r.URL.Path == "/v2/privateConnections" && r.Method == http.MethodPost {
+			privateConnectionsPostHandler(w, r)
+
+			return
+		}
+		// restoreWorkspaceGroupID's best-effort lookup for the deprecated alias; a 404
+		// leaves it unset without failing the read.
+		if strings.HasPrefix(r.URL.Path, "/v1/workspaces/") && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+		if r.URL.Path == strings.Join([]string{"/v2/privateConnections", privateConnectionID.String()}, "/") && r.Method == http.MethodDelete {
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct{ PrivateConnectionID uuid.UUID }{PrivateConnectionID: privateConnectionID}))
+			require.NoError(t, err)
+
+			return
+		}
+		t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_private_connection" "this" {
+  type       = "INBOUND"
+  allow_list = %[1]q
+  cluster_id = %[2]q
+}
+`, allowedList, oldClusterID.String()),
+			},
+			{
+				Config: fmt.Sprintf(`
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_private_connection" "this" {
+  type       = "INBOUND"
+  allow_list = %[1]q
+  cluster_id = %[2]q
+}
+`, allowedList, newClusterID.String()),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`Changing the cluster_id configuration is not supported`),
+			},
+		},
+	})
+}
+
+// TestCreatePrivateConnectionWithoutClusterIdentifierFailsAtPlan guards against a config
+// that configures none of cluster_id, workspace_id, or workspace_group_id passing plan
+// and only failing later, mid-apply, inside resolveClusterID.
+func TestCreatePrivateConnectionWithoutClusterIdentifierFailsAtPlan(t *testing.T) {
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIKey: testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: `
+provider "singlestoredb" {
+}
+
+resource "singlestoredb_private_connection" "this" {
+  type         = "OUTBOUND"
+  service_name = "test-service"
+}
+`,
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`(?s)Missing Attribute Configuration.*cluster_id.*workspace_id.*workspace_group_id`),
+			},
+		},
+	})
 }
 
 func createGetHandler(t *testing.T, expectedPath string, expectedMethod string, responseData interface{}) func(w http.ResponseWriter, r *http.Request) bool {
@@ -337,8 +489,10 @@ func TestPrivateConnectionResourceIntegration(t *testing.T) {
 				),
 			},
 			{
+				// A value such as "updated-<account>" is left unchanged by the live API,
+				// so the wait for the new allow_list never finishes. Use another 12-digit account ID.
 				Config: testutil.UpdatableConfig(examples.PrivateConnectionsResource).
-					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
+					WithPrivateConnectionResource("this")("allow_list", cty.StringVal("123456789012")).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", config.IDAttribute),
