@@ -45,7 +45,7 @@ var (
 
 func TestCRUDTeam(t *testing.T) {
 	teamsPostHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/teams", r.URL.Path)
+		require.Equal(t, "/v2/teams", r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
@@ -60,7 +60,7 @@ func TestCRUDTeam(t *testing.T) {
 	}
 
 	teamsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v1/teams", team.TeamID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v2/teams", team.TeamID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -74,7 +74,7 @@ func TestCRUDTeam(t *testing.T) {
 
 	returnInternalError := true
 	teamsPatchHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/teams", team.TeamID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v2/teams", team.TeamID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodPatch, r.Method)
 
 		if returnInternalError {
@@ -88,7 +88,7 @@ func TestCRUDTeam(t *testing.T) {
 
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		var input management.WorkspaceUpdate
+		var input management.Cluster
 		require.NoError(t, json.Unmarshal(body, &input))
 
 		w.Header().Add("Content-Type", "application/json")
@@ -107,7 +107,7 @@ func TestCRUDTeam(t *testing.T) {
 	}
 
 	teamsDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v1/teams", team.TeamID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v2/teams", team.TeamID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
