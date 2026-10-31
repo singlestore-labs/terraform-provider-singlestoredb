@@ -63,11 +63,11 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 						},
 						"region": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The name of the region.",
+							MarkdownDescription: "The display name of the region, for example `East US 1 (Virginia)`.",
 						},
 						"region_name": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The region code name.",
+							MarkdownDescription: "The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.",
 						},
 					},
 				},

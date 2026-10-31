@@ -3,12 +3,12 @@
 page_title: "singlestoredb_regions Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.
+  Deprecated. Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region.
 ---
 
 # singlestoredb_regions (Data Source)
 
-This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.
+Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region.
 
 ## Example Usage
 
@@ -19,6 +19,7 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
+# Deprecated. Use singlestoredb_regions_v2 instead. Removed in v0.3.0, the first release on or after April 30, 2027.
 data "singlestoredb_regions" "all" {}
 
 output "all_regions" {
@@ -40,6 +41,7 @@ output "all_regions" {
 
 Read-Only:
 
-- `id` (String) The unique identifier for the region.
+- `id` (String, Deprecated) Deprecated and no longer populated. The regions[*].id attribute of singlestoredb_regions is deprecated and is no longer populated. It is removed in v0.3.0, the first release on or after April 30, 2027. Use the singlestoredb_regions_v2 data source instead.
 - `provider` (String) The name of the cloud provider hosting the region.
-- `region` (String) The name of the region.
+- `region` (String) The display name of the region, for example `East US 1 (Virginia)`.
+- `region_name` (String) The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.
