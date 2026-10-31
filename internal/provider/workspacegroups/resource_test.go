@@ -37,7 +37,7 @@ var (
 
 const (
 	pathV2Regions  = "/v2/regions"
-	pathV1Projects = "/v1/projects"
+	pathV1Projects = "/v2/projects"
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop

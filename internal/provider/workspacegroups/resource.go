@@ -654,7 +654,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 }
 
 func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
+	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
 	if serr := util.StatusOK(projectsResponse, err); serr != nil {
 		return nil, serr
 	}

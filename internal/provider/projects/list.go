@@ -83,7 +83,7 @@ func (d *projectsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRe
 
 // Read refreshes the Terraform state with the latest data.
 func (d *projectsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	projectsResponse, err := d.GetV1ProjectsWithResponse(ctx)
+	projectsResponse, err := d.GetV2ProjectsWithResponse(ctx)
 	if serr := util.StatusOK(projectsResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
