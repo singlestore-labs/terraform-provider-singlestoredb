@@ -186,9 +186,9 @@ func WorkspaceCreateAutoSuspendSuspendTypeString(wgs types.String) *management.W
 
 func WorkspaceUpdateAutoSuspendSuspendTypeString(wgs types.String) *management.WorkspaceUpdateAutoSuspendSuspendType {
 	for _, s := range []management.WorkspaceUpdateAutoSuspendSuspendType{
-		management.IDLE,
-		management.DISABLED,
-		management.SCHEDULED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeIDLE,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeDISABLED,
+		management.WorkspaceUpdateAutoSuspendSuspendTypeSCHEDULED,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return &s

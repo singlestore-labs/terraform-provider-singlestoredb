@@ -118,8 +118,8 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 	createBody := management.FlowCreate{
 		Name:         plan.Name.ValueString(),
 		WorkspaceID:  workspaceID,
-		UserName:     plan.UserName.ValueString(),
-		DatabaseName: plan.DatabaseName.ValueString(),
+		UserName:     util.MaybeString(plan.UserName),
+		DatabaseName: util.MaybeString(plan.DatabaseName),
 		Size:         util.Ptr(plan.Size.ValueString()),
 	}
 
