@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- `singlestoredb_regions` is deprecated and is removed in v0.3.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead. It reads regions from the v2 Management API and adds `regions[*].region_name`. `regions[*].id` is deprecated, is no longer populated, and every read prints a deprecation warning for that attribute.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").

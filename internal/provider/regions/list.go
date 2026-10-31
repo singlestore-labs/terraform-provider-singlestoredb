@@ -26,11 +26,12 @@ type regionsListDataSourceModel struct {
 	Regions []regionModel `tfsdk:"regions"`
 }
 
-// regionModel maps regions schema data.
+// regionModel maps regions schema data (aligned with RegionV2 / regions_v2).
 type regionModel struct {
-	ID       types.String `tfsdk:"id"`
-	Provider types.String `tfsdk:"provider"`
-	Region   types.String `tfsdk:"region"`
+	ID         types.String `tfsdk:"id"`
+	Provider   types.String `tfsdk:"provider"`
+	Region     types.String `tfsdk:"region"`
+	RegionName types.String `tfsdk:"region_name"`
 }
 
 var _ datasource.DataSourceWithConfigure = &regionsDataSourceList{}
@@ -48,7 +49,8 @@ func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.Metad
 // Schema defines the schema for the data source.
 func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.",
+		DeprecationMessage:  config.RegionsDataSourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
@@ -59,7 +61,8 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 					Attributes: map[string]schema.Attribute{
 						config.IDAttribute: schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The unique identifier for the region.",
+							DeprecationMessage:  config.RegionIDDeprecationMessage,
+							MarkdownDescription: "Deprecated and no longer populated. " + config.RegionIDDeprecationMessage,
 						},
 						"provider": schema.StringAttribute{
 							Computed:            true,
@@ -67,7 +70,11 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 						},
 						"region": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The name of the region.",
+							MarkdownDescription: "The display name of the region, for example `East US 1 (Virginia)`.",
+						},
+						"region_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.",
 						},
 					},
 				},
@@ -78,8 +85,7 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	// v1 regions stay until singlestoredb_regions moves to the v2 API.
-	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{}) //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
+	regions, err := d.GetV2RegionsWithResponse(ctx, &management.GetV2RegionsParams{})
 	if serr := util.StatusOK(regions, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -94,6 +100,8 @@ func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadReq
 		Regions: util.Map(util.Deref(regions.JSON200), toRegionsDataSourceModel),
 	}
 
+	resp.Diagnostics.AddWarning("Deprecated attribute regions[*].id", config.RegionIDDeprecationMessage)
+
 	diags := resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
 }
@@ -107,10 +115,11 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toRegionsDataSourceModel(region management.Region) regionModel { //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
+func toRegionsDataSourceModel(region management.RegionV2) regionModel {
 	return regionModel{
-		ID:       types.StringValue(region.RegionID.String()),
-		Provider: types.StringValue(string(region.Provider)),
-		Region:   types.StringValue(region.Region),
+		ID:         types.StringNull(),
+		Provider:   types.StringValue(string(region.Provider)),
+		Region:     types.StringValue(region.Region),
+		RegionName: types.StringValue(region.RegionName),
 	}
 }
