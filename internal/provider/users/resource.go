@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 
-	openapi_types "github.com/deepmap/oapi-codegen/pkg/types"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -125,7 +125,7 @@ func (r *userResource) Create(ctx context.Context, req resource.CreateRequest, r
 		}
 	}
 
-	invitationCreateResponse, err := r.PostV2InvitationsWithResponse(ctx, management.PostV2InvitationsJSONRequestBody{
+	invitationCreateResponse, err := r.PostV1InvitationsWithResponse(ctx, management.PostV1InvitationsJSONRequestBody{
 		Email:   openapi_types.Email(email),
 		TeamIDs: teamIDs,
 	})
@@ -164,9 +164,9 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	invitation, err := r.GetV2InvitationsInvitationIDWithResponse(ctx,
+	invitation, err := r.GetV1InvitationsInvitationIDWithResponse(ctx,
 		uuid.MustParse(state.InvitationID.ValueString()),
-		&management.GetV2InvitationsInvitationIDParams{},
+		&management.GetV1InvitationsInvitationIDParams{},
 	)
 
 	if serr := util.StatusOK(invitation, err); serr != nil {
@@ -178,7 +178,7 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	if invitation.JSON200.State != nil && *invitation.JSON200.State == management.Revoked {
+	if invitation.JSON200.State != nil && *invitation.JSON200.State == management.UserInvitationStateRevoked {
 		resp.State.RemoveResource(ctx)
 
 		return // The invitaton revoked externally, deleting it from the state file to recreate.
@@ -204,7 +204,7 @@ func (r *userResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 }
 
 func tryToGetUserID(ctx context.Context, r *userResource, email string) (*openapi_types.UUID, *util.SummaryWithDetailError) {
-	users, err := r.GetV2UsersWithResponse(ctx, &management.GetV2UsersParams{Email: &email})
+	users, err := r.GetV1UsersWithResponse(ctx, &management.GetV1UsersParams{Email: &email})
 	if serr := util.StatusOK(users, err, util.ReturnNilOnNotFound); serr != nil {
 		return nil, serr
 	}
@@ -231,7 +231,7 @@ func (r *userResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	}
 
 	if state.UserID.IsNull() || state.UserID.IsUnknown() {
-		invitationRevokeResponse, err := r.DeleteV2InvitationsInvitationIDWithResponse(ctx,
+		invitationRevokeResponse, err := r.DeleteV1InvitationsInvitationIDWithResponse(ctx,
 			uuid.MustParse(state.InvitationID.ValueString()),
 		)
 		if serr := util.StatusOK(invitationRevokeResponse, err); serr != nil {
@@ -243,7 +243,7 @@ func (r *userResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 			return
 		}
 	} else {
-		userDeleteResponse, err := r.DeleteV2UsersUserIDWithResponse(ctx,
+		userDeleteResponse, err := r.DeleteV1UsersUserIDWithResponse(ctx,
 			uuid.MustParse(state.UserID.ValueString()),
 		)
 		if serr := util.StatusOK(userDeleteResponse, err); serr != nil {

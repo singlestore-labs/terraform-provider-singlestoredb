@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -38,11 +37,6 @@ var (
 	_ resource.ResourceWithModifyPlan  = &workspaceGroupResource{}
 	_ resource.ResourceWithImportState = &workspaceGroupResource{}
 )
-
-var updateWindowAttrTypes = map[string]attr.Type{
-	"hour": types.Int64Type,
-	"day":  types.Int64Type,
-}
 
 // workspaceGroupResource is the resource implementation.
 type workspaceGroupResource struct {
@@ -237,20 +231,19 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		regionID = util.Ptr(uuid.MustParse(plan.RegionID.ValueString()))
 	}
 
-	projectID, err := configuredProjectID(ctx, r.ClientWithResponsesInterface, plan.ProjectName)
-	if err != nil {
-		resp.Diagnostics.AddError(err.Summary, err.Detail)
+	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
+	var projectID *uuid.UUID
+	if projectNameIsSet {
+		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(err.Summary, err.Detail)
 
-		return
+			return
+		}
+		projectID = resolvedProjectID
 	}
 
-	updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
-	resp.Diagnostics.Append(updateWindowDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	workspaceGroupCreateResponse, postErr := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
+	workspaceGroupCreateResponse, err := r.PostV1WorkspaceGroupsWithResponse(ctx, management.PostV1WorkspaceGroupsJSONRequestBody{
 		AdminPassword:            util.MaybeNonEmptyString(plan.AdminPassword),
 		ExpiresAt:                util.MaybeString(plan.ExpiresAt),
 		FirewallRanges:           util.StringFirewallRanges(plan.FirewallRanges),
@@ -262,9 +255,9 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		DeploymentType:           util.WorkspaceGroupCreateDeploymentTypeString(plan.DeploymentType),
 		OptInPreviewFeature:      util.MaybeBool(plan.OptInPreviewFeature),
 		HighAvailabilityTwoZones: util.MaybeBool(plan.HighAvailabilityTwoZones),
-		UpdateWindow:             updateWindow,
+		UpdateWindow:             toManagementUpdateWindow(ctx, plan.UpdateWindow),
 	})
-	if serr := util.StatusOK(workspaceGroupCreateResponse, postErr); serr != nil {
+	if serr := util.StatusOK(workspaceGroupCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -284,14 +277,10 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	result, modelDiags := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
+	result := toWorkspaceGroupResourceModel(wg, util.FirstNotEmpty(
 		plan.AdminPassword.ValueString(),
 		util.Deref(workspaceGroupCreateResponse.JSON200.AdminPassword), // Either from input or output.
 	), regionIDIsSet, plan.FirewallRanges)
-	resp.Diagnostics.Append(modelDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -362,11 +351,7 @@ func (r *workspaceGroupResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	regionIDIsSet := util.IsConfiguredString(state.RegionID)
-	state, modelDiags := toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
-	resp.Diagnostics.Append(modelDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	state = toWorkspaceGroupResourceModel(*workspaceGroup.JSON200, state.AdminPassword.ValueString(), regionIDIsSet, state.FirewallRanges)
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -402,12 +387,6 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
-	resp.Diagnostics.Append(updateWindowDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	id := uuid.MustParse(plan.ID.ValueString())
 	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
 		management.WorkspaceGroupUpdate{
@@ -416,7 +395,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 			Name:           util.MaybeString(plan.Name),
 			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
 			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
-			UpdateWindow:   updateWindow,
+			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
 		},
 	)
 	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
@@ -439,11 +418,7 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	regionIDIsSet := util.IsConfiguredString(plan.RegionID)
-	result, modelDiags := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
-	resp.Diagnostics.Append(modelDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	result := toWorkspaceGroupResourceModel(wg, plan.AdminPassword.ValueString(), regionIDIsSet, plan.FirewallRanges)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -654,8 +629,7 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 // configuredFirewallRanges is the allowlist Terraform holds for the resource, either
 // from the plan or from the prior state. It decides how the reported ranges are
 // spelled, see firewallRangesForState.
-func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) (workspaceGroupResourceModel, diag.Diagnostics) {
-	updateWindow, diags := toUpdateWindowResourceModel(workspaceGroup.UpdateWindow)
+func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
@@ -668,7 +642,7 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		OptInPreviewFeature:      types.BoolValue(workspaceGroup.OptInPreviewFeature != nil && *workspaceGroup.OptInPreviewFeature),
 		HighAvailabilityTwoZones: types.BoolValue(workspaceGroup.HighAvailabilityTwoZones != nil && *workspaceGroup.HighAvailabilityTwoZones),
 		OutboundAllowList:        util.MaybeStringValue(workspaceGroup.OutboundAllowList),
-		UpdateWindow:             updateWindow,
+		UpdateWindow:             toUpdateWindowResourceModel(workspaceGroup.UpdateWindow),
 	}
 	if regionIDIsSet {
 		result.RegionID = util.UUIDStringValue(workspaceGroup.RegionID)
@@ -677,19 +651,11 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 		result.RegionName = types.StringValue(workspaceGroup.RegionName)
 	}
 
-	return result, diags
-}
-
-func configuredProjectID(ctx context.Context, c management.ClientWithResponsesInterface, projectName types.String) (*uuid.UUID, *util.SummaryWithDetailError) {
-	if !util.IsConfiguredString(projectName) {
-		return nil, nil
-	}
-
-	return resolveProjectIDByName(ctx, c, projectName.ValueString())
+	return result
 }
 
 func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
+	projectsResponse, err := c.GetV1ProjectsWithResponse(ctx)
 	if serr := util.StatusOK(projectsResponse, err); serr != nil {
 		return nil, serr
 	}
@@ -821,38 +787,42 @@ func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 	}
 }
 
-func toManagementUpdateWindow(ctx context.Context, uw types.Object) (*management.UpdateWindow, diag.Diagnostics) {
+func toManagementUpdateWindow(ctx context.Context, uw types.Object) *management.UpdateWindow {
 	if uw.IsNull() || uw.IsUnknown() {
-		return nil, nil
+		return nil
 	}
 
 	var model updateWindowResourceModel
-	diags := uw.As(ctx, &model, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return nil, diags
-	}
+	uw.As(ctx, &model, basetypes.ObjectAsOptions{})
 
 	return &management.UpdateWindow{
 		Hour: float32(model.Hour.ValueInt64()),
 		Day:  float32(model.Day.ValueInt64()),
-	}, diags
+	}
 }
 
-func toUpdateWindowResourceModel(uw *management.UpdateWindow) (types.Object, diag.Diagnostics) {
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
 	if uw == nil {
-		return types.ObjectNull(updateWindowAttrTypes), nil
+		return types.ObjectNull(map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		})
 	}
 
 	obj, diags := types.ObjectValue(
-		updateWindowAttrTypes,
+		map[string]attr.Type{
+			"hour": types.Int64Type,
+			"day":  types.Int64Type,
+		},
 		map[string]attr.Value{
 			"hour": types.Int64Value(int64(uw.Hour)),
 			"day":  types.Int64Value(int64(uw.Day)),
 		},
 	)
 	if diags.HasError() {
-		return types.ObjectNull(updateWindowAttrTypes), diags
+		// This should never happen unless there's a programming error in the type definitions
+		panic(fmt.Sprintf("failed to create update_window object: %v", diags.Errors()))
 	}
 
-	return obj, diags
+	return obj
 }

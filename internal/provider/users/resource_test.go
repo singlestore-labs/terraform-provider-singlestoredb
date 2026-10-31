@@ -25,7 +25,7 @@ var (
 	id1       = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	userID    = uuid.MustParse("a4df90a6-12b1-4de6-a50e-bd0a05aeaa09")
 	email1    = "test@user.com"
-	state1    = management.Pending
+	state1    = management.UserInvitationStatePending
 )
 
 var invitation = management.UserInvitation{
@@ -45,7 +45,7 @@ var user = management.User{
 func setupHandlers(t *testing.T, acceptInvitation bool) ([]func(w http.ResponseWriter, r *http.Request) bool, []func(w http.ResponseWriter, r *http.Request)) {
 	t.Helper()
 	invitationsGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != strings.Join([]string{"/v2/invitations", invitation.InvitationID.String()}, "/") ||
+		if r.URL.Path != strings.Join([]string{"/v1/invitations", invitation.InvitationID.String()}, "/") ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -57,7 +57,7 @@ func setupHandlers(t *testing.T, acceptInvitation bool) ([]func(w http.ResponseW
 	}
 
 	usersGetHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != "/v2/users" || r.URL.RawQuery != "email=test%40user.com" ||
+		if r.URL.Path != "/v1/users" || r.URL.RawQuery != "email=test%40user.com" ||
 			r.Method != http.MethodGet {
 			return false
 		}
@@ -75,7 +75,7 @@ func setupHandlers(t *testing.T, acceptInvitation bool) ([]func(w http.ResponseW
 	}
 
 	invitationsPostHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v2/invitations", r.URL.Path)
+		require.Equal(t, "/v1/invitations", r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func setupHandlers(t *testing.T, acceptInvitation bool) ([]func(w http.ResponseW
 	}
 
 	invitationRevokeHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v2/invitations", invitation.InvitationID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/invitations", invitation.InvitationID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")
@@ -104,7 +104,7 @@ func setupHandlers(t *testing.T, acceptInvitation bool) ([]func(w http.ResponseW
 	}
 
 	userRemoveHandler := func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, strings.Join([]string{"/v2/users", user.UserID.String()}, "/"), r.URL.Path)
+		require.Equal(t, strings.Join([]string{"/v1/users", user.UserID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
 
 		w.Header().Add("Content-Type", "application/json")

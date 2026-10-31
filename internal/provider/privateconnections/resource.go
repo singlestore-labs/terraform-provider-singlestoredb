@@ -126,9 +126,9 @@ func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaR
 				Computed:            true,
 				MarkdownDescription: "The private connection type.",
 				Validators: []validator.String{
-					stringvalidator.OneOf(string(management.INBOUND), string(management.OUTBOUND)),
+					stringvalidator.OneOf(string(management.PrivateConnectionCreateV2TypeINBOUND), string(management.PrivateConnectionCreateV2TypeOUTBOUND)),
 				},
-				Default: stringdefault.StaticString(string(management.INBOUND)),
+				Default: stringdefault.StaticString(string(management.PrivateConnectionCreateV2TypeINBOUND)),
 			},
 			"status": schema.StringAttribute{
 				Computed:            true,

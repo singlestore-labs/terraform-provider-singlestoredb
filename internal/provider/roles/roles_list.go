@@ -256,7 +256,7 @@ func (d *rolesDataSourceList) getRolesByResourceTypeAndID(ctx context.Context, r
 }
 
 func (d *rolesDataSourceList) getOrganizationRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
-	response, err := d.GetV2OrganizationsOrganizationIDAccessControlsWithResponse(ctx, resourceID)
+	response, err := d.GetV1OrganizationsOrganizationIDAccessControlsWithResponse(ctx, resourceID)
 	if serr := util.StatusOK(response, err); serr != nil {
 		return nil, serr
 	}
@@ -291,7 +291,7 @@ func (d *rolesDataSourceList) getWorkspaceGroupRoles(ctx context.Context, resour
 }
 
 func (d *rolesDataSourceList) getTeamRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
-	response, err := d.GetV2TeamsTeamIDAccessControlsWithResponse(ctx, resourceID)
+	response, err := d.GetV1TeamsTeamIDAccessControlsWithResponse(ctx, resourceID)
 	if serr := util.StatusOK(response, err); serr != nil {
 		return nil, serr
 	}
@@ -300,7 +300,7 @@ func (d *rolesDataSourceList) getTeamRoles(ctx context.Context, resourceID uuid.
 }
 
 func (d *rolesDataSourceList) getSecretRoles(ctx context.Context, resourceID uuid.UUID) (*[]management.ResourceRole, error) {
-	response, err := d.GetV2SecretsSecretIDAccessControlsWithResponse(ctx, resourceID)
+	response, err := d.GetV1SecretsSecretIDAccessControlsWithResponse(ctx, resourceID)
 	if serr := util.StatusOK(response, err); serr != nil {
 		return nil, serr
 	}

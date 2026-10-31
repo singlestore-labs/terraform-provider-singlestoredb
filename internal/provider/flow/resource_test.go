@@ -61,11 +61,11 @@ func newTestWorkspace() management.Workspace {
 	}
 }
 
-func newTestFlowInstance() management.FlowV2 {
-	return management.FlowV2{
+func newTestFlowInstance() management.Flow {
+	return management.Flow{
 		FlowID:       testFlowInstanceID,
 		Name:         testFlowInstanceName,
-		ClusterID:    util.Ptr(testWorkspaceID),
+		WorkspaceID:  util.Ptr(testWorkspaceID),
 		CreatedAt:    time.Now().UTC(),
 		Endpoint:     util.Ptr(testFlowEndpoint),
 		Size:         util.Ptr("F1"),
@@ -120,7 +120,7 @@ func setupCRUDServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2) {
+func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.Flow) {
 	t.Helper()
 
 	workspaceGroup := newTestWorkspaceGroup()
@@ -130,7 +130,7 @@ func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		createGetHandler(t, strings.Join([]string{"/v1/workspaceGroups", testWorkspaceGroupID.String()}, "/"), workspaceGroup),
 		createGetHandler(t, strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), workspace),
-		createGetHandler(t, strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/"), &flowInstance),
+		createGetHandler(t, strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), &flowInstance),
 	}
 
 	writeRoutes := map[routeKey]func(w http.ResponseWriter){
@@ -148,10 +148,10 @@ func setupCRUDServerWithFlow(t *testing.T) (*httptest.Server, *management.FlowV2
 				WorkspaceID: testWorkspaceID,
 			})
 		},
-		{"/v2/flow", http.MethodPost}: func(w http.ResponseWriter) {
+		{"/v1/flow", http.MethodPost}: func(w http.ResponseWriter) {
 			writeJSONResponse(t, w, newFlowIDResponse())
 		},
-		{strings.Join([]string{"/v2/flow", testFlowInstanceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
+		{strings.Join([]string{"/v1/flow", testFlowInstanceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
 			writeJSONResponse(t, w, newFlowIDResponse())
 		},
 		{strings.Join([]string{"/v1/workspaces", testWorkspaceID.String()}, "/"), http.MethodDelete}: func(w http.ResponseWriter) {
@@ -408,10 +408,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("uses API values when available", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			ClusterID:    util.Ptr(workspaceID),
+			WorkspaceID:  util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			Endpoint:     util.Ptr("new.example.com"),
 			Size:         util.Ptr("F1"),
@@ -429,10 +429,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("preserves prior user fields when API returns placeholder", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			ClusterID:    util.Ptr(workspaceID),
+			WorkspaceID:  util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			Endpoint:     util.Ptr("example.com"),
 			Size:         util.Ptr("F1"),
@@ -449,10 +449,10 @@ func TestToFlowInstanceResourceModel(t *testing.T) {
 	t.Run("leaves user fields unset without prior state", func(t *testing.T) {
 		t.Parallel()
 
-		model := flow.ToFlowInstanceResourceModelForTest(management.FlowV2{
+		model := flow.ToFlowInstanceResourceModelForTest(management.Flow{
 			FlowID:       uuid.New(),
 			Name:         "flow",
-			ClusterID:    util.Ptr(workspaceID),
+			WorkspaceID:  util.Ptr(workspaceID),
 			CreatedAt:    time.Now().UTC(),
 			UserName:     util.Ptr("Unknown"),
 			DatabaseName: util.Ptr("Unknown"),

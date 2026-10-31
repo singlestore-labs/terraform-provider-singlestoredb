@@ -34,7 +34,7 @@ type flowInstanceResource struct {
 type flowInstanceResourceModel struct {
 	ID           types.String `tfsdk:"id"`
 	Name         types.String `tfsdk:"name"`
-	ClusterID    types.String `tfsdk:"workspace_id"`
+	WorkspaceID  types.String `tfsdk:"workspace_id"`
 	UserName     types.String `tfsdk:"user_name"`
 	DatabaseName types.String `tfsdk:"database_name"`
 	Size         types.String `tfsdk:"size"`
@@ -113,17 +113,17 @@ func (r *flowInstanceResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	clusterID := uuid.MustParse(plan.ClusterID.ValueString())
+	workspaceID := uuid.MustParse(plan.WorkspaceID.ValueString())
 
-	createBody := management.FlowCreateV2{
+	createBody := management.FlowCreate{
 		Name:         plan.Name.ValueString(),
-		ClusterID:    clusterID,
-		UserName:     util.MaybeString(plan.UserName),
-		DatabaseName: util.MaybeString(plan.DatabaseName),
+		WorkspaceID:  workspaceID,
+		UserName:     util.Ptr(plan.UserName.ValueString()),
+		DatabaseName: util.Ptr(plan.DatabaseName.ValueString()),
 		Size:         util.Ptr(plan.Size.ValueString()),
 	}
 
-	flowCreateResponse, err := r.PostV2FlowWithResponse(ctx, createBody)
+	flowCreateResponse, err := r.PostV1FlowWithResponse(ctx, createBody)
 	if serr := util.StatusOK(flowCreateResponse, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -165,7 +165,7 @@ func (r *flowInstanceResource) Read(ctx context.Context, req resource.ReadReques
 
 	id := uuid.MustParse(state.ID.ValueString())
 
-	flow, err := r.GetV2FlowFlowIDWithResponse(ctx, id)
+	flow, err := r.GetV1FlowFlowIDWithResponse(ctx, id)
 	if serr := util.StatusOK(flow, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -205,7 +205,7 @@ func (r *flowInstanceResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
-	flowDeleteResponse, err := r.DeleteV2FlowFlowIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	flowDeleteResponse, err := r.DeleteV1FlowFlowIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
 	if serr := util.StatusOK(flowDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -260,7 +260,7 @@ func appendFlowImmutableFieldPlanErrors(resp *resource.ModifyPlanResponse, plan,
 		stateVal types.String
 	}{
 		{"name", plan.Name, state.Name},
-		{"workspace_id", plan.ClusterID, state.ClusterID},
+		{"workspace_id", plan.WorkspaceID, state.WorkspaceID},
 		{"size", plan.Size, state.Size},
 	}
 
@@ -278,7 +278,7 @@ func appendFlowImmutableFieldPlanErrors(resp *resource.ModifyPlanResponse, plan,
 
 func flowInstanceReplacePlanned(plan, state *flowInstanceResourceModel) bool {
 	return !plan.Name.Equal(state.Name) ||
-		!plan.ClusterID.Equal(state.ClusterID) ||
+		!plan.WorkspaceID.Equal(state.WorkspaceID) ||
 		!plan.Size.Equal(state.Size)
 }
 
@@ -304,14 +304,14 @@ func (r *flowInstanceResource) ImportState(ctx context.Context, req resource.Imp
 	util.ImportStatePassthroughID(ctx, req, resp)
 }
 
-func toFlowInstanceResourceModel(flow management.FlowV2, prior *flowInstanceResourceModel) flowInstanceResourceModel {
+func toFlowInstanceResourceModel(flow management.Flow, prior *flowInstanceResourceModel) flowInstanceResourceModel {
 	model := flowInstanceResourceModel{
-		ID:        util.UUIDStringValue(flow.FlowID),
-		Name:      types.StringValue(flow.Name),
-		ClusterID: util.MaybeUUIDStringValue(flow.ClusterID),
-		CreatedAt: types.StringValue(flow.CreatedAt.String()),
-		Endpoint:  util.MaybeStringValue(flow.Endpoint),
-		Size:      util.MaybeStringValue(flow.Size),
+		ID:          util.UUIDStringValue(flow.FlowID),
+		Name:        types.StringValue(flow.Name),
+		WorkspaceID: util.MaybeUUIDStringValue(flow.WorkspaceID),
+		CreatedAt:   types.StringValue(flow.CreatedAt.String()),
+		Endpoint:    util.MaybeStringValue(flow.Endpoint),
+		Size:        util.MaybeStringValue(flow.Size),
 	}
 
 	if flowFieldAvailable(flow.UserName) {

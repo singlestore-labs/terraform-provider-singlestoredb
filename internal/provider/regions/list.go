@@ -2,10 +2,6 @@ package regions
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -122,67 +118,22 @@ type legacyRegionKey struct {
 // legacyRegionIDs maps v2 regions to the v1 region IDs that back the deprecated regions[*].id.
 // A failure leaves the IDs null instead of failing the read.
 func (d *regionsDataSourceList) legacyRegionIDs(ctx context.Context) map[legacyRegionKey]string {
-	regions, err := d.getV1Regions(ctx)
-	if err != nil {
+	// regions[*].id is filled from v1 until it is removed in v0.3.0.
+	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{}) //nolint:staticcheck
+	if serr := util.StatusOK(regions, err); serr != nil {
 		tflog.Warn(ctx, "failed to read v1 regions for the deprecated regions[*].id attribute", map[string]any{
-			"error": err.Error(),
+			"error": serr.Detail,
 		})
 
 		return nil
 	}
 
-	result := make(map[legacyRegionKey]string, len(regions))
-	for _, region := range regions {
+	result := make(map[legacyRegionKey]string, len(util.Deref(regions.JSON200)))
+	for _, region := range util.Deref(regions.JSON200) {
 		result[legacyRegionKey{provider: region.Provider, region: region.Region}] = region.RegionID.String()
 	}
 
 	return result
-}
-
-// getV1Regions calls GET /v1/regions directly because the management SDK no longer generates it.
-func (d *regionsDataSourceList) getV1Regions(ctx context.Context) ([]management.Region, error) {
-	withResponses, ok := d.ClientWithResponsesInterface.(*management.ClientWithResponses)
-	if !ok {
-		return nil, fmt.Errorf("unsupported management client %T", d.ClientWithResponsesInterface)
-	}
-
-	client, ok := withResponses.ClientInterface.(*management.Client)
-	if !ok {
-		return nil, fmt.Errorf("unsupported management client %T", withResponses.ClientInterface)
-	}
-
-	endpoint, err := url.JoinPath(client.Server, "v1", "regions")
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, edit := range client.RequestEditors {
-		if err := edit(ctx, req); err != nil {
-			return nil, err
-		}
-	}
-
-	resp, err := client.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
-	}
-
-	var regions []management.Region
-	if err := json.NewDecoder(resp.Body).Decode(&regions); err != nil {
-		return nil, err
-	}
-
-	return regions, nil
 }
 
 // Configure adds the provider configured client to the data source.

@@ -47,7 +47,7 @@ var (
 func TestGrantRevokeTeamRoles(t *testing.T) {
 	grantedRoles := []management.IdentityRole{}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v2/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v1/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}

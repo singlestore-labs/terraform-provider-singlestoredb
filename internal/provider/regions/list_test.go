@@ -31,7 +31,7 @@ func TestReadsRegions(t *testing.T) {
 		},
 	}
 
-	legacyRegions := []management.Region{
+	legacyRegions := []management.Region{ //nolint:staticcheck // fixture for the deprecated regions[*].id attribute
 		{
 			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
 			Region:   regions[0].Region,

@@ -31,14 +31,14 @@ func ValidatePrivateConnection(plan PrivateConnectionModel, isUpdate bool) *util
 	var rules []validationRule
 
 	switch privateConnectionType {
-	case management.INBOUND:
+	case management.PrivateConnectionCreateV2TypeINBOUND:
 		rules = getInboundValidationRules(plan, isUpdate)
-	case management.OUTBOUND:
+	case management.PrivateConnectionCreateV2TypeOUTBOUND:
 		rules = getOutboundValidationRules(plan, isUpdate)
 	default:
 		return &util.SummaryWithDetailError{
 			Summary: "Unknown private connection type.",
-			Detail:  fmt.Sprintf("Invalid private connection type %s while it should be %s or %s", privateConnectionType, management.INBOUND, management.OUTBOUND),
+			Detail:  fmt.Sprintf("Invalid private connection type %s while it should be %s or %s", privateConnectionType, management.PrivateConnectionCreateV2TypeINBOUND, management.PrivateConnectionCreateV2TypeOUTBOUND),
 		}
 	}
 
