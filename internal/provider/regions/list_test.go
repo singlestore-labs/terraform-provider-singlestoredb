@@ -18,7 +18,7 @@ import (
 )
 
 func TestReadsRegions(t *testing.T) {
-	regions := []management.Region{
+	regions := []management.Region{ //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 		{
 			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
 			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
