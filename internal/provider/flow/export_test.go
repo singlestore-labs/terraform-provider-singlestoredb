@@ -17,7 +17,7 @@ type FlowInstanceModelSnapshot struct {
 	DatabaseSet  bool
 }
 
-func ToFlowInstanceResourceModelForTest(flow management.Flow, priorUserName, priorDatabaseName *string) FlowInstanceModelSnapshot {
+func ToFlowInstanceResourceModelForTest(flow management.FlowV2, priorUserName, priorDatabaseName *string) FlowInstanceModelSnapshot {
 	var prior *flowInstanceResourceModel
 	if priorUserName != nil || priorDatabaseName != nil {
 		prior = &flowInstanceResourceModel{}
@@ -70,6 +70,6 @@ func MergeFlowCreateOnlyPlanFieldsForTest(plan, state FlowCreateOnlyPlanFields) 
 	}
 }
 
-func WaitConditionReadyForTest() func(management.Flow) error {
+func WaitConditionReadyForTest() func(management.FlowV2) error {
 	return waitConditionReady()
 }
