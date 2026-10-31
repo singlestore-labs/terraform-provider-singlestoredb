@@ -24,7 +24,7 @@ nocache:
 
 generate: install tools
 	terraform fmt -recursive ./examples/
-	tfplugindocs
+	tfplugindocs generate --provider-name terraform-provider-${NAME}
 
 tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4
@@ -46,7 +46,7 @@ gencheck:
 	@test -z "$$(git ls-files --others --exclude-standard)" || \
 		(echo; echo "Unexpected untracked files after code generation. Run 'make generate && make format' and stage (git add) the results."; \
 		git ls-files --others --exclude-standard; exit 1)
-	tfplugindocs validate
+	tfplugindocs validate --provider-name terraform-provider-${NAME}
 	./.validate_readme
 
 install-hooks:
