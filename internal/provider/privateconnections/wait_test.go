@@ -14,7 +14,7 @@ func TestWaitConditionAllowListNilAllowList(t *testing.T) {
 
 	var err error
 	require.NotPanics(t, func() {
-		err = condition(management.PrivateConnection{
+		err = condition(management.ClusterPrivateConnection{
 			PrivateConnectionID: uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"),
 			AllowList:           nil,
 		})
@@ -27,7 +27,7 @@ func TestWaitConditionAllowListMismatch(t *testing.T) {
 	condition := privateconnections.WaitConditionAllowList("301668617982")
 
 	current := "123456789012"
-	err := condition(management.PrivateConnection{
+	err := condition(management.ClusterPrivateConnection{
 		PrivateConnectionID: uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"),
 		AllowList:           &current,
 	})
@@ -39,7 +39,7 @@ func TestWaitConditionAllowListMatch(t *testing.T) {
 	desired := "301668617982"
 	condition := privateconnections.WaitConditionAllowList(desired)
 
-	require.NoError(t, condition(management.PrivateConnection{
+	require.NoError(t, condition(management.ClusterPrivateConnection{
 		PrivateConnectionID: uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"),
 		AllowList:           &desired,
 	}))

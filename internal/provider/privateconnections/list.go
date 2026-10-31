@@ -92,12 +92,7 @@ func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasou
 
 		return
 	}
-	resultPrivateConnections, merr := util.MapWithError(util.Deref(privateConnections.JSON200), toPrivateConnectionModel)
-	if merr != nil {
-		resp.Diagnostics.AddError(merr.Summary, merr.Detail)
-
-		return
-	}
+	resultPrivateConnections := util.Map(util.Deref(privateConnections.JSON200), toWorkspaceGroupPrivateConnectionModel)
 
 	result := privateConnectionsListDataSourceModel{
 		ID:                 types.StringValue(config.TestIDValue),
@@ -107,6 +102,30 @@ func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasou
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+func toWorkspaceGroupPrivateConnectionModel(privateConnection management.PrivateConnection) PrivateConnectionModel {
+	model := toPrivateConnectionModel(management.ClusterPrivateConnection{
+		ActiveAt:              privateConnection.ActiveAt,
+		AllowList:             privateConnection.AllowList,
+		AllowedPrivateLinkIDs: privateConnection.AllowedPrivateLinkIDs,
+		ClusterID:             privateConnection.WorkspaceID,
+		CreatedAt:             privateConnection.CreatedAt,
+		DeletedAt:             privateConnection.DeletedAt,
+		Endpoint:              privateConnection.Endpoint,
+		OutboundAllowList:     privateConnection.OutboundAllowList,
+		PrivateConnectionID:   privateConnection.PrivateConnectionID,
+		ServiceName:           privateConnection.ServiceName,
+		SqlPort:               privateConnection.SqlPort,
+		Status:                (*management.ClusterPrivateConnectionStatus)(privateConnection.Status),
+		Type:                  (*management.ClusterPrivateConnectionType)(privateConnection.Type),
+		UpdatedAt:             privateConnection.UpdatedAt,
+		WebsocketsPort:        privateConnection.WebsocketsPort,
+	})
+
+	model.WorkspaceGroupID = util.UUIDStringValue(privateConnection.WorkspaceGroupID)
+
+	return model
 }
 
 // Configure adds the provider configured client to the data source.
