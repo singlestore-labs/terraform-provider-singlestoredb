@@ -25,6 +25,7 @@ import (
 var (
 	allowedList           = "651246146166"
 	updateAllowedList     = strings.Join([]string{"updated", allowedList}, "-")
+	integrationAllowList  = "123456789012"
 	privateConnectionID   = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	workspaceID           = uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
 	workspaceGroupID      = uuid.MustParse("a4df90a6-e2b2-4de6-a50e-bd0a05aeaa09")
@@ -337,11 +338,15 @@ func TestPrivateConnectionResourceIntegration(t *testing.T) {
 				),
 			},
 			{
+				// The Management API accepts AWS account IDs only. Values such as
+				// "updated-<account>" are ignored, leaving the original allow list
+				// in place and causing the provider's update wait to time out.
 				Config: testutil.UpdatableConfig(examples.PrivateConnectionsResource).
-					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(updateAllowedList)).
+					WithPrivateConnectionResource("this")("allow_list", cty.StringVal(integrationAllowList)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_private_connection.this", config.IDAttribute),
+					resource.TestCheckResourceAttr("singlestoredb_private_connection.this", "allow_list", integrationAllowList),
 				),
 			},
 		},
