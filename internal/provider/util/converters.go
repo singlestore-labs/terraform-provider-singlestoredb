@@ -195,10 +195,10 @@ func maybeElse[A, B any](input *A, convert func(A) B, create func() B) B {
 	return convert(*input)
 }
 
-func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateV2Type, error) {
-	for _, s := range []management.PrivateConnectionCreateV2Type{
-		management.PrivateConnectionCreateV2TypeINBOUND,
-		management.PrivateConnectionCreateV2TypeOUTBOUND,
+func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnectionCreateType, error) {
+	for _, s := range []management.PrivateConnectionCreateType{
+		management.PrivateConnectionCreateTypeINBOUND,
+		management.PrivateConnectionCreateTypeOUTBOUND,
 	} {
 		if strings.EqualFold(wgs.ValueString(), string(s)) {
 			return s, nil

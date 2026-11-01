@@ -10,7 +10,7 @@ This adopts the deployment that is already running. It does not create a second 
 
 `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning. The data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` do the same.
 
-These resources and data sources are removed in v0.3.0, the first release on or after April 30, 2027. `singlestoredb_private_connection.workspace_id` and `workspace_group_id` are removed in that same release. New configurations use `singlestoredb_cluster`.
+These resources and data sources are removed in v0.3.0, the first release on or after April 30, 2027. New configurations use `singlestoredb_cluster`.
 
 ## Before you edit configuration
 
@@ -258,15 +258,13 @@ resource "singlestoredb_flow" "this" {
 
 ### Private connection
 
-Set `cluster_id` to `singlestoredb_cluster.this.id`. That is the same UUID as `workspace_id`. The provider rejects a plan that changes `cluster_id`, `workspace_id`, or `workspace_group_id` to a different value.
-
-`workspace_id` is a deprecated alias for `cluster_id`. `workspace_group_id` is a deprecated alias used only when `cluster_id` and `workspace_id` are unset. A group id on its own selects the cluster when the group contains exactly one non-terminated workspace. A group with several workspaces needs `cluster_id`. Both aliases are removed in v0.3.0, the first release on or after April 30, 2027.
+`singlestoredb_private_connection` is unchanged. Keep `workspace_id` or `workspace_group_id`. The cluster `id` is the workspace id, so a connection that used `singlestoredb_workspace.this.id` can use `singlestoredb_cluster.this.id` in `workspace_id`.
 
 ```hcl
 resource "singlestoredb_private_connection" "this" {
-  allow_list = "651246146166"
-  type       = "INBOUND"
-  cluster_id = singlestoredb_cluster.this.id
+  allow_list   = "651246146166"
+  type         = "INBOUND"
+  workspace_id = singlestoredb_cluster.this.id
 }
 ```
 
