@@ -12,13 +12,13 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
-type waitCondition func(management.PrivateConnection) error
+type waitCondition func(management.ClusterPrivateConnection) error
 
-func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithResponsesInterface, id management.ConnectionID, conditions ...waitCondition) (management.PrivateConnection, *util.SummaryWithDetailError) {
-	result := management.PrivateConnection{}
+func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithResponsesInterface, id management.ConnectionID, conditions ...waitCondition) (management.ClusterPrivateConnection, *util.SummaryWithDetailError) {
+	result := management.ClusterPrivateConnection{}
 
 	if err := retry.RetryContext(ctx, config.PrivateConnectionCreationTimeout, func() *retry.RetryError {
-		privateConnection, err := c.GetV1PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV1PrivateConnectionsConnectionIDParams{})
+		privateConnection, err := c.GetV2PrivateConnectionsConnectionIDWithResponse(ctx, id, &management.GetV2PrivateConnectionsConnectionIDParams{})
 		if err != nil { // Not status code OK does not get here, not retrying for that reason.
 			ferr := fmt.Errorf("failed to get private connection %s: %w", id, err)
 
@@ -31,7 +31,7 @@ func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithRes
 			return retry.RetryableError(err)
 		}
 
-		if privateConnection.JSON200.Status != nil && *privateConnection.JSON200.Status == management.PrivateConnectionStatusDELETED {
+		if privateConnection.JSON200.Status != nil && *privateConnection.JSON200.Status == management.ClusterPrivateConnectionStatusDELETED {
 			var result struct {
 				Error *string `json:"error"`
 			}
@@ -55,7 +55,7 @@ func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithRes
 
 		return nil
 	}); err != nil {
-		return management.PrivateConnection{}, &util.SummaryWithDetailError{
+		return management.ClusterPrivateConnection{}, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for a private connection %s creation", id),
 			Detail:  fmt.Sprintf("Private connection is not ready: %s", err),
 		}
@@ -64,8 +64,8 @@ func WaitPrivateConnectionStatus(ctx context.Context, c management.ClientWithRes
 	return result, nil
 }
 
-func waitConditionAllowList(desiredAllowList string) func(management.PrivateConnection) error {
-	return func(c management.PrivateConnection) error {
+func waitConditionAllowList(desiredAllowList string) func(management.ClusterPrivateConnection) error {
+	return func(c management.ClusterPrivateConnection) error {
 		if c.AllowList == nil || *c.AllowList != desiredAllowList {
 			return fmt.Errorf("private connection %s allow_list is %s, but should be %s", c.PrivateConnectionID, util.Deref(c.AllowList), desiredAllowList)
 		}
@@ -74,10 +74,10 @@ func waitConditionAllowList(desiredAllowList string) func(management.PrivateConn
 	}
 }
 
-func waitConditionStatus(statuses ...management.PrivateConnectionStatus) func(management.PrivateConnection) error {
-	privateConnectionStatusHistory := make([]management.PrivateConnectionStatus, 0, config.PrivateConnectionConsistencyThreshold)
+func waitConditionStatus(statuses ...management.ClusterPrivateConnectionStatus) func(management.ClusterPrivateConnection) error {
+	privateConnectionStatusHistory := make([]management.ClusterPrivateConnectionStatus, 0, config.PrivateConnectionConsistencyThreshold)
 
-	return func(c management.PrivateConnection) error {
+	return func(c management.ClusterPrivateConnection) error {
 		privateConnectionStatusHistory = append(privateConnectionStatusHistory, *c.Status)
 
 		if !util.Any(statuses, *c.Status) {

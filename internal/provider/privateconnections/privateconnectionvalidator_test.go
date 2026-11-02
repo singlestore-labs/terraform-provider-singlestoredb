@@ -25,6 +25,14 @@ func TestValidatePrivateConnection(t *testing.T) {
 	require.Equal(t, "allow_list configuration is required for INBOUND private connections.", err.Detail)
 
 	plan.AllowList = types.StringValue("12345")
+	plan.ClusterID = types.StringValue("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	plan.WorkspaceID = types.StringValue("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
+
+	err = privateconnections.ValidatePrivateConnection(plan, false)
+	require.NotNil(t, err)
+	require.Equal(t, "Conflicting cluster identifiers", err.Summary)
+
+	plan.WorkspaceID = plan.ClusterID
 
 	err = privateconnections.ValidatePrivateConnection(plan, false)
 	require.Nil(t, err)
@@ -39,18 +47,20 @@ func TestValidatePrivateConnection(t *testing.T) {
 	require.Equal(t, "service_name configuration is not allowed for INBOUND private connections.", err.Detail)
 
 	plan.ServiceName = types.StringNull()
+	plan.WorkspaceID = types.StringNull()
+	plan.ClusterID = types.StringNull()
 	plan.KaiEndpointID = types.StringValue("vce-test")
-	plan.WorkspaceID = types.StringValue("vce-testfa3d7868-fd40-40b5-8001-4b73de5d94c1")
+	plan.ClusterID = types.StringValue("vce-testfa3d7868-fd40-40b5-8001-4b73de5d94c1")
 
 	err = privateconnections.ValidatePrivateConnection(plan, false)
 	require.NotNil(t, err)
 	require.Equal(t, "allow_list configuration is not allowed for SingleStore Kai INBOUND private connections.", err.Detail)
 
-	plan.WorkspaceID = types.StringNull()
+	plan.ClusterID = types.StringNull()
 
 	err = privateconnections.ValidatePrivateConnection(plan, false)
 	require.NotNil(t, err)
-	require.Equal(t, "workspace_id configuration is required for SingleStore Kai INBOUND private connections.", err.Detail)
+	require.Equal(t, "cluster_id (or workspace_id) configuration is required for SingleStore Kai INBOUND private connections.", err.Detail)
 
 	// OUTBOUND
 
@@ -99,7 +109,7 @@ func TestValidatePrivateConnectionModifyPlan(t *testing.T) {
 		SQLPort:          types.Float32Value(3306),
 		WebsocketsPort:   types.Float32Value(443.0),
 		WorkspaceGroupID: types.StringValue("721cdcaf-3555-4434-8f2e-d4e77d9a5d25"),
-		WorkspaceID:      types.StringValue("41c1c310-9a5f-4a7a-ba8e-088af6056d8d"),
+		ClusterID:        types.StringValue("41c1c310-9a5f-4a7a-ba8e-088af6056d8d"),
 	}
 
 	err := privateconnections.ValidatePrivateConnectionModifyPlan(plan, state)
@@ -120,13 +130,13 @@ func TestValidatePrivateConnectionModifyPlan(t *testing.T) {
 	require.Equal(t, "Changing the service_name configuration is currently not supported.", err.Detail)
 
 	plan.ServiceName = types.StringNull()
-	plan.WorkspaceID = types.StringValue("06291fc6-1dd5-495f-b9aa-90bd5961dd65")
+	plan.ClusterID = types.StringValue("06291fc6-1dd5-495f-b9aa-90bd5961dd65")
 
 	err = privateconnections.ValidatePrivateConnectionModifyPlan(plan, state)
 	require.NotNil(t, err)
-	require.Equal(t, "Changing the workspace_id configuration is not supported.", err.Detail)
+	require.Equal(t, "Changing the cluster_id configuration is not supported.", err.Detail)
 
-	plan.WorkspaceID = types.StringNull()
+	plan.ClusterID = types.StringNull()
 	plan.WorkspaceGroupID = types.StringValue("06291fc6-1dd5-495f-b9aa-90bd5961dd65")
 
 	err = privateconnections.ValidatePrivateConnectionModifyPlan(plan, state)
