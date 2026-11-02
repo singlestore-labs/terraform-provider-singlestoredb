@@ -6,6 +6,16 @@
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").
 
+### Build
+
+- Upgrade Go version to 1.26 (#140).
+
+### Dependencies
+
+- Bump `github.com/labstack/echo/v4` from 4.15.3 to 4.16.3 (#140).
+- Bump `golang.org/x/crypto` from 0.55.0 to 0.57.0 (#140).
+- Bump `golang.org/x/net` from 0.58.0 to 0.60.0 (#140).
+
 ## v0.1.19 - 2026-07-31
 
 ### Fixed
