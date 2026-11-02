@@ -78,7 +78,8 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{})
+	// v1 regions stay until singlestoredb_regions moves to the v2 API.
+	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{}) //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 	if serr := util.StatusOK(regions, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -106,7 +107,7 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func toRegionsDataSourceModel(region management.Region) regionModel {
+func toRegionsDataSourceModel(region management.Region) regionModel { //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 	return regionModel{
 		ID:       types.StringValue(region.RegionID.String()),
 		Provider: types.StringValue(string(region.Provider)),

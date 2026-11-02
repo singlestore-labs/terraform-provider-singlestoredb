@@ -25,7 +25,7 @@ var (
 	id1       = uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f")
 	userID    = uuid.MustParse("a4df90a6-12b1-4de6-a50e-bd0a05aeaa09")
 	email1    = "test@user.com"
-	state1    = management.Pending
+	state1    = management.UserInvitationStatePending
 )
 
 var invitation = management.UserInvitation{
