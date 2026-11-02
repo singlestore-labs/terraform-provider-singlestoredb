@@ -95,7 +95,7 @@ func (d *invitationDataSourceGet) Read(ctx context.Context, req datasource.ReadR
 		return
 	}
 
-	userInvitation, err := d.GetV1InvitationsInvitationIDWithResponse(ctx, id, &management.GetV1InvitationsInvitationIDParams{})
+	userInvitation, err := d.GetV2InvitationsInvitationIDWithResponse(ctx, id, &management.GetV2InvitationsInvitationIDParams{})
 	if serr := util.StatusOK(userInvitation, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
