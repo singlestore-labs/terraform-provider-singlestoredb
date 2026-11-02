@@ -47,10 +47,7 @@ const (
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
 	// RegionsDataSourceDeprecationMessage is shown when singlestoredb_regions is used.
 	// v0.3.0, the first release on or after April 30, 2027, removes the data source.
-	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. It now reads regions from the v2 Management API, so regions[*].id is always null and the order and set of regions follow the v2 API."
-	// RegionIDDeprecationMessage documents the regions[*].id attribute of singlestoredb_regions.
-	// v2 regions have no ID, so the attribute is always null.
-	RegionIDDeprecationMessage = "The regions[*].id attribute of singlestoredb_regions is always null because v2 regions have no ID. For singlestoredb_workspace_group, set cloud_provider and region_name instead of region_id. The attribute is removed in v0.3.0, the first release on or after April 30, 2027."
+	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

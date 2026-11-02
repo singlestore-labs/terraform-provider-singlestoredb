@@ -22,13 +22,12 @@ type regionsDataSourceList struct {
 
 // regionsListDataSourceModel maps the data source schema data.
 type regionsListDataSourceModel struct {
-	ID      types.String  `tfsdk:"id"`
-	Regions []RegionModel `tfsdk:"regions"`
+	ID      types.String    `tfsdk:"id"`
+	Regions []regionModelV2 `tfsdk:"regions"`
 }
 
-// RegionModel maps the schema data of a v2 region.
-// The deprecated singlestoredb_regions data source embeds it.
-type RegionModel struct {
+// regionModelV2 maps regions schema data.
+type regionModelV2 struct {
 	Provider   types.String `tfsdk:"provider"`
 	Region     types.String `tfsdk:"region"`
 	RegionName types.String `tfsdk:"region_name"`
@@ -57,7 +56,20 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 			"regions": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: RegionAttributes(),
+					Attributes: map[string]schema.Attribute{
+						"provider": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The name of the cloud provider hosting the region.",
+						},
+						"region": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The display name of the region, for example `East US 1 (Virginia)`.",
+						},
+						"region_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.",
+						},
+					},
 				},
 			},
 		},
@@ -78,7 +90,7 @@ func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadReq
 
 	result := regionsListDataSourceModel{
 		ID:      types.StringValue(config.TestIDValue),
-		Regions: util.Map(util.Deref(regions.JSON200), ToRegionModel),
+		Regions: util.Map(util.Deref(regions.JSON200), toRegionsDataSourceModel),
 	}
 
 	diags := resp.State.Set(ctx, &result)
@@ -94,27 +106,8 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-// RegionAttributes returns the schema attributes of a v2 region.
-func RegionAttributes() map[string]schema.Attribute {
-	return map[string]schema.Attribute{
-		"provider": schema.StringAttribute{
-			Computed:            true,
-			MarkdownDescription: "The name of the cloud provider hosting the region.",
-		},
-		"region": schema.StringAttribute{
-			Computed:            true,
-			MarkdownDescription: "The display name of the region, for example `East US 1 (Virginia)`.",
-		},
-		"region_name": schema.StringAttribute{
-			Computed:            true,
-			MarkdownDescription: "The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.",
-		},
-	}
-}
-
-// ToRegionModel maps a v2 region from the Management API to RegionModel.
-func ToRegionModel(region management.RegionV2) RegionModel {
-	return RegionModel{
+func toRegionsDataSourceModel(region management.RegionV2) regionModelV2 {
+	return regionModelV2{
 		Provider:   types.StringValue(string(region.Provider)),
 		Region:     types.StringValue(region.Region),
 		RegionName: types.StringValue(region.RegionName),

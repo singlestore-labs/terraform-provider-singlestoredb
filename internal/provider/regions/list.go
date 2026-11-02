@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
-	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/regionsv2"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
@@ -27,11 +26,11 @@ type regionsListDataSourceModel struct {
 	Regions []regionModel `tfsdk:"regions"`
 }
 
-// regionModel maps regions schema data. It is the v2 region plus the id
-// attribute, which v2 regions do not have and which is therefore always null.
+// regionModel maps regions schema data.
 type regionModel struct {
-	ID types.String `tfsdk:"id"`
-	regionsv2.RegionModel
+	ID       types.String `tfsdk:"id"`
+	Provider types.String `tfsdk:"provider"`
+	Region   types.String `tfsdk:"region"`
 }
 
 var _ datasource.DataSourceWithConfigure = &regionsDataSourceList{}
@@ -50,7 +49,7 @@ func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.Metad
 func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		DeprecationMessage:  config.RegionsDataSourceDeprecationMessage,
-		MarkdownDescription: "Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region. It reads regions from the v2 Management API, so `regions[*].id` is always null and the order and set of regions follow the v2 API.",
+		MarkdownDescription: "Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
@@ -58,7 +57,20 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 			dataSourceListName: schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
-					Attributes: regionAttributes(),
+					Attributes: map[string]schema.Attribute{
+						config.IDAttribute: schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The unique identifier for the region.",
+						},
+						"provider": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The name of the cloud provider hosting the region.",
+						},
+						"region": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The name of the region.",
+						},
+					},
 				},
 			},
 		},
@@ -67,7 +79,8 @@ func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaReq
 
 // Read refreshes the Terraform state with the latest data.
 func (d *regionsDataSourceList) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	regions, err := d.GetV2RegionsWithResponse(ctx, &management.GetV2RegionsParams{})
+	// v1 regions stay until singlestoredb_regions moves to the v2 API.
+	regions, err := d.GetV1RegionsWithResponse(ctx, &management.GetV1RegionsParams{}) //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 	if serr := util.StatusOK(regions, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
@@ -95,20 +108,10 @@ func (d *regionsDataSourceList) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
-func regionAttributes() map[string]schema.Attribute {
-	attributes := regionsv2.RegionAttributes()
-	attributes[config.IDAttribute] = schema.StringAttribute{
-		Computed:            true,
-		DeprecationMessage:  config.RegionIDDeprecationMessage,
-		MarkdownDescription: "Always null. " + config.RegionIDDeprecationMessage,
-	}
-
-	return attributes
-}
-
-func toRegionsDataSourceModel(region management.RegionV2) regionModel {
+func toRegionsDataSourceModel(region management.Region) regionModel { //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 	return regionModel{
-		ID:          types.StringNull(),
-		RegionModel: regionsv2.ToRegionModel(region),
+		ID:       types.StringValue(region.RegionID.String()),
+		Provider: types.StringValue(string(region.Provider)),
+		Region:   types.StringValue(region.Region),
 	}
 }
