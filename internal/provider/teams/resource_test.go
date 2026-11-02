@@ -88,8 +88,18 @@ func TestCRUDTeam(t *testing.T) {
 
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		var input management.Cluster
+		var input management.TeamUpdate
 		require.NoError(t, json.Unmarshal(body, &input))
+		require.NotNil(t, input.Name)
+		require.Equal(t, nameUpdate, *input.Name)
+		require.NotNil(t, input.Description)
+		require.Equal(t, descriptionUpdate, *input.Description)
+		require.Equal(t, []string{testUserMember.Email}, *input.AddMemberUserEmails)
+		require.Empty(t, *input.RemoveMemberUserEmails)
+		require.NotNil(t, input.AddMemberTeamIDs)
+		require.Len(t, *input.AddMemberTeamIDs, 1)
+		require.Equal(t, testTeamMember.TeamID.String(), (*input.AddMemberTeamIDs)[0].String())
+		require.Empty(t, *input.RemoveMemberTeamIDs)
 
 		w.Header().Add("Content-Type", "application/json")
 		_, err = w.Write(testutil.MustJSON(
