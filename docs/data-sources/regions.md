@@ -3,12 +3,12 @@
 page_title: "singlestoredb_regions Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Deprecated. Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region.
+  Deprecated. Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region. It reads regions from the v2 Management API, so regions[*].id is always null and the order and set of regions follow the v2 API.
 ---
 
 # singlestoredb_regions (Data Source)
 
-Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region.
+Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region code name and provider for each region. It reads regions from the v2 Management API, so `regions[*].id` is always null and the order and set of regions follow the v2 API.
 
 ## Example Usage
 
@@ -24,7 +24,13 @@ data "singlestoredb_regions" "all" {}
 
 output "all_regions" {
   description = "All available regions for the user that support workspaces."
-  value       = data.singlestoredb_regions.all
+  value = [
+    for region in data.singlestoredb_regions.all.regions : {
+      provider    = region.provider
+      region      = region.region
+      region_name = region.region_name
+    }
+  ]
 }
 ```
 
@@ -41,7 +47,7 @@ output "all_regions" {
 
 Read-Only:
 
-- `id` (String, Deprecated) Deprecated and no longer populated. The regions[*].id attribute of singlestoredb_regions is deprecated and is no longer populated. It is removed in v0.3.0, the first release on or after April 30, 2027. Use the singlestoredb_regions_v2 data source instead.
+- `id` (String, Deprecated) Always null. The regions[*].id attribute of singlestoredb_regions is always null because v2 regions have no ID. For singlestoredb_workspace_group, set cloud_provider and region_name instead of region_id. The attribute is removed in v0.3.0, the first release on or after April 30, 2027.
 - `provider` (String) The name of the cloud provider hosting the region.
 - `region` (String) The display name of the region, for example `East US 1 (Virginia)`.
 - `region_name` (String) The region code name used with the cloud provider to select this region, for example `eastus` or `us-east-1`.

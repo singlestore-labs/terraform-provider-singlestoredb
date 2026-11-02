@@ -12,7 +12,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/testutil"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReadsRegions(t *testing.T) {
@@ -32,20 +32,16 @@ func TestReadsRegions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
 
-		var body []byte
-		switch r.URL.Path {
-		case "/v2/regions":
-			body = testutil.MustJSON(regions)
-		case "/v1/regions":
-			require.Fail(t, "singlestoredb_regions must not call the v1 regions API")
+		// The handler runs outside the test goroutine, so it must not call t.FailNow (require.*).
+		if r.URL.Path != "/v2/regions" {
+			assert.Failf(t, "singlestoredb_regions must call only the v2 regions API", "path: %s", r.URL.Path)
+			http.Error(w, "unexpected path", http.StatusNotFound)
 
 			return
-		default:
-			require.Failf(t, "unexpected path", "path: %s", r.URL.Path)
 		}
 
-		_, err := w.Write(body)
-		require.NoError(t, err)
+		_, err := w.Write(testutil.MustJSON(regions))
+		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
 
@@ -63,6 +59,9 @@ func TestReadsRegions(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.provider", string(regions[0].Provider)),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region_name", regions[0].RegionName),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", "regions.0.id"),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.1.region", regions[1].Region),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.1.provider", string(regions[1].Provider)),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.1.region_name", regions[1].RegionName),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", "regions.1.id"),
 				),
 			},
@@ -101,6 +100,7 @@ func TestReadsRegionsIntegration(t *testing.T) {
 					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.region"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.provider"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.region_name"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", "regions.0.id"),
 					// Checking that at least 1 element and that element is with the expected fields.
 				),
 			},

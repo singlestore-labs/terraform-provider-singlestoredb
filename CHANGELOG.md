@@ -2,9 +2,15 @@
 
 ## Unreleased
 
-### Changed
+### Breaking Changes
 
-- `singlestoredb_regions` is deprecated and is removed in v0.3.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead. It reads regions from the v2 Management API and adds `regions[*].region_name`. `regions[*].id` is deprecated, is no longer populated, and every read prints a deprecation warning for that attribute.
+- `singlestoredb_regions` now reads regions from the v2 Management API (#146):
+  - `regions[*].id` is always null because v2 regions have no ID. A `singlestoredb_workspace_group` that sets `region_id = data.singlestoredb_regions.<name>.regions[N].id` fails to plan. Set `cloud_provider` and `region_name` instead, for example from `data.singlestoredb_regions_v2.<name>.regions[N].provider` and `.region_name`.
+  - The order and set of regions, and the `regions[*].region` display names, follow the v2 API and can differ from earlier releases. Check configs that select a region by its position in the list.
+
+### Deprecated
+
+- `singlestoredb_regions` is deprecated and is removed in v0.3.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead. Until then, `singlestoredb_regions` also exposes `regions[*].region_name` (#146).
 
 ### Fixed
 

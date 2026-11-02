@@ -9,5 +9,11 @@ data "singlestoredb_regions" "all" {}
 
 output "all_regions" {
   description = "All available regions for the user that support workspaces."
-  value       = data.singlestoredb_regions.all
+  value = [
+    for region in data.singlestoredb_regions.all.regions : {
+      provider    = region.provider
+      region      = region.region
+      region_name = region.region_name
+    }
+  ]
 }
