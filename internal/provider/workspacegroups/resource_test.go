@@ -37,7 +37,7 @@ var (
 
 const (
 	pathV2Regions  = "/v2/regions"
-	pathV1Projects = "/v1/projects"
+	pathV2Projects = "/v2/projects"
 )
 
 func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
@@ -83,7 +83,7 @@ func TestCRUDWorkspaceGroup(t *testing.T) { //nolint:maintidx,cyclop
 	}
 
 	projectsHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
+		if r.URL.Path != pathV2Projects || r.Method != http.MethodGet {
 			return false
 		}
 
@@ -503,7 +503,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 
 	projectsHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, pathV1Projects, r.URL.Path)
+		require.Equal(t, pathV2Projects, r.URL.Path)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON([]management.Project{
 			{
@@ -534,7 +534,7 @@ func TestUpdateWindowRemoval(t *testing.T) {
 			regionsHandler(w, r)
 			return //nolint:nlreturn
 		}
-		if r.URL.Path == pathV1Projects {
+		if r.URL.Path == pathV2Projects {
 			projectsHandler(w, r)
 			return //nolint:nlreturn
 		}
@@ -620,7 +620,7 @@ func TestWorkspaceGroupProjectNameAssignmentAndImmutability(t *testing.T) {
 			return true
 		},
 		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
+			if r.URL.Path != pathV2Projects || r.Method != http.MethodGet {
 				return false
 			}
 
@@ -757,7 +757,7 @@ func TestWorkspaceGroupProjectNameNotFound(t *testing.T) {
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
-		case r.URL.Path == pathV1Projects && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Project{
 				{
@@ -807,7 +807,7 @@ func TestWorkspaceGroupProjectNameMultipleProjectsFound(t *testing.T) {
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON(regionsv2))
 			require.NoError(t, err)
-		case r.URL.Path == pathV1Projects && r.Method == http.MethodGet:
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
 			w.Header().Add("Content-Type", "json")
 			_, err := w.Write(testutil.MustJSON([]management.Project{
 				{
@@ -951,7 +951,7 @@ func newWorkspaceGroupUpdateWithoutAdminPasswordTestServer(
 			return true
 		},
 		func(w http.ResponseWriter, r *http.Request) bool {
-			if r.URL.Path != pathV1Projects || r.Method != http.MethodGet {
+			if r.URL.Path != pathV2Projects || r.Method != http.MethodGet {
 				return false
 			}
 
