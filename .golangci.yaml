@@ -23,3 +23,10 @@ linters:
     - perfsprint
     - exportloopref
     - dupl
+
+issues:
+  exclude-rules:
+    - path: internal/provider/flow/get.go
+      linters:
+        - godox
+      text: deprecate workspace_id

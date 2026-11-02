@@ -29,7 +29,8 @@ type flowInstanceDataSourceGet struct {
 type flowInstanceDataSourceModel struct {
 	ID        types.String `tfsdk:"id"`
 	Name      types.String `tfsdk:"name"`
-	ClusterID types.String `tfsdk:"workspace_id"`
+	ClusterID types.String `tfsdk:"workspace_id"` // TODO: deprecate workspace_id and replace with cluster_id
+
 	CreatedAt types.String `tfsdk:"created_at"`
 	DeletedAt types.String `tfsdk:"deleted_at"`
 	Endpoint  types.String `tfsdk:"endpoint"`
