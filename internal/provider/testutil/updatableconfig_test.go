@@ -1,6 +1,7 @@
 package testutil_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -80,6 +81,11 @@ resource "singlestoredb_workspace" "this" {
 resource "singlestoredb_workspace" "reader" {
   name = "terraform-workspace-reader"
 }
+
+resource "singlestoredb_cluster" "this" {
+  name       = "cluster-1"
+  expires_at = "2222-01-01T00:00:00Z"
+}
 `)
 
 	got := original.WithIntegrationSafeguards(expiresAt).String()
@@ -88,7 +94,7 @@ resource "singlestoredb_workspace" "reader" {
 	require.NotContains(t, got, config.TestWorkspaceName)
 	require.Contains(t, got, config.TestReaderWorkspaceName)
 	require.Contains(t, got, expiresAt)
-	require.Contains(t, got, config.TestClusterName)
+	require.Equal(t, 2, strings.Count(got, config.TestClusterName))
 
 	untouched := testutil.UpdatableConfig(`data "singlestoredb_regions" "all" {}`)
 	require.Equal(t, untouched.String(), untouched.WithIntegrationSafeguards(expiresAt).String())
