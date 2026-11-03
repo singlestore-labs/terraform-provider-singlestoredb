@@ -9,7 +9,7 @@
 ### Added
 
 - `singlestoredb_cluster` resource. Use the cluster resource for new deployments.
-
+- `singlestoredb_cluster` and `singlestoredb_clusters` data sources.
 
 ### Changed
 
