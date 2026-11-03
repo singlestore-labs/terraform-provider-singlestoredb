@@ -75,30 +75,29 @@ type autoSuspendResourceModel struct {
 
 // clusterResourceModel maps the resource schema data.
 type clusterResourceModel struct {
-	ID                          types.String              `tfsdk:"id"`
-	Name                        types.String              `tfsdk:"name"`
-	ProjectName                 types.String              `tfsdk:"project_name"`
-	GroupID                     types.String              `tfsdk:"group_id"`
-	Size                        types.String              `tfsdk:"size"`
-	ScaleFactor                 types.Float32             `tfsdk:"scale_factor"`
-	CacheConfig                 types.Float32             `tfsdk:"cache_config"`
-	Suspended                   types.Bool                `tfsdk:"suspended"`
-	Kai                         types.Bool                `tfsdk:"kai"`
-	AdminPassword               types.String              `tfsdk:"admin_password"`
-	SkipAdminPasswordValidation types.Bool                `tfsdk:"skip_admin_password_validation"`
-	FirewallRanges              []types.String            `tfsdk:"firewall_ranges"`
-	ExpiresAt                   types.String              `tfsdk:"expires_at"`
-	CloudProvider               types.String              `tfsdk:"cloud_provider"`
-	RegionName                  types.String              `tfsdk:"region_name"`
-	DeploymentType              types.String              `tfsdk:"deployment_type"`
-	OptInPreviewFeature         types.Bool                `tfsdk:"opt_in_preview_feature"`
-	MultiAZ                     types.Bool                `tfsdk:"multi_az"`
-	OutboundAllowList           types.String              `tfsdk:"outbound_allow_list"`
-	Endpoint                    types.String              `tfsdk:"endpoint"`
-	CreatedAt                   types.String              `tfsdk:"created_at"`
-	AutoScale                   *autoScaleResourceModel   `tfsdk:"auto_scale"`
-	AutoSuspend                 *autoSuspendResourceModel `tfsdk:"auto_suspend"`
-	UpdateWindow                types.Object              `tfsdk:"update_window"`
+	ID                  types.String              `tfsdk:"id"`
+	Name                types.String              `tfsdk:"name"`
+	ProjectName         types.String              `tfsdk:"project_name"`
+	GroupID             types.String              `tfsdk:"group_id"`
+	Size                types.String              `tfsdk:"size"`
+	ScaleFactor         types.Float32             `tfsdk:"scale_factor"`
+	CacheConfig         types.Float32             `tfsdk:"cache_config"`
+	Suspended           types.Bool                `tfsdk:"suspended"`
+	Kai                 types.Bool                `tfsdk:"kai"`
+	AdminPassword       types.String              `tfsdk:"admin_password"`
+	FirewallRanges      []types.String            `tfsdk:"firewall_ranges"`
+	ExpiresAt           types.String              `tfsdk:"expires_at"`
+	CloudProvider       types.String              `tfsdk:"cloud_provider"`
+	RegionName          types.String              `tfsdk:"region_name"`
+	DeploymentType      types.String              `tfsdk:"deployment_type"`
+	OptInPreviewFeature types.Bool                `tfsdk:"opt_in_preview_feature"`
+	MultiAZ             types.Bool                `tfsdk:"multi_az"`
+	OutboundAllowList   types.String              `tfsdk:"outbound_allow_list"`
+	Endpoint            types.String              `tfsdk:"endpoint"`
+	CreatedAt           types.String              `tfsdk:"created_at"`
+	AutoScale           *autoScaleResourceModel   `tfsdk:"auto_scale"`
+	AutoSuspend         *autoSuspendResourceModel `tfsdk:"auto_suspend"`
+	UpdateWindow        types.Object              `tfsdk:"update_window"`
 }
 
 // NewResource is a helper function to simplify the provider implementation.
@@ -197,22 +196,11 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:             booldefault.StaticBool(false),
 			},
 			"admin_password": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				Sensitive:           true,
-				MarkdownDescription: util.AdminPasswordMarkdown("cluster"),
-				Validators: []validator.String{
-					util.NewAdminPasswordValidator(),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			util.SkipAdminPasswordValidationAttribute: schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Skip the provider's plan-time check of `admin_password` against the Management API password rules. Default is false. Set to true only if the API rules have changed and the provider rejects a password the API accepts. The create response is still checked: if the API does not accept the configured password, the provider deletes the new cluster and fails.",
+				Computed:  true,
+				Sensitive: true,
+				MarkdownDescription: "The admin SQL user password for the cluster. Management API generates this password, and Terraform reads it back from the API on create and on every refresh. " +
+					"Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. " +
+					"Read this attribute from state or from a sensitive output.",
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,
@@ -395,7 +383,6 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 	createBody := management.Cluster{
-		AdminPassword:       util.MaybeNonEmptyString(plan.AdminPassword),
 		AutoScale:           toCreateAutoScale(plan),
 		AutoSuspend:         toAutoSuspend(plan),
 		DeploymentType:      util.ClusterDeploymentTypeString(plan.DeploymentType),
@@ -417,17 +404,15 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	clusterCreateResponse, cerr := r.PostV2ClustersWithResponse(ctx, createBody)
-	if serr := util.CheckCreatedAdminPassword(ctx, r.ClientWithResponsesInterface, clusterCreateResponse, cerr, plan.AdminPassword.ValueString()); serr != nil {
+	if serr := util.StatusOK(clusterCreateResponse, cerr); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
 	}
 
 	clusterID := clusterCreateResponse.JSON200.ClusterID
-	adminPassword := util.AdminPasswordForState(
-		plan.AdminPassword.ValueString(),
-		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
-	)
+	// The create response is the first API object that carries the generated password.
+	adminPassword := util.Deref(clusterCreateResponse.JSON200.AdminPassword)
 	// Record the cluster before waiting for it to become active. Terraform keeps a
 	// resource only when Create stores it in state, so a wait failure can still
 	// refresh or destroy this cluster instead of creating another one.
@@ -456,7 +441,6 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	result.SkipAdminPasswordValidation = plan.SkipAdminPasswordValidation
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -527,7 +511,6 @@ func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *re
 
 	configuredExpiresAt := state.ExpiresAt
 	previousSuspended := state.Suspended
-	skipAdminPasswordValidation := types.BoolValue(state.SkipAdminPasswordValidation.ValueBool()) // Null after import.
 	state, modelDiags := toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state.FirewallRanges, projectName, configuredExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
@@ -538,7 +521,6 @@ func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *re
 		// transitional state would plan a suspend or resume nobody asked for.
 		state.Suspended = types.BoolValue(previousSuspended.ValueBool())
 	}
-	state.SkipAdminPasswordValidation = skipAdminPasswordValidation
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
@@ -611,7 +593,6 @@ func (r *clusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 		return
 	}
-	result.SkipAdminPasswordValidation = plan.SkipAdminPasswordValidation
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -882,6 +863,9 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 	return nil
 }
 
+// toClusterResourceModel copies a Management API cluster into the resource model.
+// adminPassword is the last password read from the API. The cluster object
+// replaces it when that response includes adminPassword.
 func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName, configuredExpiresAt types.String) (clusterResourceModel, diag.Diagnostics) {
 	size := types.StringNull()
 	scaleFactor := types.Float32Value(scaleX1)
@@ -907,7 +891,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		CacheConfig:         cacheConfig,
 		Suspended:           types.BoolValue(util.Deref(cluster.State) == management.ClusterStateSUSPENDED),
 		Kai:                 types.BoolValue(util.Deref(cluster.Kai)),
-		AdminPassword:       types.StringValue(adminPassword),
+		AdminPassword:       passwordFromAPI(cluster.AdminPassword, adminPassword),
 		FirewallRanges:      firewallRangesForState(configuredFirewallRanges, cluster),
 		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, configuredExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
@@ -924,6 +908,20 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 	}
 
 	return model, diags
+}
+
+// passwordFromAPI stores the admin password Management API returned.
+// A response that omits the password keeps the last password read from the API,
+// so a later GET that leaves the field out does not clear state.
+func passwordFromAPI(apiPassword *string, knownPassword string) types.String {
+	if apiPassword != nil && *apiPassword != "" {
+		return types.StringValue(*apiPassword)
+	}
+	if knownPassword == "" {
+		return types.StringNull()
+	}
+
+	return types.StringValue(knownPassword)
 }
 
 // deploymentTypeForState uses the schema default when the API omits the field.
@@ -954,7 +952,7 @@ func clusterStateAfterCreate(plan clusterResourceModel, clusterID, groupID uuid.
 
 	tracked.ID = types.StringValue(clusterID.String())
 	tracked.GroupID = types.StringValue(groupID.String())
-	tracked.AdminPassword = types.StringValue(adminPassword)
+	tracked.AdminPassword = passwordFromAPI(nil, adminPassword)
 	nullUnknownClusterState(&tracked)
 
 	return &tracked
@@ -978,7 +976,6 @@ func nullUnknownClusterState(model *clusterResourceModel) {
 	model.CacheConfig = nullUnknownFloat32(model.CacheConfig)
 	model.Suspended = nullUnknownBool(model.Suspended)
 	model.Kai = nullUnknownBool(model.Kai)
-	model.SkipAdminPasswordValidation = nullUnknownBool(model.SkipAdminPasswordValidation)
 	model.OptInPreviewFeature = nullUnknownBool(model.OptInPreviewFeature)
 	model.MultiAZ = nullUnknownBool(model.MultiAZ)
 	for i, firewallRange := range model.FirewallRanges {

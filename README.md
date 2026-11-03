@@ -106,19 +106,11 @@ To try this example, follow these steps:
 
 ### Cluster admin password
 
-If you omit `admin_password`, the Management API generates a password and Terraform stores it in `admin_password`. If you set `admin_password`, it must have at least 14 characters, an uppercase letter, a lowercase letter, a digit, and a special character, at most 2 consecutive sequential characters (such as "ab" or "12"), and at most 3 identical characters in a row.
+Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. Terraform reads that generated password back from the API and stores it in `admin_password`.
 
-The provider checks these rules during `terraform plan` and fails with "Invalid admin password" when a password breaks them. If the API still does not accept the configured password, it generates a different password on create. The provider then deletes the new cluster and fails with "Admin password was rejected", so Terraform never stores a password that cannot log in. Both errors list the rules and the ones the password fails. Fix `admin_password`, or remove it, and apply again.
+Setting `admin_password` in configuration is unavailable. `terraform plan` fails with "Invalid Configuration for Read-Only Attribute" and asks you to remove that line. Choosing a password may be added in a later release.
 
-If the API password rules change and the plan check rejects a password the API accepts, set `skip_admin_password_validation = true` on the cluster until a provider release updates the rules. The create check still applies.
-
-```terraform
-resource "singlestoredb_cluster" "this" {
-  # ...
-  admin_password                 = var.admin_password
-  skip_admin_password_validation = true
-}
-```
+Read the password from state or from the sensitive output in the example above. The `singlestoredb_workspace_group` resource still accepts `admin_password` until that resource is removed.
 
 ## Upgrading from workspace resources
 

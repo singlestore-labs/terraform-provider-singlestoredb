@@ -45,7 +45,6 @@ func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:c
 	return !plan.Size.Equal(state.Size) ||
 		!plan.CacheConfig.Equal(state.CacheConfig) ||
 		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
-		!plan.AdminPassword.Equal(state.AdminPassword) ||
 		!equalFirewallRangesLists(state.FirewallRanges, plan.FirewallRanges) ||
 		!plan.ExpiresAt.Equal(state.ExpiresAt) ||
 		!plan.DeploymentType.Equal(state.DeploymentType) ||
@@ -98,10 +97,6 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 			ScaleFactor: util.MaybeFloat32(plan.ScaleFactor),
 			CacheConfig: util.MaybeFloat32(plan.CacheConfig),
 		}
-	}
-
-	if !plan.AdminPassword.Equal(state.AdminPassword) {
-		patchBody.AdminPassword = util.MaybeNonEmptyString(plan.AdminPassword)
 	}
 
 	if !equalFirewallRangesLists(state.FirewallRanges, plan.FirewallRanges) {

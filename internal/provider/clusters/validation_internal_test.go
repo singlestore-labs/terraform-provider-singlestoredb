@@ -131,9 +131,11 @@ func TestClusterModelHelpers(t *testing.T) {
 			MaxScaleFactor: util.Ptr[float32](2),
 			Sensitivity:    util.Ptr(management.LOW),
 		},
-		UpdateWindow: &management.UpdateWindow{Hour: 6, Day: 2},
+		UpdateWindow:  &management.UpdateWindow{Hour: 6, Day: 2},
+		AdminPassword: util.Ptr("from-api"),
 	}, "secret", nil, types.StringValue("Standard Project"), types.StringValue(configuredExpiresAt))
 	require.False(t, modelDiags.HasError())
+	require.Equal(t, "from-api", model.AdminPassword.ValueString())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
 	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
 	require.Equal(t, string(management.ClusterDeploymentTypePRODUCTION), model.DeploymentType.ValueString())
@@ -177,6 +179,11 @@ func TestClusterModelHelpers(t *testing.T) {
 	}, "", nil, types.StringNull(), types.StringNull())
 	require.False(t, explicitDiags.HasError())
 	require.Equal(t, string(nonProduction), explicitDeployment.DeploymentType.ValueString())
+	require.True(t, explicitDeployment.AdminPassword.IsNull())
+
+	kept, keptDiags := toClusterResourceModel(management.Cluster{}, "kept-secret", nil, types.StringNull(), types.StringNull())
+	require.False(t, keptDiags.HasError())
+	require.Equal(t, "kept-secret", kept.AdminPassword.ValueString())
 
 	plan := validClusterPlan()
 	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)
@@ -188,6 +195,8 @@ func TestClusterModelHelpers(t *testing.T) {
 
 	state := validClusterPlan()
 	changed := validClusterPlan()
+	require.False(t, hasGeneralConfigChanged(state, changed))
+	changed.AdminPassword = types.StringValue("another-generated-pw")
 	require.False(t, hasGeneralConfigChanged(state, changed))
 	changed.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
 	require.True(t, hasGeneralConfigChanged(state, changed))

@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/examples"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -25,7 +26,6 @@ import (
 
 var (
 	updatedClusterSize    = "S-0"
-	updatedAdminPassword  = "mockPasswordUpdated193!"
 	defaultDeploymentType = management.ClusterDeploymentTypePRODUCTION
 	updatedDeploymentType = management.ClusterDeploymentTypeNONPRODUCTION
 	updatedFirewallRanges = []string{"198.51.100.0/24", "192.0.2.0/24"}
@@ -146,7 +146,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		require.NoError(t, err)
 		var input management.Cluster
 		require.NoError(t, json.Unmarshal(body, &input))
-		require.Equal(t, config.TestInitialAdminPassword, util.Deref(input.AdminPassword))
+		require.Nil(t, input.AdminPassword, "create must not send adminPassword; the API generates it")
 		require.Equal(t, config.TestInitialWorkspaceGroupExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, []string{config.TestInitialFirewallRange}, util.Deref(input.FirewallRanges))
 		require.Equal(t, "cluster-1", input.Name)
@@ -188,7 +188,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		require.NoError(t, err)
 		var input management.Cluster
 		require.NoError(t, json.Unmarshal(body, &input))
-		require.Equal(t, updatedAdminPassword, util.Deref(input.AdminPassword))
+		require.Nil(t, input.AdminPassword, "update must not send adminPassword")
 		require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
 		require.Equal(t, updatedFirewallRanges, util.Deref(input.FirewallRanges))
 		require.Equal(t, string(updatedDeploymentType), string(util.Deref(input.DeploymentType)))
@@ -208,7 +208,6 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		cluster.FirewallRanges = &updatedFirewallRanges
 		cluster.DeploymentType = &updatedDeploymentType
 		cluster.SizeConfig.Size = &updatedClusterSize
-		cluster.AdminPassword = &updatedAdminPassword
 	}
 
 	clustersDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -261,9 +260,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
-					String(),
+				Config: examples.ClustersResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, clusterID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "name", "cluster-1"),
@@ -275,7 +272,6 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "cloud_provider", string(management.CloudProviderAWS)),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "region_name", region),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "admin_password", config.TestInitialAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "skip_admin_password_validation", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "firewall_ranges.#", "1"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "firewall_ranges.0", config.TestInitialFirewallRange),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "deployment_type", string(defaultDeploymentType)),
@@ -285,14 +281,12 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 				),
 			},
 			{
-				ResourceName:            "singlestoredb_cluster.this",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"admin_password"},
+				ResourceName:      "singlestoredb_cluster.this",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(updatedAdminPassword)).
 					WithClusterResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithClusterResource("this")("size", cty.StringVal(updatedClusterSize)).
 					WithClusterResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
@@ -303,7 +297,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, clusterID.String()),
-					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "admin_password", updatedAdminPassword),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "admin_password", config.TestInitialAdminPassword),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "expires_at", updatedExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "size", updatedClusterSize),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "deployment_type", string(updatedDeploymentType)),
@@ -445,9 +439,7 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
-					String(),
+				Config: examples.ClustersResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "suspended", "false"),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "endpoint", endpoint),
@@ -455,7 +447,6 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
 					WithClusterResource("this")("suspended", cty.BoolVal(true)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -464,7 +455,6 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
 					WithClusterResource("this")("suspended", cty.BoolVal(false)).
 					String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -576,44 +566,11 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	})
 }
 
-func TestClusterRejectedAdminPassword(t *testing.T) {
-	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
-	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
-	projectID := uuid.New()
-	const weakPassword = "abcdefghijklmn"
-	const generatedPassword = "Gen3rated!Pw-Xk9q" //nolint:gosec
-
-	var created, deleted bool
+func TestClusterAdminPasswordIsNotConfigurable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "json")
-		clusterPath := strings.Join([]string{pathV2Clusters, clusterID.String()}, "/")
-		switch {
-		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
-			_, err := w.Write(testutil.MustJSON([]management.Project{{Name: config.TestInitialProjectName, ProjectID: projectID}}))
-			require.NoError(t, err)
-		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
-			require.False(t, created, "the cluster must be created once")
-			created = true
-			_, err := w.Write(testutil.MustJSON(struct {
-				AdminPassword string    `json:"adminPassword"`
-				ClusterID     uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-				GroupID       uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
-			}{AdminPassword: generatedPassword, ClusterID: clusterID, GroupID: groupID}))
-			require.NoError(t, err)
-		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
-			deleted = true
-			_, err := w.Write(testutil.MustJSON(struct {
-				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
-			}{ClusterID: clusterID}))
-			require.NoError(t, err)
-		default:
-			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
-		}
+		require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
 	}))
 	t.Cleanup(server.Close)
-
-	weakConfig := testutil.UpdatableConfig(examples.ClustersResource).
-		WithClusterResource("this")("admin_password", cty.StringVal(weakPassword))
 
 	testutil.UnitTest(t, testutil.UnitTestConfig{
 		APIServiceURL: server.URL,
@@ -621,23 +578,13 @@ func TestClusterRejectedAdminPassword(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				// The provider rejects the password during plan, before any API call.
-				Config:      weakConfig.String(),
-				ExpectError: regexp.MustCompile("Invalid admin password"),
-			},
-			{
-				// With the plan check skipped, the API replaces the password on create,
-				// so the provider deletes the new cluster and fails.
-				Config: weakConfig.
-					WithClusterResource("this")("skip_admin_password_validation", cty.BoolVal(true)).
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("admin_password", cty.StringVal(config.TestInitialAdminPassword)).
 					String(),
-				ExpectError: regexp.MustCompile("Admin password was rejected"),
+				ExpectError: regexp.MustCompile(`Invalid Configuration for Read-Only Attribute`),
 			},
 		},
 	})
-
-	require.True(t, created)
-	require.True(t, deleted, "a rejected password must delete the new cluster")
 }
 
 func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
@@ -839,9 +786,6 @@ func TestClusterCreatePersistentFailureCanBeReplaced(t *testing.T) { //nolint:cy
 }
 
 func TestClusterResourceIntegration(t *testing.T) {
-	adminPassword := config.TestInitialAdminPassword
-	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
-
 	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
 		APIKey: os.Getenv(config.EnvTestAPIKey),
 	}, resource.TestCase{
@@ -849,21 +793,37 @@ func TestClusterResourceIntegration(t *testing.T) {
 			{
 				// IntegrationTest rewrites name to config.TestClusterName and expires_at
 				// to a timestamp config.TestWorkspaceGroupExpiration from now.
-				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("admin_password", cty.StringVal(adminPassword)).
-					String(),
+				Config: examples.ClustersResource,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("singlestoredb_cluster.this", config.IDAttribute),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "name", config.TestClusterName),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "size", config.TestInitialWorkspaceSize),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "project_name", config.TestInitialProjectName),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "suspended", "false"),
+					resource.TestCheckResourceAttrSet("singlestoredb_cluster.this", "admin_password"),
 					resource.TestCheckResourceAttrWith("singlestoredb_cluster.this", "expires_at", integrationExpiresAtIsSoon),
-					resource.TestCheckResourceAttrWith("singlestoredb_cluster.this", "endpoint", isConnectable),
+					clusterAdminCanConnect("singlestoredb_cluster.this"),
 				),
 			},
 		},
 	})
+}
+
+// clusterAdminCanConnect logs in with the password Terraform read from the API.
+func clusterAdminCanConnect(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not in state", resourceName)
+		}
+
+		password := rs.Primary.Attributes["admin_password"]
+		if password == "" {
+			return fmt.Errorf("admin_password was empty after reading the cluster from the Management API")
+		}
+
+		return testutil.IsConnectableWithAdminPassword(password)(rs.Primary.Attributes["endpoint"])
+	}
 }
 
 func integrationExpiresAtIsSoon(value string) error {
