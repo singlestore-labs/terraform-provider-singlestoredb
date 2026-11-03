@@ -637,6 +637,94 @@ func TestClusterRejectedAdminPassword(t *testing.T) {
 	require.True(t, deleted, "a rejected password must delete the new cluster")
 }
 
+func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
+	projectID := uuid.New()
+	stateFailed := management.ClusterStateFAILED
+	stateActive := management.ClusterStateACTIVE
+	provider := management.CloudProviderAWS
+	region := testRegion
+	size := config.TestInitialWorkspaceSize
+	scaleFactor := float32(1)
+	cacheConfig := float32(1)
+	var gets int
+	var mutations []string
+
+	active := management.Cluster{
+		AllowAllTraffic: util.Ptr(true),
+		ClusterID:       &clusterID,
+		ExpiresAt:       util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		GroupID:         &groupID,
+		Name:            "cluster-1",
+		ProjectID:       projectID,
+		Provider:        &provider,
+		Region:          &region,
+		SizeConfig: &management.SizeConfig{
+			Size:        &size,
+			ScaleFactor: &scaleFactor,
+			CacheConfig: &cacheConfig,
+		},
+		State: &stateActive,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		clusterPath := strings.Join([]string{pathV2Clusters, clusterID.String()}, "/")
+		switch {
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Project{{Name: config.TestInitialProjectName, ProjectID: projectID}}))
+			require.NoError(t, err)
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
+			mutations = append(mutations, http.MethodPost)
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{ClusterID: clusterID, GroupID: groupID}))
+			require.NoError(t, err)
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
+			gets++
+			cluster := active
+			if gets == 1 {
+				cluster.State = &stateFailed
+			}
+			_, err := w.Write(testutil.MustJSON(cluster))
+			require.NoError(t, err)
+		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
+			mutations = append(mutations, http.MethodDelete)
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: clusterID}))
+			require.NoError(t, err)
+		default:
+			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.ClustersResource,
+				ExpectError: regexp.MustCompile("Failed to wait for a cluster"),
+			},
+			{
+				// A failed create taints the saved cluster, so the next apply deletes
+				// it before provisioning a replacement.
+				Config: examples.ClustersResource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, clusterID.String()),
+				),
+			},
+		},
+	})
+
+	require.Equal(t, []string{http.MethodPost, http.MethodDelete, http.MethodPost, http.MethodDelete}, mutations)
+}
+
 func TestClusterResourceIntegration(t *testing.T) {
 	adminPassword := config.TestInitialAdminPassword
 	isConnectable := testutil.IsConnectableWithAdminPassword(adminPassword)
@@ -646,6 +734,8 @@ func TestClusterResourceIntegration(t *testing.T) {
 	}, resource.TestCase{
 		Steps: []resource.TestStep{
 			{
+				// IntegrationTest rewrites name to config.TestClusterName and expires_at
+				// to a timestamp config.TestWorkspaceGroupExpiration from now.
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
 					WithClusterResource("this")("admin_password", cty.StringVal(adminPassword)).
 					String(),

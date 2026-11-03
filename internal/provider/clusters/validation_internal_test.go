@@ -136,6 +136,7 @@ func TestClusterModelHelpers(t *testing.T) {
 	require.False(t, modelDiags.HasError())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
 	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
+	require.Equal(t, string(management.ClusterDeploymentTypePRODUCTION), model.DeploymentType.ValueString())
 	require.True(t, model.Size.IsNull())
 	require.Equal(t, float32(120), model.AutoSuspend.SuspendAfterSeconds.ValueFloat32())
 	require.Equal(t, float32(2), model.AutoScale.MaxScaleFactor.ValueFloat32())
@@ -169,6 +170,13 @@ func TestClusterModelHelpers(t *testing.T) {
 	}})
 	require.Equal(t, float32(scaleX1), omittedFactor.MaxScaleFactor.ValueFloat32())
 	require.Equal(t, string(management.LOW), omittedFactor.Sensitivity.ValueString())
+
+	nonProduction := management.ClusterDeploymentTypeNONPRODUCTION
+	explicitDeployment, explicitDiags := toClusterResourceModel(management.Cluster{
+		DeploymentType: &nonProduction,
+	}, "", nil, types.StringNull(), types.StringNull())
+	require.False(t, explicitDiags.HasError())
+	require.Equal(t, string(nonProduction), explicitDeployment.DeploymentType.ValueString())
 
 	plan := validClusterPlan()
 	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)

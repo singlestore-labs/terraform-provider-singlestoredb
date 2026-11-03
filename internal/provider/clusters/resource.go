@@ -424,6 +424,23 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	clusterID := clusterCreateResponse.JSON200.ClusterID
+	adminPassword := util.AdminPasswordForState(
+		plan.AdminPassword.ValueString(),
+		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
+	)
+	// Record the cluster before waiting for it to become active. Terraform keeps a
+	// resource only when Create stores it in state, so a wait failure can still
+	// refresh or destroy this cluster instead of creating another one.
+	resp.Diagnostics.Append(resp.State.Set(ctx, clusterStateAfterCreate(plan, clusterID, clusterCreateResponse.JSON200.GroupID, adminPassword))...)
+	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.AddError(
+			"Cluster created but not stored in state",
+			fmt.Sprintf("Cluster %s was created and is not tracked. Import it, or delete it in the SingleStore Portal, before applying again.", clusterID),
+		)
+
+		return
+	}
+
 	cluster, werr := wait(ctx, r.ClientWithResponsesInterface, clusterID, config.WorkspaceCreationTimeout,
 		waitConditionState(management.ClusterStateACTIVE),
 		waitConditionFirewallRanges(plan.FirewallRanges),
@@ -434,10 +451,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	result, modelDiags := toClusterResourceModel(cluster, util.AdminPasswordForState(
-		plan.AdminPassword.ValueString(),
-		util.Deref(clusterCreateResponse.JSON200.AdminPassword),
-	), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -826,7 +840,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, configuredExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
-		DeploymentType:      util.StringValueOrNull(cluster.DeploymentType),
+		DeploymentType:      deploymentTypeForState(cluster.DeploymentType),
 		OptInPreviewFeature: types.BoolValue(util.Deref(cluster.OptInPreviewFeature)),
 		MultiAZ:             types.BoolValue(util.Deref(cluster.MultiAZ)),
 		OutboundAllowList:   util.MaybeStringValue(cluster.OutboundAllowList),
@@ -838,6 +852,101 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 	}
 
 	return model, diags
+}
+
+// deploymentTypeForState uses the schema default when the API omits the field.
+// A null value disagrees with the plan and keeps proposing updates.
+func deploymentTypeForState(deploymentType *management.ClusterDeploymentType) types.String {
+	if deploymentType == nil {
+		return types.StringValue(string(management.ClusterDeploymentTypePRODUCTION))
+	}
+
+	return types.StringValue(string(*deploymentType))
+}
+
+// clusterStateAfterCreate copies the plan into a state value Terraform can store
+// before the cluster is active. Unknown planned values cannot be stored.
+func clusterStateAfterCreate(plan clusterResourceModel, clusterID, groupID uuid.UUID, adminPassword string) *clusterResourceModel {
+	tracked := plan
+	if plan.AutoScale != nil {
+		autoScale := *plan.AutoScale
+		tracked.AutoScale = &autoScale
+	}
+	if plan.AutoSuspend != nil {
+		autoSuspend := *plan.AutoSuspend
+		tracked.AutoSuspend = &autoSuspend
+	}
+	if plan.FirewallRanges != nil {
+		tracked.FirewallRanges = append([]types.String(nil), plan.FirewallRanges...)
+	}
+
+	tracked.ID = types.StringValue(clusterID.String())
+	tracked.GroupID = types.StringValue(groupID.String())
+	tracked.AdminPassword = types.StringValue(adminPassword)
+	nullUnknownClusterState(&tracked)
+
+	return &tracked
+}
+
+func nullUnknownClusterState(model *clusterResourceModel) {
+	model.ID = nullUnknownString(model.ID)
+	model.Name = nullUnknownString(model.Name)
+	model.ProjectName = nullUnknownString(model.ProjectName)
+	model.GroupID = nullUnknownString(model.GroupID)
+	model.Size = nullUnknownString(model.Size)
+	model.AdminPassword = nullUnknownString(model.AdminPassword)
+	model.ExpiresAt = nullUnknownString(model.ExpiresAt)
+	model.CloudProvider = nullUnknownString(model.CloudProvider)
+	model.RegionName = nullUnknownString(model.RegionName)
+	model.DeploymentType = nullUnknownString(model.DeploymentType)
+	model.OutboundAllowList = nullUnknownString(model.OutboundAllowList)
+	model.Endpoint = nullUnknownString(model.Endpoint)
+	model.CreatedAt = nullUnknownString(model.CreatedAt)
+	model.ScaleFactor = nullUnknownFloat32(model.ScaleFactor)
+	model.CacheConfig = nullUnknownFloat32(model.CacheConfig)
+	model.Suspended = nullUnknownBool(model.Suspended)
+	model.Kai = nullUnknownBool(model.Kai)
+	model.SkipAdminPasswordValidation = nullUnknownBool(model.SkipAdminPasswordValidation)
+	model.OptInPreviewFeature = nullUnknownBool(model.OptInPreviewFeature)
+	model.MultiAZ = nullUnknownBool(model.MultiAZ)
+	for i, firewallRange := range model.FirewallRanges {
+		model.FirewallRanges[i] = nullUnknownString(firewallRange)
+	}
+	if model.AutoScale != nil {
+		model.AutoScale.MaxScaleFactor = nullUnknownFloat32(model.AutoScale.MaxScaleFactor)
+		model.AutoScale.Sensitivity = nullUnknownString(model.AutoScale.Sensitivity)
+	}
+	if model.AutoSuspend != nil {
+		model.AutoSuspend.SuspendAfterSeconds = nullUnknownFloat32(model.AutoSuspend.SuspendAfterSeconds)
+		model.AutoSuspend.SuspendType = nullUnknownString(model.AutoSuspend.SuspendType)
+	}
+	if model.UpdateWindow.IsNull() || model.UpdateWindow.IsUnknown() {
+		model.UpdateWindow = types.ObjectNull(updateWindowAttrTypes)
+	}
+}
+
+func nullUnknownString(value types.String) types.String {
+	if value.IsUnknown() {
+		return types.StringNull()
+	}
+
+	return value
+}
+
+func nullUnknownBool(value types.Bool) types.Bool {
+	if value.IsUnknown() {
+		return types.BoolNull()
+	}
+
+	return value
+}
+
+func nullUnknownFloat32(value types.Float32) types.Float32 {
+	if value.IsUnknown() {
+		return types.Float32Null()
+	}
+
+	return value
 }
 
 func normalizeCloudProvider(provider *management.CloudProvider) types.String {
