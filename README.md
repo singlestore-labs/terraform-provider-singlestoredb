@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. This provider enables you to manage resources such as Workspace Groups and Workspaces seamlessly with your Terraform workflow.
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work in v0.2.0 and are removed in v1.0.0, the first release on or after April 30, 2027; see [Migrating from workspace resources](MIGRATING.md).
 
 ## Prerequisites
 
@@ -112,9 +112,17 @@ Setting `admin_password` in configuration is unavailable. `terraform plan` fails
 
 Read the password from state or from the sensitive output in the example above. The `singlestoredb_workspace_group` resource still accepts `admin_password` until that resource is removed.
 
+## Upgrading from workspace resources
+
+`singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated, as are the data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups`. They keep their current behavior in v0.2.0, and `terraform plan` prints a warning. They are removed in v1.0.0, the first release on or after April 30, 2027.
+
+Move an existing deployment onto `singlestoredb_cluster` without creating a new one. The cluster `id` is the workspace id. The state steps, attribute mapping, password handling, and resources that reference a workspace are in [Migrating from workspace resources](MIGRATING.md).
+
 ## Documentation
 
 For more detailed information about `terraform-provider-singlestoredb`, including advanced usage and configuration options, check out our [official documentation](./docs/index.md).
+
+To move an existing workspace and workspace group onto `singlestoredb_cluster`, see [Migrating from workspace resources](MIGRATING.md).
 
 ## Contributing
 
