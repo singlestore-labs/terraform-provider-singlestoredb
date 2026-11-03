@@ -148,7 +148,7 @@ These attributes have no cluster argument:
 
 - `singlestoredb_workspace.name`. The cluster name comes from the clusters API.
 - `singlestoredb_workspace.workspace_group_id`. Use the computed `group_id`.
-- `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`. `singlestoredb_regions.regions[*].id` is removed in v0.3.0, the first release on or after April 30, 2027; use `regions[*].provider` and `regions[*].region_name`.
+- `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`.
 - `singlestoredb_workspace.created_at` and `singlestoredb_workspace_group.created_at`. The cluster `created_at` is the cluster's own timestamp.
 - The workspace data source attribute `last_resumed_at`.
 

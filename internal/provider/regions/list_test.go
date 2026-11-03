@@ -18,41 +18,23 @@ import (
 )
 
 func TestReadsRegions(t *testing.T) {
-	regions := []management.RegionV2{
-		{
-			Region:     "GS - US West 2 (Oregon) - aws-oregon-gs1",
-			Provider:   management.CloudProviderAWS,
-			RegionName: "aws-oregon-gs1",
-		},
-		{
-			Region:     "East US 1 (Virginia)",
-			Provider:   management.CloudProviderAzure,
-			RegionName: "eastus",
-		},
-	}
-
-	legacyRegions := []management.Region{
+	regions := []management.Region{ //nolint:staticcheck // SA1019 v1 regions are removed in the regions follow-up.
 		{
 			RegionID: uuid.MustParse("e495c7f3-b37a-4234-8e8f-f715257e3a6c"),
-			Region:   regions[0].Region,
-			Provider: regions[0].Provider,
+			Region:   "GS - US West 2 (Oregon) - aws-oregon-gs1",
+			Provider: management.CloudProviderAWS,
+		},
+		{
+			RegionID: uuid.MustParse("e8f6f596-6fba-4b87-adb1-7f9e960c7c78"),
+			Region:   "East US 1 (Virginia)",
+			Provider: management.CloudProviderAzure,
 		},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/regions", r.URL.Path)
 		w.Header().Add("Content-Type", "json") // Necessary to make the library parse the resulting JSON.
-
-		var body []byte
-		switch r.URL.Path {
-		case "/v2/regions":
-			body = testutil.MustJSON(regions)
-		case "/v1/regions":
-			body = testutil.MustJSON(legacyRegions)
-		default:
-			require.Failf(t, "unexpected path", "path: %s", r.URL.Path)
-		}
-
-		_, err := w.Write(body)
+		_, err := w.Write(testutil.MustJSON(regions))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -67,11 +49,10 @@ func TestReadsRegions(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", config.IDAttribute, config.TestIDValue),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.#", "2"),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), regions[0].RegionID.String()),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region", regions[0].Region),
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.provider", string(regions[0].Provider)),
-					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", "regions.0.region_name", regions[0].RegionName),
-					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute), legacyRegions[0].RegionID.String()),
-					resource.TestCheckNoResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute)),
+					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", fmt.Sprintf("regions.1.%s", config.IDAttribute), regions[1].RegionID.String()),
 				),
 			},
 		},
@@ -106,9 +87,9 @@ func TestReadsRegionsIntegration(t *testing.T) {
 				Config: examples.Regions,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.singlestoredb_regions.all", config.IDAttribute, config.TestIDValue),
+					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", fmt.Sprintf("regions.0.%s", config.IDAttribute)),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.region"),
 					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.provider"),
-					resource.TestCheckResourceAttrSet("data.singlestoredb_regions.all", "regions.0.region_name"),
 					// Checking that at least 1 element and that element is with the expected fields.
 				),
 			},

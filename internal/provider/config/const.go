@@ -57,10 +57,6 @@ const (
 	// or singlestoredb_workspace_groups.
 	// v0.2.0 keeps the data sources and warns. v0.3.0, the first release on or after April 30, 2027, removes them.
 	WorkspaceDataSourceDeprecationMessage = "Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v0.3.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository."
-	// RegionIDDeprecationMessage is shown on every read of the singlestoredb_regions data source
-	// because Terraform does not warn when a deprecated computed attribute is referenced.
-	// v0.2.0 still returns the attribute. v0.3.0, the first release on or after April 30, 2027, removes it.
-	RegionIDDeprecationMessage = "The regions[*].id attribute of singlestoredb_regions is deprecated and must not be used anymore. It is removed in v0.3.0, the first release on or after April 30, 2027. Use regions[*].provider and regions[*].region_name instead, for example as cloud_provider and region_name of singlestoredb_cluster."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
@@ -99,7 +95,7 @@ const (
 	// Leftover CI deployments are then identifiable, and they do not keep the example name workspace-1.
 	TestClusterName = "terraform-cluster"
 	// TestReaderWorkspaceName is the reader workspace name in the workspace_with_sql example.
-	TestReaderWorkspaceName = "workspace-2"
+	TestReaderWorkspaceName = "workspace-reader"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.

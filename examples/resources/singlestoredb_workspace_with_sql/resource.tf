@@ -35,7 +35,7 @@ resource "singlestoredb_workspace" "this" {
 }
 
 resource "singlestoredb_workspace" "reader" {
-  name               = "workspace-2"
+  name               = "workspace-reader"
   workspace_group_id = singlestoredb_workspace_group.example.id
   size               = "S-00"
   suspended          = false

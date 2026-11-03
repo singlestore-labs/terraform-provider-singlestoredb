@@ -15,7 +15,6 @@
 
 - `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The resources are removed in v0.3.0, the first release on or after April 30, 2027. The move onto `singlestoredb_cluster` is documented in `MIGRATING.md`.
 - `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` data sources are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The data sources are removed in v0.3.0, the first release on or after April 30, 2027. Use `singlestoredb_cluster` and `singlestoredb_clusters`. The move is documented in `MIGRATING.md`.
-- `singlestoredb_regions` reads regions from the v2 Management API and adds `regions[*].region_name`. `regions[*].id` is deprecated and must not be used anymore. It keeps returning the region ID in v0.2.0, every read of the data source prints a deprecation warning, and it is removed in v0.3.0, the first release on or after April 30, 2027. Use `regions[*].provider` and `regions[*].region_name` instead.
 
 ### Fixed
 
