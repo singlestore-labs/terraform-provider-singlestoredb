@@ -128,6 +128,14 @@ func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) Attribut
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(sql.ResourceName), sqlExecuteName})
 }
 
+func (uc UpdatableConfig) WithClusterGetDataSource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceGetName), clusterName})
+}
+
+func (uc UpdatableConfig) WithClusterListDataSource(clusterListName string) AttributeSetter {
+	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(clusters.DataSourceListName), clusterListName})
+}
+
 func (uc UpdatableConfig) WithClusterResource(clusterName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(clusters.ResourceName), clusterName})
 }
