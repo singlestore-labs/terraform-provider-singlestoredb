@@ -471,7 +471,16 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	id := uuid.MustParse(state.ID.ValueString())
+	id, perr := uuid.Parse(state.ID.ValueString())
+	if perr != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root(config.IDAttribute),
+			"Invalid cluster ID",
+			fmt.Sprintf("The cluster ID %q is not a valid UUID: %s", state.ID.ValueString(), perr),
+		)
+
+		return
+	}
 
 	cluster, err := r.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
 	if serr := util.StatusOK(cluster, err, util.ReturnNilOnNotFound); serr != nil {
@@ -493,19 +502,21 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	if stateValue != management.ClusterStateACTIVE && stateValue != management.ClusterStateSUSPENDED {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf("Cluster %s state is %s while it should be %s or %s", state.ID.ValueString(), stateValue, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED),
-			"An unexpected cluster state.\n\n"+
-				config.ContactSupportLaterErrorDetail,
-		)
-
+	resp.Diagnostics.Append(clusterReadStateDiagnostics(state.ID.ValueString(), stateValue)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	r.setRefreshedClusterState(ctx, resp, state, *cluster.JSON200, stateValue)
+}
+
+// setRefreshedClusterState copies the Management API cluster into state.
+// A transitional state keeps the previous suspended value so refresh does not
+// plan a suspend or resume.
+func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *resource.ReadResponse, state clusterResourceModel, cluster management.Cluster, stateValue management.ClusterState) {
 	projectName := state.ProjectName
 	if !util.IsConfiguredString(projectName) {
-		resolved, rerr := resolveProjectNameByID(ctx, r.ClientWithResponsesInterface, cluster.JSON200.ProjectID)
+		resolved, rerr := resolveProjectNameByID(ctx, r.ClientWithResponsesInterface, cluster.ProjectID)
 		if rerr != nil {
 			resp.Diagnostics.AddError(rerr.Summary, rerr.Detail)
 
@@ -515,15 +526,67 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	configuredExpiresAt := state.ExpiresAt
+	previousSuspended := state.Suspended
 	skipAdminPasswordValidation := types.BoolValue(state.SkipAdminPasswordValidation.ValueBool()) // Null after import.
-	state, modelDiags := toClusterResourceModel(*cluster.JSON200, state.AdminPassword.ValueString(), state.FirewallRanges, projectName, configuredExpiresAt)
+	state, modelDiags := toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state.FirewallRanges, projectName, configuredExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !isSettledClusterState(stateValue) {
+		// PENDING also covers suspend, resume, and scale. Deriving suspended from a
+		// transitional state would plan a suspend or resume nobody asked for.
+		state.Suspended = types.BoolValue(previousSuspended.ValueBool())
+	}
 	state.SkipAdminPasswordValidation = skipAdminPasswordValidation
-	diags = resp.State.Set(ctx, &state)
+	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
+}
+
+// isSettledClusterState reports whether the cluster is in a state that accepts
+// suspend, resume, and configuration changes.
+func isSettledClusterState(stateValue management.ClusterState) bool {
+	return stateValue == management.ClusterStateACTIVE || stateValue == management.ClusterStateSUSPENDED
+}
+
+// clusterReadStateDiagnostics keeps clusters in any state other than TERMINATED
+// in state. A failed or timed-out create is already stored and tainted, and refresh
+// has to succeed so the next apply can replace or destroy that cluster.
+func clusterReadStateDiagnostics(clusterID string, stateValue management.ClusterState) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	switch stateValue {
+	case management.ClusterStateACTIVE, management.ClusterStateSUSPENDED:
+	case management.ClusterStatePENDING:
+		diags.AddWarning(
+			fmt.Sprintf("Cluster %s state is %s", clusterID, stateValue),
+			"The cluster is changing state. Updates wait until it is ACTIVE or SUSPENDED.",
+		)
+	case management.ClusterStateFAILED:
+		diags.AddWarning(
+			fmt.Sprintf("Cluster %s state is %s", clusterID, stateValue),
+			"Terraform is still tracking this cluster so it can be replaced or destroyed. "+
+				"A cluster that failed during create is replaced on the next apply. Otherwise, run "+
+				"terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it. "+
+				config.ContactSupportLaterErrorDetail,
+		)
+	case management.ClusterStateTERMINATED:
+		// Read removes a terminated cluster from state before calling this.
+	case management.ClusterStateUNKNOWN:
+		fallthrough
+	default:
+		if stateValue == "" {
+			stateValue = "missing"
+		}
+		diags.AddWarning(
+			fmt.Sprintf("Cluster %s state is %s", clusterID, stateValue),
+			fmt.Sprintf("An unexpected cluster state; it should be %s or %s. ", management.ClusterStateACTIVE, management.ClusterStateSUSPENDED)+
+				"Terraform is still tracking this cluster so it can be replaced or destroyed. "+
+				config.ContactSupportLaterErrorDetail,
+		)
+	}
+
+	return diags
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -563,11 +626,18 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	clusterDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, uuid.MustParse(state.ID.ValueString()))
+	id := uuid.MustParse(state.ID.ValueString())
+	clusterDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, id)
 	if serr := util.StatusOK(clusterDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
 
 		return
+	}
+
+	// A replacement is created right after Delete returns. Wait for termination so
+	// it does not overlap with the old cluster.
+	if werr := waitTerminated(ctx, r.ClientWithResponsesInterface, id, config.ClusterDeletionTimeout); werr != nil {
+		resp.Diagnostics.AddError(werr.Summary, werr.Detail)
 	}
 }
 
@@ -749,7 +819,9 @@ func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWit
 	if plan.ExpiresAt.IsNull() && !state.ExpiresAt.IsNull() {
 		return &util.SummaryWithDetailError{
 			Summary: "Cannot remove cluster expires_at",
-			Detail:  fmt.Sprintf("Removing expires_at is not supported. The cluster still expires at %s. Set expires_at to a new timestamp instead.", state.ExpiresAt.ValueString()),
+			Detail: fmt.Sprintf("Removing expires_at is not supported. The cluster still expires at %s. "+
+				"To keep that expiration, for example after terraform import, add expires_at = %q to the configuration. "+
+				"To change it, set expires_at to a new timestamp.", state.ExpiresAt.ValueString(), state.ExpiresAt.ValueString()),
 		}
 	}
 

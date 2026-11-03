@@ -14,19 +14,31 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	// ModifyPlan already rejects changing suspended together with other configuration.
 	// Prefer suspend/resume routing when suspended toggles so computed-only plan noise
 	// (e.g. unknown update_window) cannot divert the call to PATCH.
-	if suspendedChanged := !plan.Suspended.Equal(state.Suspended); suspendedChanged {
+	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
+	if !suspendedChanged && !hasGeneralConfigChanged(state, plan) {
+		return state, nil
+	}
+
+	// Refresh keeps PENDING clusters in state. Wait until a suspend, resume, or
+	// scale already in progress finishes before sending another change.
+	current, werr := waitSettled(ctx, c, uuid.MustParse(plan.ID.ValueString()))
+	if werr != nil {
+		return clusterResourceModel{}, werr
+	}
+
+	if suspendedChanged {
 		if plan.Suspended.ValueBool() {
-			return suspend(ctx, c, plan)
+			return suspend(ctx, c, plan, current)
 		}
 
-		return resume(ctx, c, plan)
+		return resume(ctx, c, plan, current)
 	}
 
-	if hasGeneralConfigChanged(state, plan) {
-		return applyClusterConfiguration(ctx, c, state, plan)
-	}
+	return applyClusterConfiguration(ctx, c, state, plan)
+}
 
-	return state, nil
+func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID) (management.Cluster, *util.SummaryWithDetailError) {
+	return wait(ctx, c, id, config.ClusterUpdateTimeout, waitConditionSettled())
 }
 
 func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:cyclop
@@ -138,7 +150,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		conditions = append(conditions, waitConditionFirewallRanges(plan.FirewallRanges))
 	}
 
-	cluster, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout, conditions...)
+	cluster, werr := wait(ctx, c, id, config.ClusterUpdateTimeout, conditions...)
 	if werr != nil {
 		return clusterResourceModel{}, werr
 	}
@@ -146,14 +158,19 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
+func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster) (clusterResourceModel, *util.SummaryWithDetailError) {
+	if util.Deref(current.State) == management.ClusterStateACTIVE {
+		// A resume that timed out earlier has finished since.
+		return clusterModelFromAPI(current, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	}
+
 	id := uuid.MustParse(plan.ID.ValueString())
 	clusterResumeResponse, err := c.PostV2ClustersClusterIDResumeWithResponse(ctx, id, management.ClusterResume{})
 	if serr := util.StatusOK(clusterResumeResponse, err); serr != nil {
 		return clusterResourceModel{}, serr
 	}
 
-	cluster, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
+	cluster, werr := wait(ctx, c, id, config.ClusterUpdateTimeout,
 		waitConditionState(management.ClusterStateACTIVE),
 	)
 	if werr != nil {
@@ -163,14 +180,19 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
+func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster) (clusterResourceModel, *util.SummaryWithDetailError) {
+	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
+		// A suspend that timed out earlier has finished since.
+		return clusterModelFromAPI(current, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	}
+
 	id := uuid.MustParse(plan.ID.ValueString())
 	clusterSuspendResponse, err := c.PostV2ClustersClusterIDSuspendWithResponse(ctx, id)
 	if serr := util.StatusOK(clusterSuspendResponse, err); serr != nil {
 		return clusterResourceModel{}, serr
 	}
 
-	cluster, werr := wait(ctx, c, id, config.WorkspaceResumeTimeout,
+	cluster, werr := wait(ctx, c, id, config.ClusterUpdateTimeout,
 		waitConditionState(management.ClusterStateSUSPENDED),
 	)
 	if werr != nil {

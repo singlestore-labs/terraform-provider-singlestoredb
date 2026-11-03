@@ -35,6 +35,10 @@ const (
 	WorkspaceCreationTimeout = 5 * time.Hour
 	// WorkspaceResumeTimeout limits the workspace resume time.
 	WorkspaceResumeTimeout = 6 * time.Hour
+	// ClusterUpdateTimeout limits a cluster suspend, resume, scale, or other configuration change.
+	ClusterUpdateTimeout = 6 * time.Hour
+	// ClusterDeletionTimeout limits the wait for a deleted cluster to terminate.
+	ClusterDeletionTimeout = time.Hour
 	// WorkspaceScaleTakesAtLeast ensures the least required time for scaling.
 	WorkspaceScaleTakesAtLeast = 30 * time.Second
 	// PrivateConnectionCreationTimeout limits the private connection creation time.
@@ -50,13 +54,13 @@ const (
 	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027."
 	// WorkspaceResourceDeprecationMessage is shown on every plan that uses
 	// singlestoredb_workspace or singlestoredb_workspace_group.
-	// v0.2.0 keeps the resources and warns. v0.3.0, the first release on or after April 30, 2027, removes them.
-	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v0.3.0, the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See MIGRATING.md in the provider repository."
+	// v0.2.0 keeps the resources and warns. v1.0.0, the first release on or after April 30, 2027, removes them.
+	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v1.0.0, the first release on or after April 30, 2027. Move an existing deployment by removing both resources from state and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. See MIGRATING.md in the provider repository."
 	// WorkspaceDataSourceDeprecationMessage is shown on every plan that uses
 	// singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group,
 	// or singlestoredb_workspace_groups.
-	// v0.2.0 keeps the data sources and warns. v0.3.0, the first release on or after April 30, 2027, removes them.
-	WorkspaceDataSourceDeprecationMessage = "Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v0.3.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository."
+	// v0.2.0 keeps the data sources and warns. v1.0.0, the first release on or after April 30, 2027, removes them.
+	WorkspaceDataSourceDeprecationMessage = "Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v1.0.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

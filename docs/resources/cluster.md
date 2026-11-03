@@ -105,3 +105,22 @@ Required:
 
 - `day` (Number) The day of the week (0-6), where 0 is Sunday and 6 is Saturday, when the update window is scheduled.
 - `hour` (Number) The hour of the day, in 24-hour UTC format (0-23), when the update window starts.
+
+## Import
+
+Import is supported using the following syntax:
+
+In Terraform v1.5.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `id` attribute, for example:
+
+```terraform
+import {
+  to = singlestoredb_cluster.this
+  id = "01ede7ad-6e5e-43f2-80e6-f1139aebc47a"
+}
+```
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
+```shell
+terraform import singlestoredb_cluster.this 01ede7ad-6e5e-43f2-80e6-f1139aebc47a
+```

@@ -214,6 +214,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	clustersDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, strings.Join([]string{pathV2Clusters, clusterID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
+		cluster.State = util.Ptr(management.ClusterStateTERMINATED)
 
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(
@@ -410,6 +411,7 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	clustersDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, strings.Join([]string{pathV2Clusters, clusterID.String()}, "/"), r.URL.Path)
 		require.Equal(t, http.MethodDelete, r.Method)
+		cluster.State = util.Ptr(management.ClusterStateTERMINATED)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
 			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
@@ -534,6 +536,7 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	}
 
 	clustersDeleteHandler := func(w http.ResponseWriter, r *http.Request) {
+		cluster.State = util.Ptr(management.ClusterStateTERMINATED)
 		w.Header().Add("Content-Type", "json")
 		_, err := w.Write(testutil.MustJSON(struct {
 			ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
@@ -649,6 +652,7 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 	scaleFactor := float32(1)
 	cacheConfig := float32(1)
 	var gets int
+	var deleted bool
 	var mutations []string
 
 	active := management.Cluster{
@@ -677,11 +681,14 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 			require.NoError(t, err)
 		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
 			mutations = append(mutations, http.MethodPost)
+			deleted = false
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
 			}{ClusterID: clusterID, GroupID: groupID}))
 			require.NoError(t, err)
+		case r.URL.Path == clusterPath && r.Method == http.MethodGet && deleted:
+			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == clusterPath && r.Method == http.MethodGet:
 			gets++
 			cluster := active
@@ -692,6 +699,7 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 			require.NoError(t, err)
 		case r.URL.Path == clusterPath && r.Method == http.MethodDelete:
 			mutations = append(mutations, http.MethodDelete)
+			deleted = true
 			_, err := w.Write(testutil.MustJSON(struct {
 				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
 			}{ClusterID: clusterID}))
@@ -723,6 +731,111 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 	})
 
 	require.Equal(t, []string{http.MethodPost, http.MethodDelete, http.MethodPost, http.MethodDelete}, mutations)
+}
+
+func TestClusterCreatePersistentFailureCanBeReplaced(t *testing.T) { //nolint:cyclop
+	failedID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	replacementID := uuid.MustParse("5ec5f57b-243f-67af-a8ed-5ad0f36ce729")
+	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
+	projectID := uuid.New()
+	stateFailed := management.ClusterStateFAILED
+	stateActive := management.ClusterStateACTIVE
+	provider := management.CloudProviderAWS
+	region := testRegion
+	size := config.TestInitialWorkspaceSize
+	scaleFactor := float32(1)
+	cacheConfig := float32(1)
+	var mutations []string
+	posts := 0
+	deleted := map[uuid.UUID]bool{}
+
+	clusterFor := func(id uuid.UUID, state management.ClusterState) management.Cluster {
+		return management.Cluster{
+			AllowAllTraffic: util.Ptr(true),
+			ClusterID:       &id,
+			ExpiresAt:       util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+			GroupID:         &groupID,
+			Name:            "cluster-1",
+			ProjectID:       projectID,
+			Provider:        &provider,
+			Region:          &region,
+			SizeConfig: &management.SizeConfig{
+				Size:        &size,
+				ScaleFactor: &scaleFactor,
+				CacheConfig: &cacheConfig,
+			},
+			State: &state,
+		}
+	}
+	clusters := map[string]management.Cluster{
+		strings.Join([]string{pathV2Clusters, failedID.String()}, "/"):      clusterFor(failedID, stateFailed),
+		strings.Join([]string{pathV2Clusters, replacementID.String()}, "/"): clusterFor(replacementID, stateActive),
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		cluster, known := clusters[r.URL.Path]
+		switch {
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON([]management.Project{{Name: config.TestInitialProjectName, ProjectID: projectID}}))
+			require.NoError(t, err)
+		case r.URL.Path == pathV2Clusters && r.Method == http.MethodPost:
+			posts++
+			id := failedID
+			if posts > 1 {
+				require.True(t, deleted[failedID], "the failed cluster must be deleted before its replacement is created")
+				id = replacementID
+			}
+			mutations = append(mutations, http.MethodPost+" "+id.String())
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{ClusterID: id, GroupID: groupID}))
+			require.NoError(t, err)
+		case known && r.Method == http.MethodGet && deleted[*cluster.ClusterID]:
+			w.WriteHeader(http.StatusNotFound)
+		case known && r.Method == http.MethodGet:
+			_, err := w.Write(testutil.MustJSON(cluster))
+			require.NoError(t, err)
+		case known && r.Method == http.MethodDelete:
+			mutations = append(mutations, http.MethodDelete+" "+cluster.ClusterID.String())
+			deleted[*cluster.ClusterID] = true
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: *cluster.ClusterID}))
+			require.NoError(t, err)
+		default:
+			require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.ClustersResource,
+				ExpectError: regexp.MustCompile("Failed to wait for a cluster"),
+			},
+			{
+				// Refresh still sees FAILED and must keep the tainted cluster in state,
+				// so this apply deletes it and provisions a new cluster.
+				Config: examples.ClustersResource,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, replacementID.String()),
+				),
+			},
+		},
+	})
+
+	require.Equal(t, []string{
+		http.MethodPost + " " + failedID.String(),
+		http.MethodDelete + " " + failedID.String(),
+		http.MethodPost + " " + replacementID.String(),
+		http.MethodDelete + " " + replacementID.String(),
+	}, mutations)
 }
 
 func TestClusterResourceIntegration(t *testing.T) {

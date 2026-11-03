@@ -16,15 +16,30 @@ import (
 // waitCondition return nil if it is satisfied.
 type waitCondition func(management.Cluster) error
 
+// clusterPollError classifies a Management API transport failure during a wait.
+// Context cancellation stops immediately. Other transport errors are retried
+// until the wait timeout.
+func clusterPollError(ctx context.Context, id management.ClusterID, err error) *retry.RetryError {
+	ferr := fmt.Errorf("failed to get cluster %s: %w", id, err)
+	if ctx.Err() != nil {
+		return retry.NonRetryableError(ferr)
+	}
+
+	return retry.RetryableError(ferr)
+}
+
 func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
 	result := management.Cluster{}
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		cluster, err := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
-		if err != nil { // Not status code OK does not get here, not retrying for that reason.
-			ferr := fmt.Errorf("failed to get cluster %s: %w", id, err)
-
-			return retry.NonRetryableError(ferr)
+		if err != nil {
+			// Status codes are handled below. A reset, DNS failure, or client
+			// timeout is retried until the wait times out. Create stores the
+			// cluster before this wait, so one blip must not fail it and taint
+			// a cluster that is still provisioning. Context cancellation stops
+			// the wait so Terraform can shut the plugin down.
+			return clusterPollError(ctx, id, err)
 		}
 
 		if code := cluster.StatusCode(); code != http.StatusOK {
@@ -34,7 +49,8 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 		}
 
 		if util.Deref(cluster.JSON200.State) == management.ClusterStateFAILED {
-			err := fmt.Errorf("cluster %s failed; %s", util.Deref(cluster.JSON200.ClusterID), config.ContactSupportErrorDetail)
+			err := fmt.Errorf("cluster %s failed; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it; %s",
+				util.Deref(cluster.JSON200.ClusterID), config.ContactSupportErrorDetail)
 
 			return retry.NonRetryableError(err)
 		}
@@ -121,4 +137,48 @@ func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
 		)
 	}
+}
+
+// waitConditionSettled holds while the cluster is changing state, for example
+// while a suspend, resume, or scale that timed out earlier is still running.
+func waitConditionSettled() waitCondition {
+	return func(c management.Cluster) error {
+		if state := util.Deref(c.State); !isSettledClusterState(state) {
+			return fmt.Errorf("cluster %s state is %s, but should be %s or %s",
+				util.Deref(c.ClusterID), state, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED)
+		}
+
+		return nil
+	}
+}
+
+// waitTerminated polls until the Management API reports the cluster as TERMINATED
+// or no longer returns it.
+func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration) *util.SummaryWithDetailError {
+	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
+		cluster, err := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
+		if err != nil {
+			return clusterPollError(ctx, id, err)
+		}
+
+		switch code := cluster.StatusCode(); {
+		case code == http.StatusNotFound:
+			return nil
+		case code != http.StatusOK:
+			return retry.RetryableError(fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code)))
+		}
+
+		if state := util.Deref(cluster.JSON200.State); state != management.ClusterStateTERMINATED {
+			return retry.RetryableError(fmt.Errorf("cluster %s state is %s, but should be %s", id, state, management.ClusterStateTERMINATED))
+		}
+
+		return nil
+	}); err != nil {
+		return &util.SummaryWithDetailError{
+			Summary: fmt.Sprintf("Failed to wait for cluster %s to terminate", id),
+			Detail:  fmt.Sprintf("The delete request was accepted, but the cluster is not terminated yet: %s", err.Error()),
+		}
+	}
+
+	return nil
 }

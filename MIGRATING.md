@@ -10,7 +10,7 @@ This adopts the deployment that is already running. It does not create a second 
 
 `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning. The data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` do the same.
 
-These resources and data sources are removed in v0.3.0, the first release on or after April 30, 2027. New configurations use `singlestoredb_cluster`.
+These resources and data sources are removed in v1.0.0, the first release on or after April 30, 2027. New configurations use `singlestoredb_cluster`.
 
 ## Before you edit configuration
 

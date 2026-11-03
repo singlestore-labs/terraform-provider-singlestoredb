@@ -166,10 +166,61 @@ func TestSuspendAndResumeCluster(t *testing.T) {
 
 		return false
 	})
-	_, err = suspend(t.Context(), failed, suspended)
+	_, err = suspend(t.Context(), failed, suspended, lifecycleCluster(t))
 	require.NotNil(t, err)
-	_, err = resume(t.Context(), failed, active)
+	suspendedCluster := lifecycleCluster(t)
+	suspendedCluster.State = utilPtr(management.ClusterStateSUSPENDED)
+	_, err = resume(t.Context(), failed, active, suspendedCluster)
 	require.NotNil(t, err)
+}
+
+func TestSuspendAfterEarlierSuspendFinished(t *testing.T) {
+	active := readyClusterPlan()
+	suspended := active
+	suspended.Suspended = types.BoolValue(true)
+
+	// The earlier suspend timed out but has finished since. No second POST is sent.
+	client := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateSUSPENDED, nil)
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, active, suspended)
+	require.Nil(t, err)
+	require.True(t, got.Suspended.ValueBool())
+}
+
+func TestApplyWaitsForPendingCluster(t *testing.T) {
+	active := readyClusterPlan()
+	suspended := active
+	suspended.Suspended = types.BoolValue(true)
+
+	gets := 0
+	suspendCalled := false
+	client := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateSUSPENDED, func(w http.ResponseWriter, r *http.Request) bool {
+		switch {
+		case r.Method == http.MethodGet && !suspendCalled:
+			gets++
+			cluster := lifecycleCluster(t)
+			if gets == 1 {
+				cluster.State = utilPtr(management.ClusterStatePENDING)
+			}
+			body, err := json.Marshal(cluster)
+			require.NoError(t, err)
+			_, err = w.Write(body)
+			require.NoError(t, err)
+
+			return true
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/suspend"):
+			require.Greater(t, gets, 1, "suspend must wait until the cluster leaves PENDING")
+			suspendCalled = true
+			writeClusterAction(t, w, lifecycleCluster(t).ClusterID)
+
+			return true
+		}
+
+		return false
+	})
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, active, suspended)
+	require.Nil(t, err)
+	require.True(t, suspendCalled)
+	require.True(t, got.Suspended.ValueBool())
 }
 
 func readyClusterPlan() clusterResourceModel {
