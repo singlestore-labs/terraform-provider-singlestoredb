@@ -46,8 +46,8 @@ const (
 	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
 	// RegionsDataSourceDeprecationMessage is shown when singlestoredb_regions is used.
-	// v0.3.0, the first release on or after April 30, 2027, removes the data source.
-	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v0.3.0, the first release on or after April 30, 2027."
+	// v1.0.0, the first release on or after April 30, 2027, removes the data source.
+	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

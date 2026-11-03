@@ -4,7 +4,7 @@
 
 ### Deprecated
 
-- `singlestoredb_regions` is deprecated and is removed in v0.3.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead, and set `cloud_provider` and `region_name` on `singlestoredb_workspace_group` instead of `region_id`. Until then, `singlestoredb_regions` keeps reading the v1 Management API and returns `regions[*].id` as before (#146).
+- `singlestoredb_regions` is deprecated and is removed in v1.0.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead, and set `cloud_provider` and `region_name` on `singlestoredb_workspace_group` instead of `region_id`.
 
 ### Fixed
 
