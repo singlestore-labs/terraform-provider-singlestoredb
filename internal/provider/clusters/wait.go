@@ -28,8 +28,14 @@ func clusterPollError(ctx context.Context, id management.ClusterID, err error) *
 	return retry.RetryableError(ferr)
 }
 
+// clusterNotFoundThreshold is how many consecutive 404 responses a wait tolerates.
+// A cluster can be briefly missing right after create, but a cluster deleted
+// mid-wait must fail fast instead of polling until the full timeout.
+const clusterNotFoundThreshold = 5
+
 func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
 	result := management.Cluster{}
+	notFound := 0
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		cluster, err := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
@@ -44,9 +50,18 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 
 		if code := cluster.StatusCode(); code != http.StatusOK {
 			err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
+			if code == http.StatusNotFound {
+				notFound++
+				if notFound >= clusterNotFoundThreshold {
+					return retry.NonRetryableError(fmt.Errorf("%w; it may have been deleted outside Terraform", err))
+				}
+			} else {
+				notFound = 0
+			}
 
 			return retry.RetryableError(err)
 		}
+		notFound = 0
 
 		if util.Deref(cluster.JSON200.State) == management.ClusterStateFAILED {
 			err := fmt.Errorf("cluster %s failed; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it; %s",

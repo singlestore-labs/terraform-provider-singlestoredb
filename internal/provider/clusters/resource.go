@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
@@ -186,8 +186,11 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"suspended": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The status of the cluster. If true, the cluster is suspended.",
-				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. Must be false or omitted on create.",
+				PlanModifiers: []planmodifier.Bool{
+					// An omitted value is unknown; keep the refreshed status so plans show no diff.
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"kai": schema.BoolAttribute{
 				Optional:            true,
@@ -307,7 +310,8 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Attributes: map[string]schema.Attribute{
 					"suspend_after_seconds": schema.Float32Attribute{
 						Optional:            true,
-						MarkdownDescription: "When to suspend the cluster, according to the suspend type chosen.",
+						MarkdownDescription: "When to suspend the cluster, according to the suspend type chosen. Must be a whole number of seconds.",
+						Validators:          []validator.Float32{wholeNumberValidator{}},
 					},
 					"suspend_type": schema.StringAttribute{
 						Optional:            true,
@@ -373,7 +377,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	projectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+	projectID, err := util.ResolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString(), "cluster")
 	if err != nil {
 		resp.Diagnostics.AddError(err.Summary, err.Detail)
 
@@ -460,13 +464,9 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	id, perr := uuid.Parse(state.ID.ValueString())
+	id, perr := parseClusterID(state.ID.ValueString())
 	if perr != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root(config.IDAttribute),
-			"Invalid cluster ID",
-			fmt.Sprintf("The cluster ID %q is not a valid UUID: %s", state.ID.ValueString(), perr),
-		)
+		resp.Diagnostics.AddAttributeError(path.Root(config.IDAttribute), perr.Summary, perr.Detail)
 
 		return
 	}
@@ -612,7 +612,13 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	id := uuid.MustParse(state.ID.ValueString())
+	id, perr := parseClusterID(state.ID.ValueString())
+	if perr != nil {
+		resp.Diagnostics.AddAttributeError(path.Root(config.IDAttribute), perr.Summary, perr.Detail)
+
+		return
+	}
+
 	clusterDeleteResponse, err := r.DeleteV2ClustersClusterIDWithResponse(ctx, id)
 	if serr := util.StatusOK(clusterDeleteResponse, err, util.ReturnNilOnNotFound); serr != nil {
 		resp.Diagnostics.AddError(serr.Summary, serr.Detail)
@@ -625,6 +631,20 @@ func (r *clusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if werr := waitTerminated(ctx, r.ClientWithResponsesInterface, id, config.ClusterDeletionTimeout); werr != nil {
 		resp.Diagnostics.AddError(werr.Summary, werr.Detail)
 	}
+}
+
+// parseClusterID parses a cluster ID from state without panicking on a bad value,
+// for example after a manual state edit.
+func parseClusterID(value string) (uuid.UUID, *util.SummaryWithDetailError) {
+	id, err := uuid.Parse(value)
+	if err != nil {
+		return uuid.UUID{}, &util.SummaryWithDetailError{
+			Summary: "Invalid cluster ID",
+			Detail:  fmt.Sprintf("The cluster ID %q is not a valid UUID: %s", value, err),
+		}
+	}
+
+	return id, nil
 }
 
 // Configure adds the provider configured client to the resource.
@@ -660,13 +680,24 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	// UseStateForUnknown skips a null state, so an unconfigured project_name whose
-	// name could not be resolved on read stays unknown. Keep it null.
-	if plan.ProjectName.IsUnknown() && state.ProjectName.IsNull() {
-		plan.ProjectName = types.StringNull()
-		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("project_name"), types.StringNull())...)
-		if resp.Diagnostics.HasError() {
-			return
+	// UseStateForUnknown skips a null state, so an unconfigured immutable attribute
+	// the API did not return (project_name not resolved, provider or region omitted)
+	// stays unknown and would look like a change. Keep it null.
+	for _, a := range []struct {
+		name  string
+		plan  *types.String
+		state types.String
+	}{
+		{"project_name", &plan.ProjectName, state.ProjectName},
+		{"cloud_provider", &plan.CloudProvider, state.CloudProvider},
+		{"region_name", &plan.RegionName, state.RegionName},
+	} {
+		if a.plan.IsUnknown() && a.state.IsNull() {
+			*a.plan = types.StringNull()
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(a.name), types.StringNull())...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
 		}
 	}
 
@@ -815,6 +846,11 @@ func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWit
 }
 
 func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {
+	// A value only known at apply time may still satisfy the rule.
+	if plan.AutoSuspend.SuspendType.IsUnknown() || plan.AutoSuspend.SuspendAfterSeconds.IsUnknown() {
+		return nil
+	}
+
 	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED))) &&
 		!plan.AutoSuspend.SuspendAfterSeconds.IsNull() {
 		return &util.SummaryWithDetailError{
@@ -827,6 +863,11 @@ func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDeta
 }
 
 func validateAutoScaleConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {
+	// A value only known at apply time may still satisfy the rule.
+	if plan.AutoScale.Sensitivity.IsUnknown() || plan.AutoScale.MaxScaleFactor.IsUnknown() {
+		return nil
+	}
+
 	if !plan.AutoScale.Sensitivity.Equal(types.StringValue(string(management.NORMAL))) &&
 		plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
 		return &util.SummaryWithDetailError{
@@ -1196,52 +1237,6 @@ func errorFromDiagnostics(diags diag.Diagnostics) *util.SummaryWithDetailError {
 		Summary: errs[0].Summary(),
 		Detail:  strings.Join(details, "\n"),
 	}
-}
-
-func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
-	if serr := util.StatusOK(projectsResponse, err); serr != nil {
-		return nil, serr
-	}
-
-	var sameNameProjectIDs []uuid.UUID
-	availableProjectNamesSet := make(map[string]struct{})
-	for _, project := range util.Deref(projectsResponse.JSON200) {
-		if project.Name == projectName {
-			sameNameProjectIDs = append(sameNameProjectIDs, project.ProjectID)
-		}
-
-		availableProjectNamesSet[project.Name] = struct{}{}
-	}
-
-	availableProjectNames := make([]string, 0, len(availableProjectNamesSet))
-	for name := range availableProjectNamesSet {
-		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
-	}
-
-	if len(sameNameProjectIDs) == 0 {
-		availableProjectsDetail := ""
-		if len(availableProjectNames) > 0 {
-			sort.Strings(availableProjectNames)
-			availableProjectsDetail = fmt.Sprintf("Available projects: %s.", strings.Join(availableProjectNames, ", "))
-		}
-
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Project not found",
-			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name. %s", projectName, availableProjectsDetail),
-		}
-	}
-
-	if len(sameNameProjectIDs) > 1 {
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Multiple projects found",
-			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for cluster assignment.", projectName),
-		}
-	}
-
-	projectID := sameNameProjectIDs[0]
-
-	return &projectID, nil
 }
 
 func resolveProjectNameByID(ctx context.Context, c management.ClientWithResponsesInterface, projectID uuid.UUID) (types.String, *util.SummaryWithDetailError) {

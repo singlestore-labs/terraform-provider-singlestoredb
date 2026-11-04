@@ -3,7 +3,6 @@ package clusters
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -21,7 +20,12 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 
 	// Refresh keeps PENDING clusters in state. Wait until a suspend, resume, or
 	// scale already in progress finishes before sending another change.
-	current, werr := waitSettled(ctx, c, uuid.MustParse(plan.ID.ValueString()))
+	id, perr := parseClusterID(plan.ID.ValueString())
+	if perr != nil {
+		return clusterResourceModel{}, perr
+	}
+
+	current, werr := waitSettled(ctx, c, id)
 	if werr != nil {
 		return clusterResourceModel{}, werr
 	}
@@ -31,13 +35,13 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	adminPassword := storedAdminPassword(state.AdminPassword, plan.AdminPassword)
 	if suspendedChanged {
 		if plan.Suspended.ValueBool() {
-			return suspend(ctx, c, plan, current, adminPassword)
+			return suspend(ctx, c, id, plan, current, adminPassword)
 		}
 
-		return resume(ctx, c, plan, current, adminPassword)
+		return resume(ctx, c, id, plan, current, adminPassword)
 	}
 
-	return applyClusterConfiguration(ctx, c, state, plan)
+	return applyClusterConfiguration(ctx, c, id, current, state, plan)
 }
 
 func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID) (management.Cluster, *util.SummaryWithDetailError) {
@@ -77,21 +81,16 @@ func equalFirewallRangesLists(a, b []types.String) bool {
 	return true
 }
 
-func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) { //nolint:cyclop
-	id := uuid.MustParse(plan.ID.ValueString())
+// applyClusterConfiguration patches the cluster. current is the settled cluster
+// read just before; project_name cannot change, so its project ID is reused
+// instead of resolving the name again.
+func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, current management.Cluster, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) { //nolint:cyclop
 	desiredSize := plan.Size.ValueString()
-
-	// project_name cannot change, so reuse the cluster's project ID instead of
-	// resolving the name again.
-	current, gerr := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
-	if serr := util.StatusOK(current, gerr); serr != nil {
-		return clusterResourceModel{}, serr
-	}
 
 	firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 	patchBody := management.Cluster{
 		Name:      plan.Name.ValueString(),
-		ProjectID: current.JSON200.ProjectID,
+		ProjectID: current.ProjectID,
 	}
 
 	if !plan.Size.Equal(state.Size) || !plan.CacheConfig.Equal(state.CacheConfig) || !plan.ScaleFactor.Equal(state.ScaleFactor) {
@@ -156,13 +155,12 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	return clusterModelFromAPI(cluster, storedAdminPassword(state.AdminPassword, plan.AdminPassword), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
+func resume(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateACTIVE {
 		// A resume that timed out earlier has finished since.
 		return clusterModelFromAPI(current, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	}
 
-	id := uuid.MustParse(plan.ID.ValueString())
 	clusterResumeResponse, err := c.PostV2ClustersClusterIDResumeWithResponse(ctx, id, management.ClusterResume{})
 	if serr := util.StatusOK(clusterResumeResponse, err); serr != nil {
 		return clusterResourceModel{}, serr
@@ -178,13 +176,12 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 	return clusterModelFromAPI(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
+func suspend(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
 		// A suspend that timed out earlier has finished since.
 		return clusterModelFromAPI(current, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	}
 
-	id := uuid.MustParse(plan.ID.ValueString())
 	clusterSuspendResponse, err := c.PostV2ClustersClusterIDSuspendWithResponse(ctx, id)
 	if serr := util.StatusOK(clusterSuspendResponse, err); serr != nil {
 		return clusterResourceModel{}, serr

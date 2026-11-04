@@ -67,7 +67,7 @@ output "group_id" {
 - `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
 - `region_name` (String) The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
-- `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended.
+- `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. Must be false or omitted on create.
 - `update_window` (Attributes) Details of the scheduled update window for the cluster. This is the time period during which any updates to the cluster will occur. (see [below for nested schema](#nestedatt--update_window))
 
 ### Read-Only
@@ -93,7 +93,7 @@ Optional:
 
 Optional:
 
-- `suspend_after_seconds` (Number) When to suspend the cluster, according to the suspend type chosen.
+- `suspend_after_seconds` (Number) When to suspend the cluster, according to the suspend type chosen. Must be a whole number of seconds.
 - `suspend_type` (String) The auto suspend mode for the cluster can have the values `IDLE`, `SCHEDULED`, or `DISABLED`. Default is `DISABLED`.
 
 

@@ -55,13 +55,25 @@ func TestApplyClusterConfiguration(t *testing.T) {
 		return true
 	})
 
-	got, err := applyClusterConfiguration(t.Context(), client, state, plan)
+	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
 	require.Nil(t, err)
 	require.Equal(t, plan.DeploymentType.ValueString(), got.DeploymentType.ValueString())
 	require.Equal(t, plan.ExpiresAt.ValueString(), got.ExpiresAt.ValueString())
 	require.Equal(t, management.ClusterDeploymentTypeNONPRODUCTION, *patched.DeploymentType)
 	require.Equal(t, plan.ExpiresAt.ValueString(), *patched.ExpiresAt)
 	require.Equal(t, []string{"10.0.0.0/8"}, *patched.FirewallRanges)
+	require.Equal(t, cluster.ProjectID, patched.ProjectID, "PATCH reuses the project ID of the settled cluster")
+}
+
+func TestApplyClusterConfigOrToggleSuspensionInvalidID(t *testing.T) {
+	state := readyClusterPlan()
+	state.ID = types.StringValue("not-a-uuid")
+	plan := state
+	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+
+	_, err := applyClusterConfigOrToggleSuspension(t.Context(), nil, state, plan)
+	require.NotNil(t, err)
+	require.Equal(t, "Invalid cluster ID", err.Summary)
 }
 
 func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
@@ -79,7 +91,7 @@ func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
-	_, err := applyClusterConfiguration(ctx, client, state, plan)
+	_, err := applyClusterConfiguration(ctx, client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
 	require.NotNil(t, err)
 	require.Contains(t, err.Detail, "not ready")
 }
@@ -88,18 +100,6 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state
 	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
-
-	getFailed := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
-		if r.Method == http.MethodGet {
-			w.WriteHeader(http.StatusInternalServerError)
-
-			return true
-		}
-
-		return false
-	})
-	_, err := applyClusterConfiguration(t.Context(), getFailed, state, plan)
-	require.NotNil(t, err)
 
 	patchFailed := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
 		if r.Method == http.MethodPatch {
@@ -112,7 +112,7 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 
 		return false
 	})
-	_, err = applyClusterConfiguration(t.Context(), patchFailed, state, plan)
+	_, err := applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
 	require.NotNil(t, err)
 
 	badWindow, diags := types.ObjectValue(
@@ -122,7 +122,7 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 	require.False(t, diags.HasError())
 	windowPlan := plan
 	windowPlan.UpdateWindow = badWindow
-	_, err = applyClusterConfiguration(t.Context(), patchFailed, state, windowPlan)
+	_, err = applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, windowPlan)
 	require.NotNil(t, err)
 }
 
@@ -166,11 +166,11 @@ func TestSuspendAndResumeCluster(t *testing.T) {
 
 		return false
 	})
-	_, err = suspend(t.Context(), failed, suspended, lifecycleCluster(t), "")
+	_, err = suspend(t.Context(), failed, lifecycleClusterUUID, suspended, lifecycleCluster(t), "")
 	require.NotNil(t, err)
 	suspendedCluster := lifecycleCluster(t)
 	suspendedCluster.State = utilPtr(management.ClusterStateSUSPENDED)
-	_, err = resume(t.Context(), failed, active, suspendedCluster, "")
+	_, err = resume(t.Context(), failed, lifecycleClusterUUID, active, suspendedCluster, "")
 	require.NotNil(t, err)
 }
 
@@ -192,7 +192,7 @@ func TestUpdateKeepsStoredAdminPasswordWhenPlanIsUnknown(t *testing.T) {
 		return true
 	})
 
-	got, err := applyClusterConfiguration(t.Context(), client, state, plan)
+	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
 	require.Nil(t, err)
 	require.Equal(t, "stored-secret", got.AdminPassword.ValueString())
 
@@ -291,6 +291,8 @@ func readyClusterPlan() clusterResourceModel {
 }
 
 const lifecycleClusterID = "3ca3d359-021d-45ed-86cb-38b8d14ac507"
+
+var lifecycleClusterUUID = uuid.MustParse(lifecycleClusterID)
 
 func lifecycleCluster(t *testing.T) management.Cluster {
 	t.Helper()

@@ -107,10 +107,6 @@ func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.St
 	return types.StringValue(string(wgs))
 }
 
-func ClusterStateStringValue(cs management.ClusterState) types.String {
-	return types.StringValue(string(cs))
-}
-
 // MaybeExpiresAtStringValue maps an API expiresAt value onto Terraform state.
 // /v2/clusters often returns Go's default time.String() format; normalize to RFC3339.
 func MaybeExpiresAtStringValue(s *string) types.String {

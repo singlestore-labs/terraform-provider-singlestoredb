@@ -66,6 +66,20 @@ func TestWaitClusterFailures(t *testing.T) {
 	_, serr = wait(t.Context(), statusClient, clusterID, time.Millisecond, waitConditionState(management.ClusterStateACTIVE))
 	require.NotNil(t, serr)
 
+	notFoundGets := 0
+	notFoundServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		notFoundGets++
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(notFoundServer.Close)
+	notFoundClient, err := management.NewClientWithResponses(notFoundServer.URL)
+	require.NoError(t, err)
+	// A deleted cluster fails the wait after a few polls instead of at the timeout.
+	_, serr = wait(t.Context(), notFoundClient, clusterID, time.Hour, waitConditionState(management.ClusterStateACTIVE))
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "deleted outside Terraform")
+	require.Equal(t, clusterNotFoundThreshold, notFoundGets)
+
 	down, err := management.NewClientWithResponses("http://127.0.0.1:1")
 	require.NoError(t, err)
 	_, serr = wait(t.Context(), down, clusterID, time.Second, waitConditionState(management.ClusterStateACTIVE))

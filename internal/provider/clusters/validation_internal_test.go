@@ -276,6 +276,33 @@ func TestClusterPlanConverters(t *testing.T) {
 	badSuspend.AutoSuspend = &badSuspendConfig
 	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Float32Value(10)
 	require.Equal(t, "Invalid auto_suspend configuration.", validateSuspendedAndConfigChanges(&state, &badSuspend).Summary)
+
+	// Values known only at apply time may still be valid, so plan-time checks skip them.
+	unknownSensitivity := validClusterPlan()
+	unknownScaleConfig := *unknownSensitivity.AutoScale
+	unknownSensitivity.AutoScale = &unknownScaleConfig
+	unknownSensitivity.AutoScale.Sensitivity = types.StringUnknown()
+	require.Nil(t, validateAutoScaleConfig(&unknownSensitivity))
+
+	unknownSeconds := validClusterPlan()
+	unknownSuspendConfig := *unknownSeconds.AutoSuspend
+	unknownSeconds.AutoSuspend = &unknownSuspendConfig
+	unknownSeconds.AutoSuspend.SuspendAfterSeconds = types.Float32Unknown()
+	require.Nil(t, validateAutoSuspendConfig(&unknownSeconds))
+}
+
+func TestWholeNumberValidator(t *testing.T) {
+	ctx := t.Context()
+	v := wholeNumberValidator{}
+	for _, value := range []types.Float32{types.Float32Null(), types.Float32Unknown(), types.Float32Value(3600)} {
+		var resp validator.Float32Response
+		v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: value}, &resp)
+		require.False(t, resp.Diagnostics.HasError(), "value %s", value)
+	}
+
+	var resp validator.Float32Response
+	v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: types.Float32Value(3600.5)}, &resp)
+	require.True(t, resp.Diagnostics.HasError())
 }
 
 func TestFirewallRangeHelpers(t *testing.T) {
@@ -315,19 +342,19 @@ func TestResolveProjectLookup(t *testing.T) {
 	client := projectClient(t, http.StatusOK, []management.Project{
 		{Name: "Other", ProjectID: otherID},
 	})
-	_, err := resolveProjectIDByName(t.Context(), client, "Standard Project")
+	_, err := util.ResolveProjectIDByName(t.Context(), client, "Standard Project", "cluster")
 	require.NotNil(t, err)
 	require.Contains(t, err.Detail, "Other")
 
 	empty := projectClient(t, http.StatusOK, []management.Project{})
-	_, err = resolveProjectIDByName(t.Context(), empty, "Standard Project")
+	_, err = util.ResolveProjectIDByName(t.Context(), empty, "Standard Project", "cluster")
 	require.Equal(t, "Project not found", err.Summary)
 
 	dup := projectClient(t, http.StatusOK, []management.Project{
 		{Name: "Standard Project", ProjectID: projectID},
 		{Name: "Standard Project", ProjectID: otherID},
 	})
-	_, err = resolveProjectIDByName(t.Context(), dup, "Standard Project")
+	_, err = util.ResolveProjectIDByName(t.Context(), dup, "Standard Project", "cluster")
 	require.Equal(t, "Multiple projects found", err.Summary)
 
 	okClient := projectClient(t, http.StatusOK, []management.Project{
@@ -341,7 +368,7 @@ func TestResolveProjectLookup(t *testing.T) {
 	require.True(t, missing.IsNull())
 
 	failed := projectClient(t, http.StatusInternalServerError, nil)
-	_, err = resolveProjectIDByName(t.Context(), failed, "Standard Project")
+	_, err = util.ResolveProjectIDByName(t.Context(), failed, "Standard Project", "cluster")
 	require.NotNil(t, err)
 	_, err = resolveProjectNameByID(t.Context(), failed, projectID)
 	require.NotNil(t, err)

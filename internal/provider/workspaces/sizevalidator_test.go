@@ -61,4 +61,7 @@ func TestValidateTerraformSize(t *testing.T) {
 
 	err = workspaces.ValidateTerraformSize("2")
 	require.Error(t, err)
+
+	require.Error(t, workspaces.ValidateTerraformSize("S--1"), "signs are not digits")
+	require.Error(t, workspaces.ValidateTerraformSize("S-+2"), "signs are not digits")
 }
