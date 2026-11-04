@@ -65,6 +65,35 @@ func TestWithWorkspaceGroupResource(t *testing.T) {
 	require.Contains(t, uc, id)
 }
 
+func TestWithIntegrationSafeguards(t *testing.T) {
+	expiresAt := "2026-10-28T14:00:00Z"
+	original := testutil.UpdatableConfig(`
+resource "singlestoredb_workspace_group" "example" {
+  name       = "group"
+  expires_at = "2222-01-01T00:00:00Z"
+}
+
+resource "singlestoredb_workspace" "this" {
+  name = "workspace-1"
+}
+
+resource "singlestoredb_workspace" "reader" {
+  name = "terraform-workspace-reader"
+}
+`)
+
+	got := original.WithIntegrationSafeguards(expiresAt).String()
+
+	require.NotContains(t, got, "2222-01-01T00:00:00Z")
+	require.NotContains(t, got, config.TestWorkspaceName)
+	require.Contains(t, got, config.TestReaderWorkspaceName)
+	require.Contains(t, got, expiresAt)
+	require.Contains(t, got, config.TestClusterName)
+
+	untouched := testutil.UpdatableConfig(`data "singlestoredb_regions" "all" {}`)
+	require.Equal(t, untouched.String(), untouched.WithIntegrationSafeguards(expiresAt).String())
+}
+
 func TestWithAPIKey(t *testing.T) {
 	uc := testutil.UpdatableConfig(`provider "singlestoredb" {
 	}`)
