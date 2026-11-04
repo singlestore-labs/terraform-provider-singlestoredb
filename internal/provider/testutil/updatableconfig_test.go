@@ -78,7 +78,7 @@ resource "singlestoredb_workspace" "this" {
 }
 
 resource "singlestoredb_workspace" "reader" {
-  name = "terraform-cluster-reader"
+  name = "terraform-workspace-reader"
 }
 `)
 

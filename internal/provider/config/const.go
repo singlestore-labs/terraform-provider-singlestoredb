@@ -86,7 +86,7 @@ const (
 	// Leftover CI deployments are then identifiable, and they do not keep the example name workspace-1.
 	TestClusterName = "terraform-cluster"
 	// TestReaderWorkspaceName is the reader workspace name in the workspace_with_sql example.
-	TestReaderWorkspaceName = "terraform-cluster-reader"
+	TestReaderWorkspaceName = "terraform-workspace-reader"
 	// TestInitialWorkspaceSize is the default workspace size in examples.
 	TestInitialWorkspaceSize = "S-00"
 	// TestMaxIdleConns is the maximum number of idle connections for a SQL mysql connection for tests.
