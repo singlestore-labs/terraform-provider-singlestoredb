@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/clusters"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
@@ -127,6 +128,10 @@ func (uc UpdatableConfig) WithSQLExecuteResource(sqlExecuteName string) Attribut
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(sql.ResourceName), sqlExecuteName})
 }
 
+func (uc UpdatableConfig) WithClusterResource(clusterName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(clusters.ResourceName), clusterName})
+}
+
 func (uc UpdatableConfig) WithSQLQueryDataSource(sqlQueryName string) AttributeSetter {
 	return withAttribute(uc, config.DataSourceTypeName, []string{dataSourceTypeName(sql.DataSourceName), sqlQueryName})
 }
@@ -165,10 +170,11 @@ func (uc UpdatableConfig) String() string {
 	return string(uc)
 }
 
-// WithIntegrationSafeguards sets a short expires_at on every workspace group in
-// the config. Workspaces that still use the example name workspace-1 are renamed
-// to config.TestClusterName so a failed run cannot leave a deployment with that
-// example name. Configs that create neither are returned unchanged.
+// WithIntegrationSafeguards sets a short expires_at on every workspace group and
+// cluster in the config, and names those clusters config.TestClusterName.
+// Workspaces that still use the example name workspace-1 are renamed the same way,
+// because the clusters API reports that workspace name.
+// Configs that create neither are returned unchanged.
 func (uc UpdatableConfig) WithIntegrationSafeguards(expiresAt string) UpdatableConfig {
 	file, diags := hclwrite.ParseConfig([]byte(uc), "", hcl.InitialPos)
 	if diags.HasErrors() {
@@ -201,6 +207,11 @@ func applyIntegrationSafeguard(block *hclwrite.Block, expires, clusterName cty.V
 	switch labels[0] {
 	case resourceTypeName(workspacegroups.ResourceName):
 		_ = block.Body().SetAttributeValue("expires_at", expires)
+
+		return true
+	case resourceTypeName(clusters.ResourceName):
+		_ = block.Body().SetAttributeValue("expires_at", expires)
+		_ = block.Body().SetAttributeValue("name", clusterName)
 
 		return true
 	case resourceTypeName(workspaces.ResourceName):

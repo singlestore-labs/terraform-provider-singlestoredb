@@ -366,3 +366,29 @@ func TestValidateUserEmailDiff_InvalidEmailIgnoredWhenInB(t *testing.T) {
 	require.False(t, diags.HasError())
 	require.Equal(t, []string{testEmail1}, got)
 }
+
+func TestNormalizeTimestampString(t *testing.T) {
+	require.Equal(t, "not-a-time", util.NormalizeTimestampString("not-a-time"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00Z"))
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.NormalizeTimestampString("2222-01-01T00:00:00.123Z"))
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.NormalizeTimestampString("2222-01-01 00:00:00.123 +0000 UTC"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01 00:00:00 +0000 UTC"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01"))
+	require.True(t, util.MaybeExpiresAtStringValue(nil).IsNull())
+
+	fractional := "2222-01-01T00:00:00.123Z"
+	require.Equal(t, fractional, util.MaybeExpiresAtStringValue(&fractional).ValueString())
+}
+
+func TestExpiresAtStateValueKeepsConfiguredSpelling(t *testing.T) {
+	api := "2222-01-01 00:00:00.123 +0000 UTC"
+	configured := types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.Equal(t, configured, util.ExpiresAtStateValue(&api, configured))
+
+	other := "2223-01-01T00:00:00Z"
+	require.Equal(t, other, util.ExpiresAtStateValue(&other, configured).ValueString())
+	require.True(t, util.ExpiresAtStateValue(nil, configured).IsNull())
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringNull()).ValueString())
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringUnknown()).ValueString())
+}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -233,7 +231,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
 	var projectID *uuid.UUID
 	if projectNameIsSet {
-		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+		resolvedProjectID, err := util.ResolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString(), "workspace group")
 		if err != nil {
 			resp.Diagnostics.AddError(err.Summary, err.Detail)
 
@@ -651,52 +649,6 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	}
 
 	return result
-}
-
-func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
-	if serr := util.StatusOK(projectsResponse, err); serr != nil {
-		return nil, serr
-	}
-
-	var sameNameProjectIDs []uuid.UUID
-	availableProjectNamesSet := make(map[string]struct{})
-	for _, project := range util.Deref(projectsResponse.JSON200) {
-		if project.Name == projectName {
-			sameNameProjectIDs = append(sameNameProjectIDs, project.ProjectID)
-		}
-
-		availableProjectNamesSet[project.Name] = struct{}{}
-	}
-
-	availableProjectNames := make([]string, 0, len(availableProjectNamesSet))
-	for name := range availableProjectNamesSet {
-		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
-	}
-
-	if len(sameNameProjectIDs) == 0 {
-		availableProjectsDetail := ""
-		if len(availableProjectNames) > 0 {
-			sort.Strings(availableProjectNames)
-			availableProjectsDetail = fmt.Sprintf("Available projects: %s.", strings.Join(availableProjectNames, ", "))
-		}
-
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Project not found",
-			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name. %s", projectName, availableProjectsDetail),
-		}
-	}
-
-	if len(sameNameProjectIDs) > 1 {
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Multiple projects found",
-			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for workspace group assignment.", projectName),
-		}
-	}
-
-	projectID := sameNameProjectIDs[0]
-
-	return &projectID, nil
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {
