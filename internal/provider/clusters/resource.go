@@ -201,6 +201,11 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "The admin SQL user password for the cluster. Management API generates this password, and Terraform reads it back from the API on create and on every refresh. " +
 					"Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. " +
 					"Read this attribute from state or from a sensitive output.",
+				PlanModifiers: []planmodifier.String{
+					// Computed-only, so a plan would otherwise leave this unknown and
+					// an update would store an empty password over the one already in state.
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"firewall_ranges": schema.ListAttribute{
 				ElementType:         types.StringType,

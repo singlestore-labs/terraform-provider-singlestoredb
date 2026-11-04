@@ -166,12 +166,72 @@ func TestSuspendAndResumeCluster(t *testing.T) {
 
 		return false
 	})
-	_, err = suspend(t.Context(), failed, suspended, lifecycleCluster(t))
+	_, err = suspend(t.Context(), failed, suspended, lifecycleCluster(t), "")
 	require.NotNil(t, err)
 	suspendedCluster := lifecycleCluster(t)
 	suspendedCluster.State = utilPtr(management.ClusterStateSUSPENDED)
-	_, err = resume(t.Context(), failed, active, suspendedCluster)
+	_, err = resume(t.Context(), failed, active, suspendedCluster, "")
 	require.NotNil(t, err)
+}
+
+func TestUpdateKeepsStoredAdminPasswordWhenPlanIsUnknown(t *testing.T) {
+	state := readyClusterPlan()
+	state.AdminPassword = types.StringValue("stored-secret")
+	plan := state
+	plan.AdminPassword = types.StringUnknown()
+	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+
+	cluster := lifecycleCluster(t)
+	cluster.DeploymentType = utilPtr(management.ClusterDeploymentTypeNONPRODUCTION)
+	client := clusterLifecycleClient(t, cluster, management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Method != http.MethodPatch {
+			return false
+		}
+		writeClusterAction(t, w, cluster.ClusterID)
+
+		return true
+	})
+
+	got, err := applyClusterConfiguration(t.Context(), client, state, plan)
+	require.Nil(t, err)
+	require.Equal(t, "stored-secret", got.AdminPassword.ValueString())
+
+	suspended := state
+	suspended.AdminPassword = types.StringUnknown()
+	suspended.Suspended = types.BoolValue(true)
+	suspendClient := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateSUSPENDED, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/suspend") {
+			writeClusterAction(t, w, lifecycleCluster(t).ClusterID)
+
+			return true
+		}
+
+		return false
+	})
+	got, err = applyClusterConfigOrToggleSuspension(t.Context(), suspendClient, state, suspended)
+	require.Nil(t, err)
+	require.Equal(t, "stored-secret", got.AdminPassword.ValueString())
+
+	resumed := suspended
+	resumed.Suspended = types.BoolValue(false)
+	resumeClient := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/resume") {
+			writeClusterAction(t, w, lifecycleCluster(t).ClusterID)
+
+			return true
+		}
+
+		return false
+	})
+	got, err = applyClusterConfigOrToggleSuspension(t.Context(), resumeClient, suspendedState(state), resumed)
+	require.Nil(t, err)
+	require.Equal(t, "stored-secret", got.AdminPassword.ValueString())
+}
+
+func suspendedState(state clusterResourceModel) clusterResourceModel {
+	state.Suspended = types.BoolValue(true)
+
+	return state
 }
 
 func TestSuspendAfterEarlierSuspendFinished(t *testing.T) {

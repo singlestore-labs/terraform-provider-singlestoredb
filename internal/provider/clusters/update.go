@@ -26,12 +26,15 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 		return clusterResourceModel{}, werr
 	}
 
+	// admin_password is computed-only. Keep the password already in state when the
+	// plan value is still unknown, including before UseStateForUnknown runs.
+	adminPassword := storedAdminPassword(state.AdminPassword, plan.AdminPassword)
 	if suspendedChanged {
 		if plan.Suspended.ValueBool() {
-			return suspend(ctx, c, plan, current)
+			return suspend(ctx, c, plan, current, adminPassword)
 		}
 
-		return resume(ctx, c, plan, current)
+		return resume(ctx, c, plan, current, adminPassword)
 	}
 
 	return applyClusterConfiguration(ctx, c, state, plan)
@@ -150,13 +153,13 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	return clusterModelFromAPI(cluster, storedAdminPassword(state.AdminPassword, plan.AdminPassword), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster) (clusterResourceModel, *util.SummaryWithDetailError) {
+func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateACTIVE {
 		// A resume that timed out earlier has finished since.
-		return clusterModelFromAPI(current, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+		return clusterModelFromAPI(current, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	}
 
 	id := uuid.MustParse(plan.ID.ValueString())
@@ -172,13 +175,13 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, plan
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	return clusterModelFromAPI(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
-func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster) (clusterResourceModel, *util.SummaryWithDetailError) {
+func suspend(ctx context.Context, c management.ClientWithResponsesInterface, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
 		// A suspend that timed out earlier has finished since.
-		return clusterModelFromAPI(current, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+		return clusterModelFromAPI(current, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	}
 
 	id := uuid.MustParse(plan.ID.ValueString())
@@ -194,7 +197,28 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, pla
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, plan.AdminPassword.ValueString(), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	return clusterModelFromAPI(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+}
+
+// storedAdminPassword is the password to keep when Management API omits adminPassword.
+// A computed-only plan leaves the attribute unknown, and ValueString on that value is empty.
+func storedAdminPassword(state, plan types.String) string {
+	if knownPassword, ok := knownAdminPassword(plan); ok {
+		return knownPassword
+	}
+	if knownPassword, ok := knownAdminPassword(state); ok {
+		return knownPassword
+	}
+
+	return ""
+}
+
+func knownAdminPassword(value types.String) (string, bool) {
+	if value.IsNull() || value.IsUnknown() || value.ValueString() == "" {
+		return "", false
+	}
+
+	return value.ValueString(), true
 }
 
 func clusterModelFromAPI(cluster management.Cluster, adminPassword string, firewallRanges []types.String, projectName, expiresAt types.String) (clusterResourceModel, *util.SummaryWithDetailError) {
