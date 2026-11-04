@@ -94,7 +94,8 @@ resource "singlestoredb_cluster" "this" {
 	require.NotContains(t, got, config.TestWorkspaceName)
 	require.Contains(t, got, config.TestReaderWorkspaceName)
 	require.Contains(t, got, expiresAt)
-	require.Equal(t, 2, strings.Count(got, config.TestClusterName))
+	// Match the quoted HCL name so terraform-cluster-reader is not another hit.
+	require.Equal(t, 2, strings.Count(got, `"`+config.TestClusterName+`"`))
 
 	untouched := testutil.UpdatableConfig(`data "singlestoredb_regions" "all" {}`)
 	require.Equal(t, untouched.String(), untouched.WithIntegrationSafeguards(expiresAt).String())
