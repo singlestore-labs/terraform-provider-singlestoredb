@@ -9,7 +9,11 @@
 ### Added
 
 - `singlestoredb_cluster` resource. Use the cluster resource for new deployments.
-- `singlestoredb_cluster.admin_password` is read-only. Management API generates the password and ignores a caller-supplied value. Terraform stores the password the API returns. Setting a password is unavailable and may be added in a later release.
+- `singlestoredb_cluster.admin_password` is read-only. Management API generates the password and returns it only on create. Terraform stores that value, and refresh keeps it. Setting a password is unavailable and may be added in a later release.
+
+### Changed
+
+- `singlestoredb_cluster` requires `cloud_provider` and `region_name`. `expires_at` can be set only on create. `update_window` is read-only until `POST` and `PATCH /v2/clusters` apply those fields.
 
 ### Fixed
 

@@ -113,6 +113,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		patchBody.FirewallRanges = &firewallRanges
 	}
 
+	// TODO: reached once validateModifyExpiresAt allows changes, when PATCH /v2/clusters applies expiresAt.
 	if !plan.ExpiresAt.Equal(state.ExpiresAt) {
 		patchBody.ExpiresAt = util.MaybeString(plan.ExpiresAt)
 	}
@@ -131,6 +132,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		patchBody.AutoSuspend = toAutoSuspend(plan)
 	}
 
+	// TODO: reached once update_window is Optional, when POST and PATCH /v2/clusters apply updateWindow.
 	if !plan.UpdateWindow.Equal(state.UpdateWindow) {
 		updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
 		if err := errorFromDiagnostics(updateWindowDiags); err != nil {

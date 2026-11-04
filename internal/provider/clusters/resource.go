@@ -158,8 +158,10 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"group_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The unique identifier of the workspace group that contains the cluster.",
+				Computed: true,
+				MarkdownDescription: "The unique identifier of the workspace group that contains the cluster. " +
+					"Destroy terminates this group when the cluster is its only workspace. " +
+					"If another workspace uses the group, destroy terminates only this cluster and leaves the group in place.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -201,7 +203,8 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"admin_password": schema.StringAttribute{
 				Computed:  true,
 				Sensitive: true,
-				MarkdownDescription: "The admin SQL user password for the cluster. Management API generates this password, and Terraform reads it back from the API on create and on every refresh. " +
+				MarkdownDescription: "The admin SQL user password for the cluster. Management API generates this password and returns it only on create. " +
+					"Terraform stores that value. Later responses omit the password, and refresh keeps the password already in state. " +
 					"Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. " +
 					"Read this attribute from state or from a sensitive output.",
 				PlanModifiers: []planmodifier.String{
@@ -216,28 +219,24 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use [\"0.0.0.0/0\"]. Note that updates to firewall ranges may take a brief moment to become effective.",
 			},
 			"expires_at": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: `The expiration timestamp of the cluster. If not specified, the cluster never expires. Upon expiration, the cluster is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".`,
-				Validators:          []validator.String{util.NewTimeValidator()},
+				Optional: true,
+				MarkdownDescription: "The expiration timestamp applied when the cluster is created. If unset, the cluster does not expire. " +
+					"Upon expiration, the cluster is terminated and all its data is lost. " +
+					"Set the expiration time as an RFC3339 UTC timestamp, for example \"2221-01-02T15:04:05Z\". " +
+					"Changing expires_at after creation is unavailable: PATCH /v2/clusters ignores expiresAt. " +
+					"After import, set expires_at to the cluster's current expiration.",
+				Validators: []validator.String{util.NewTimeValidator()},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				MarkdownDescription: "The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'. If omitted together with region_name, the Management API picks the region and this attribute reports its provider.",
+				Required:            true,
+				MarkdownDescription: "The cloud provider of the cluster. Possible values are 'AWS', 'GCP', and 'Azure'. POST /v2/clusters requires this together with region_name. It cannot be changed after the cluster is created.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(management.CloudProviderAWS), string(management.CloudProviderGCP), string(management.CloudProviderAzure)),
 				},
 			},
 			"region_name": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-				MarkdownDescription: "The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.",
+				Required:            true,
+				MarkdownDescription: "The region code name of the cluster, for example us-east-1. POST /v2/clusters requires this together with cloud_provider. It cannot be changed after the cluster is created.",
 			},
 			"deployment_type": schema.StringAttribute{
 				Optional:            true,
@@ -324,10 +323,13 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
+			// TODO: make update_window Optional when POST and PATCH /v2/clusters apply updateWindow.
+			// Create already sends a configured window, and applyClusterConfiguration already sends a changed one.
 			"update_window": schema.SingleNestedAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Details of the scheduled update window for the cluster. This is the time period during which any updates to the cluster will occur.",
+				Computed: true,
+				MarkdownDescription: "The maintenance window the Management API assigned to the cluster. " +
+					"Configuring update_window is unavailable: POST and PATCH /v2/clusters ignore updateWindow. " +
+					"Terraform reports the window the API returns.",
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
 				},
@@ -680,17 +682,14 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	// UseStateForUnknown skips a null state, so an unconfigured immutable attribute
-	// the API did not return (project_name not resolved, provider or region omitted)
-	// stays unknown and would look like a change. Keep it null.
+	// UseStateForUnknown skips a null state, so an unconfigured project_name the API
+	// did not return stays unknown and would look like a change. Keep it null.
 	for _, a := range []struct {
 		name  string
 		plan  *types.String
 		state types.String
 	}{
 		{"project_name", &plan.ProjectName, state.ProjectName},
-		{"cloud_provider", &plan.CloudProvider, state.CloudProvider},
-		{"region_name", &plan.RegionName, state.RegionName},
 	} {
 		if a.plan.IsUnknown() && a.state.IsNull() {
 			*a.plan = types.StringNull()
@@ -781,12 +780,10 @@ func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetai
 		}
 	}
 
-	providerSet := util.IsConfiguredString(plan.CloudProvider)
-	regionSet := util.IsConfiguredString(plan.RegionName)
-	if providerSet != regionSet {
+	if !util.IsConfiguredString(plan.CloudProvider) || !util.IsConfiguredString(plan.RegionName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid region configuration",
-			Detail:  "Both 'cloud_provider' and 'region_name' must be provided together, or both omitted.",
+			Detail:  "Both cloud_provider and region_name are required. POST /v2/clusters rejects a cluster that omits either one.",
 		}
 	}
 
@@ -830,19 +827,28 @@ func validateModifyProjectName(plan, state *clusterResourceModel) *util.SummaryW
 	return nil
 }
 
-// validateModifyExpiresAt rejects removing expires_at. The PATCH body omits a null
-// expiresAt, so the API would keep the old expiration.
+// TODO: allow expires_at to change when PATCH /v2/clusters applies expiresAt.
+// applyClusterConfiguration already sends a changed expiresAt.
 func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
-	if plan.ExpiresAt.IsNull() && !state.ExpiresAt.IsNull() {
-		return &util.SummaryWithDetailError{
-			Summary: "Cannot remove cluster expires_at",
-			Detail: fmt.Sprintf("Removing expires_at is not supported. The cluster still expires at %s. "+
-				"To keep that expiration, for example after terraform import, add expires_at = %q to the configuration. "+
-				"To change it, set expires_at to a new timestamp.", state.ExpiresAt.ValueString(), state.ExpiresAt.ValueString()),
-		}
+	if plan.ExpiresAt.IsUnknown() || state.ExpiresAt.IsUnknown() || plan.ExpiresAt.Equal(state.ExpiresAt) {
+		return nil
 	}
 
-	return nil
+	current := "unset"
+	if util.IsConfiguredString(state.ExpiresAt) {
+		current = state.ExpiresAt.ValueString()
+	}
+	configured := "unset"
+	if util.IsConfiguredString(plan.ExpiresAt) {
+		configured = plan.ExpiresAt.ValueString()
+	}
+
+	return &util.SummaryWithDetailError{
+		Summary: "Cannot change cluster expires_at",
+		Detail: fmt.Sprintf("The Management API applies expiresAt only when the cluster is created. "+
+			"Current value is %s, configured value is %s. "+
+			"Keep expires_at equal to the current value, including after import.", current, configured),
+	}
 }
 
 func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {

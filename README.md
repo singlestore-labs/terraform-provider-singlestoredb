@@ -106,11 +106,19 @@ To try this example, follow these steps:
 
 ### Cluster admin password
 
-Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. Terraform reads that generated password back from the API and stores it in `admin_password`.
+Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. The API returns the generated password only on create. Terraform stores that value, and refresh keeps it when later responses omit the password.
 
 Setting `admin_password` in configuration is unavailable. `terraform plan` fails with "Invalid Configuration for Read-Only Attribute" and asks you to remove that line. Choosing a password may be added in a later release.
 
 Read the password from state or from the sensitive output in the example above. The `singlestoredb_workspace_group` resource still accepts `admin_password` until that resource is removed.
+
+## Known limitations
+
+`singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider.
+
+- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. After import, set `expires_at` to the current expiration.
+- `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
+- Creating a cluster with `auto_scale.max_scale_factor` `4` enables only the 4x step. Updating autoscale to `4` enables both 2x and 4x. The provider sends `4` in both cases. The create path in the API drops the 2x step.
 
 ## Documentation
 

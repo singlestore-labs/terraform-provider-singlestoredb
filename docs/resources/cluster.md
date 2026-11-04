@@ -49,8 +49,10 @@ output "group_id" {
 
 ### Required
 
+- `cloud_provider` (String) The cloud provider of the cluster. Possible values are 'AWS', 'GCP', and 'Azure'. POST /v2/clusters requires this together with region_name. It cannot be changed after the cluster is created.
 - `firewall_ranges` (List of String) List of allowed CIDR ranges. An empty list blocks all inbound requests. For unrestricted traffic, use ["0.0.0.0/0"]. Note that updates to firewall ranges may take a brief moment to become effective.
 - `name` (String) Name of the cluster. Must be between 1 and 32 characters.
+- `region_name` (String) The region code name of the cluster, for example us-east-1. POST /v2/clusters requires this together with cloud_provider. It cannot be changed after the cluster is created.
 - `size` (String) The size of the cluster, specified in workspace size notation (S-00, S-0, S-1, S-2).
 
 ### Optional
@@ -58,26 +60,24 @@ output "group_id" {
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the cluster. (see [below for nested schema](#nestedatt--auto_scale))
 - `auto_suspend` (Attributes) Auto suspend settings for the cluster. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the cluster. It can have one of the following values: 1, 2, or 4. Default is 1.
-- `cloud_provider` (String) The name of the cloud provider used to resolve region. Possible values are 'AWS', 'GCP', and 'Azure'. If omitted together with region_name, the Management API picks the region and this attribute reports its provider.
 - `deployment_type` (String) The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
-- `expires_at` (String) The expiration timestamp of the cluster. If not specified, the cluster never expires. Upon expiration, the cluster is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, e.g., "2221-01-02T15:04:05Z".
+- `expires_at` (String) The expiration timestamp applied when the cluster is created. If unset, the cluster does not expire. Upon expiration, the cluster is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, for example "2221-01-02T15:04:05Z". Changing expires_at after creation is unavailable: PATCH /v2/clusters ignores expiresAt. After import, set expires_at to the cluster's current expiration.
 - `kai` (Boolean) Whether SingleStore Kai (MongoDB compatibility) is enabled for the cluster.
 - `multi_az` (Boolean) Enables deployment across multiple availability zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
 - `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
-- `region_name` (String) The region code name used to resolve region. If omitted together with cloud_provider, the Management API picks the region and this attribute reports its code name.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
 - `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. Must be false or omitted on create.
-- `update_window` (Attributes) Details of the scheduled update window for the cluster. This is the time period during which any updates to the cluster will occur. (see [below for nested schema](#nestedatt--update_window))
 
 ### Read-Only
 
-- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. Management API generates this password, and Terraform reads it back from the API on create and on every refresh. Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. Read this attribute from state or from a sensitive output.
+- `admin_password` (String, Sensitive) The admin SQL user password for the cluster. Management API generates this password and returns it only on create. Terraform stores that value. Later responses omit the password, and refresh keeps the password already in state. Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. Read this attribute from state or from a sensitive output.
 - `created_at` (String) The timestamp when the cluster was created.
 - `endpoint` (String) The endpoint used to connect to the cluster.
-- `group_id` (String) The unique identifier of the workspace group that contains the cluster.
+- `group_id` (String) The unique identifier of the workspace group that contains the cluster. Destroy terminates this group when the cluster is its only workspace. If another workspace uses the group, destroy terminates only this cluster and leaves the group in place.
 - `id` (String) The unique identifier of the cluster.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
+- `update_window` (Attributes) The maintenance window the Management API assigned to the cluster. Configuring update_window is unavailable: POST and PATCH /v2/clusters ignore updateWindow. Terraform reports the window the API returns. (see [below for nested schema](#nestedatt--update_window))
 
 <a id="nestedatt--auto_scale"></a>
 ### Nested Schema for `auto_scale`

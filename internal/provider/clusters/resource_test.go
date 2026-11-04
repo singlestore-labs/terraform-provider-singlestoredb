@@ -84,8 +84,6 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		State: &statePending,
 	}
 
-	updatedExpiresAt := time.Now().UTC().Add(time.Hour * 2).Format(time.RFC3339)
-
 	regionsv2Handler := func(w http.ResponseWriter, r *http.Request) bool {
 		if r.URL.Path != pathV2Regions || r.Method != http.MethodGet {
 			return false
@@ -189,7 +187,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 		var input management.Cluster
 		require.NoError(t, json.Unmarshal(body, &input))
 		require.Nil(t, input.AdminPassword, "update must not send adminPassword")
-		require.Equal(t, updatedExpiresAt, util.Deref(input.ExpiresAt))
+		require.Nil(t, input.ExpiresAt, "update must not send expiresAt while PATCH /v2/clusters ignores it")
 		require.Equal(t, updatedFirewallRanges, util.Deref(input.FirewallRanges))
 		require.Equal(t, string(updatedDeploymentType), string(util.Deref(input.DeploymentType)))
 		require.NotNil(t, input.SizeConfig)
@@ -204,7 +202,6 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 			},
 		))
 		require.NoError(t, err)
-		cluster.ExpiresAt = &updatedExpiresAt
 		cluster.FirewallRanges = &updatedFirewallRanges
 		cluster.DeploymentType = &updatedDeploymentType
 		cluster.SizeConfig.Size = &updatedClusterSize
@@ -287,7 +284,6 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 			},
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
-					WithClusterResource("this")("expires_at", cty.StringVal(updatedExpiresAt)).
 					WithClusterResource("this")("size", cty.StringVal(updatedClusterSize)).
 					WithClusterResource("this")("deployment_type", cty.StringVal(string(updatedDeploymentType))).
 					WithClusterResource("this")("firewall_ranges", cty.ListVal([]cty.Value{
@@ -298,7 +294,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", config.IDAttribute, clusterID.String()),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "admin_password", config.TestInitialAdminPassword),
-					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "expires_at", updatedExpiresAt),
+					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "expires_at", config.TestInitialWorkspaceGroupExpiresAt),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "size", updatedClusterSize),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "deployment_type", string(updatedDeploymentType)),
 					resource.TestCheckResourceAttr("singlestoredb_cluster.this", "firewall_ranges.#", "2"),
@@ -561,6 +557,122 @@ func TestImmutableClusterAttributes(t *testing.T) {
 					WithClusterResource("this")("name", cty.StringVal("renamed")).
 					String(),
 				ExpectError: regexp.MustCompile("Cannot update cluster name"),
+			},
+		},
+	})
+}
+
+func TestClusterExpiresAtIsCreateOnly(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
+	projectID := uuid.New()
+	projectName := config.TestInitialProjectName
+	createdAt := time.Now().UTC()
+	stateActive := management.ClusterStateACTIVE
+	provider := management.CloudProviderAWS
+	region := testRegion
+	size := config.TestInitialWorkspaceSize
+	sf := float32(1)
+	cc := float32(1)
+
+	cluster := management.Cluster{
+		ClusterID:      &clusterID,
+		CreatedAt:      &createdAt,
+		DeploymentType: &defaultDeploymentType,
+		ExpiresAt:      util.Ptr(config.TestInitialWorkspaceGroupExpiresAt),
+		FirewallRanges: util.Ptr([]string{config.TestInitialFirewallRange}),
+		GroupID:        &groupID,
+		Name:           "cluster-1",
+		ProjectID:      projectID,
+		Provider:       &provider,
+		Region:         &region,
+		SizeConfig:     &management.SizeConfig{Size: &size, ScaleFactor: &sf, CacheConfig: &cc},
+		State:          &stateActive,
+	}
+
+	readOnly := func(w http.ResponseWriter, r *http.Request) bool {
+		switch {
+		case r.URL.Path == pathV2Projects && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON([]management.Project{{Name: projectName, ProjectID: projectID}}))
+			require.NoError(t, err)
+
+			return true
+		case r.URL.Path == strings.Join([]string{pathV2Clusters, clusterID.String()}, "/") && r.Method == http.MethodGet:
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(cluster))
+			require.NoError(t, err)
+
+			return true
+		default:
+			return false
+		}
+	}
+	writeHandlers := []func(w http.ResponseWriter, r *http.Request){
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+				GroupID   uuid.UUID `json:"groupID"`   //nolint:tagliatelle // API uses groupID.
+			}{ClusterID: clusterID, GroupID: groupID}))
+			require.NoError(t, err)
+		},
+		func(w http.ResponseWriter, _ *http.Request) {
+			cluster.State = util.Ptr(management.ClusterStateTERMINATED)
+			w.Header().Add("Content-Type", "json")
+			_, err := w.Write(testutil.MustJSON(struct {
+				ClusterID uuid.UUID `json:"clusterID"` //nolint:tagliatelle // API uses clusterID.
+			}{ClusterID: clusterID}))
+			require.NoError(t, err)
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if readOnly(w, r) {
+			return
+		}
+		require.NotEmpty(t, writeHandlers)
+		h := writeHandlers[0]
+		h(w, r)
+		writeHandlers = writeHandlers[1:]
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{Config: examples.ClustersResource},
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("expires_at", cty.StringVal("2222-06-01T00:00:00Z")).
+					String(),
+				ExpectError: regexp.MustCompile("Cannot change cluster expires_at"),
+			},
+		},
+	})
+}
+
+func TestClusterUpdateWindowIsNotConfigurable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Failf(t, "unexpected request", "%s %s", r.Method, r.URL.Path)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("update_window", cty.ObjectVal(map[string]cty.Value{
+					"day":  cty.NumberIntVal(config.TestInitialUpdateWindowDay),
+					"hour": cty.NumberIntVal(config.TestInitialUpdateWindowHour),
+				})).
+					String(),
+				ExpectError: regexp.MustCompile(`Invalid Configuration for Read-Only Attribute`),
 			},
 		},
 	})

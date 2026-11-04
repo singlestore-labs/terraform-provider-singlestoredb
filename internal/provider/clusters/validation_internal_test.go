@@ -48,6 +48,11 @@ func TestValidateCreateParameters(t *testing.T) {
 	regionOnly.CloudProvider = types.StringNull()
 	require.Equal(t, "Invalid region configuration", validateCreateParameters(&regionOnly).Summary)
 
+	omittedRegion := plan
+	omittedRegion.CloudProvider = types.StringNull()
+	omittedRegion.RegionName = types.StringNull()
+	require.Contains(t, validateCreateParameters(&omittedRegion).Detail, "POST /v2/clusters")
+
 	preview := plan
 	preview.OptInPreviewFeature = types.BoolValue(true)
 	require.Contains(t, validateCreateParameters(&preview).Detail, "NON-PRODUCTION")
@@ -88,10 +93,13 @@ func TestValidateModifyExpiresAt(t *testing.T) {
 
 	state.ExpiresAt = types.StringValue("2221-01-02T15:04:05Z")
 	plan.ExpiresAt = types.StringValue("2222-01-02T15:04:05Z")
-	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+	require.Equal(t, "Cannot change cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
 
 	plan.ExpiresAt = types.StringNull()
-	require.Equal(t, "Cannot remove cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
+	require.Equal(t, "Cannot change cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
+
+	plan.ExpiresAt = state.ExpiresAt
+	require.Nil(t, validateModifyExpiresAt(&plan, &state))
 }
 
 func TestValidateSuspendedAndConfigChanges(t *testing.T) {
