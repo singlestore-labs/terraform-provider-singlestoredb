@@ -9,6 +9,7 @@
 ### Added
 
 - `singlestoredb_cluster` resource. Use the cluster resource for new deployments.
+- `singlestoredb_cluster` and `singlestoredb_clusters` data sources.
 - `singlestoredb_cluster.admin_password` is read-only. Management API generates the password and ignores a caller-supplied value. Terraform stores the password the API returns. Setting a password is unavailable and may be added in a later release.
 
 ### Fixed
