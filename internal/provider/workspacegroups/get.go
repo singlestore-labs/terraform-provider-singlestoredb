@@ -68,7 +68,8 @@ func (d *workspaceGroupsDataSourceGet) Metadata(_ context.Context, req datasourc
 // Schema defines the schema for the data source.
 func (d *workspaceGroupsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Retrieve a specific workspace group using its name or ID with this data source.",
+		DeprecationMessage:  config.WorkspaceDataSourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Retrieve a specific workspace group using its name or ID with this data source. " + config.WorkspaceDataSourceDeprecationMessage,
 		Attributes: newWorkspaceGroupDataSourceSchemaAttributes(workspaceGroupDataSourceSchemaConfig{
 			optionalWorkspaceGroupID:   true,
 			optionalName:               true,
