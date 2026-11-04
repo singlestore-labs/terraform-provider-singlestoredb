@@ -57,6 +57,25 @@ func TestWaitClusterFailures(t *testing.T) {
 	require.NotNil(t, serr)
 	require.Contains(t, serr.Detail, "failed")
 
+	terminatedGets := 0
+	terminated := management.ClusterStateTERMINATED
+	terminatedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		terminatedGets++
+		w.Header().Set("Content-Type", "application/json")
+		body, err := json.Marshal(management.Cluster{ClusterID: &clusterID, State: &terminated})
+		require.NoError(t, err)
+		_, err = w.Write(body)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(terminatedServer.Close)
+	terminatedClient, err := management.NewClientWithResponses(terminatedServer.URL)
+	require.NoError(t, err)
+	// A terminated cluster fails the wait on the first poll instead of at the timeout.
+	_, serr = wait(t.Context(), terminatedClient, clusterID, time.Hour, waitConditionState(management.ClusterStateACTIVE))
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "terminated")
+	require.Equal(t, 1, terminatedGets)
+
 	statusServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))

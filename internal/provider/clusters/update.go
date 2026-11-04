@@ -41,6 +41,13 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 		return resume(ctx, c, id, plan, current, adminPassword)
 	}
 
+	// Refresh keeps a PENDING cluster's previous suspended value, so the plan can
+	// still say active after the cluster finishes suspending. Reject that instead
+	// of patching and polling for ACTIVE until the update timeout.
+	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
+		return clusterResourceModel{}, suspendedConfigUpdateError()
+	}
+
 	return applyClusterConfiguration(ctx, c, id, current, state, plan)
 }
 
@@ -83,7 +90,8 @@ func equalFirewallRangesLists(a, b []types.String) bool {
 
 // applyClusterConfiguration patches the cluster. current is the settled cluster
 // read just before; project_name cannot change, so its project ID is reused
-// instead of resolving the name again.
+// instead of resolving the name again. The cluster must be ACTIVE: the wait
+// below requires ACTIVE, and a suspended cluster is rejected by the caller.
 func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, current management.Cluster, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) { //nolint:cyclop
 	desiredSize := plan.Size.ValueString()
 
@@ -195,6 +203,13 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, id 
 	}
 
 	return clusterModelFromAPI(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+}
+
+func suspendedConfigUpdateError() *util.SummaryWithDetailError {
+	return &util.SummaryWithDetailError{
+		Summary: "Cannot update the configuration for a suspended cluster.",
+		Detail:  "The cluster settled to SUSPENDED. Resume the cluster by setting suspended to false before updating the configuration.",
+	}
 }
 
 // storedAdminPassword is the password to keep when Management API omits adminPassword.

@@ -65,6 +65,35 @@ func TestApplyClusterConfiguration(t *testing.T) {
 	require.Equal(t, cluster.ProjectID, patched.ProjectID, "PATCH reuses the project ID of the settled cluster")
 }
 
+func TestConfigUpdateRejectsClusterThatSettledSuspended(t *testing.T) {
+	state := readyClusterPlan()
+	plan := state
+	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+
+	patches := 0
+	client := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateSUSPENDED, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Method == http.MethodPatch {
+			patches++
+			w.WriteHeader(http.StatusOK)
+
+			return true
+		}
+
+		return false
+	})
+
+	// The update timeout is hours long. A context deadline keeps this test short
+	// if the suspended cluster is patched and then polled for ACTIVE.
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	_, err := applyClusterConfigOrToggleSuspension(ctx, client, state, plan)
+	require.NotNil(t, err)
+	require.Equal(t, "Cannot update the configuration for a suspended cluster.", err.Summary)
+	require.Contains(t, err.Detail, "SUSPENDED")
+	require.Zero(t, patches)
+}
+
 func TestApplyClusterConfigOrToggleSuspensionInvalidID(t *testing.T) {
 	state := readyClusterPlan()
 	state.ID = types.StringValue("not-a-uuid")

@@ -63,10 +63,9 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 		}
 		notFound = 0
 
-		if util.Deref(cluster.JSON200.State) == management.ClusterStateFAILED {
-			err := fmt.Errorf("cluster %s failed; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it; %s",
-				util.Deref(cluster.JSON200.ClusterID), config.ContactSupportErrorDetail)
-
+		// FAILED and TERMINATED will not become ready. Stop instead of polling
+		// until the wait timeout after the cluster fails, expires, or is deleted.
+		if err := terminalClusterError(cluster.JSON200); err != nil {
 			return retry.NonRetryableError(err)
 		}
 
@@ -87,6 +86,21 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 	}
 
 	return result, nil
+}
+
+func terminalClusterError(cluster *management.Cluster) error {
+	id := util.Deref(cluster.ClusterID)
+	switch util.Deref(cluster.State) {
+	case management.ClusterStateFAILED:
+		return fmt.Errorf("cluster %s failed; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it; %s",
+			id, config.ContactSupportErrorDetail)
+	case management.ClusterStateTERMINATED:
+		return fmt.Errorf("cluster %s is terminated; it may have expired or been deleted outside Terraform; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it",
+			id)
+	case management.ClusterStateACTIVE, management.ClusterStatePENDING, management.ClusterStateSUSPENDED, management.ClusterStateUNKNOWN:
+	}
+
+	return nil
 }
 
 func waitConditionState(states ...management.ClusterState) func(management.Cluster) error {
