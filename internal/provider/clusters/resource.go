@@ -133,7 +133,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource. See MIGRATING.md in the provider repository.",
+		MarkdownDescription: "Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -717,7 +717,7 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	var state *clusterResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -725,6 +725,35 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() || plan == nil {
+		return
+	}
+
+	// Create has no prior state. Run the checks here so plan fails before apply.
+	// ValueBool is false for null and unknown, so an omitted or not-yet-known
+	// suspended value is left to Create.
+	if state == nil {
+		if plan.Suspended.ValueBool() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("suspended"),
+				"Cannot suspend a cluster during creation",
+				"Either set value to false or omit the field.",
+			)
+
+			return
+		}
+
+		// An omitted project_name is null in config and unknown in the plan.
+		var configProjectName types.String
+		diags = req.Config.GetAttribute(ctx, path.Root("project_name"), &configProjectName)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if err := validatePlannedCreate(plan, configProjectName); err != nil {
+			resp.Diagnostics.AddError(err.Summary, err.Detail)
+		}
+
 		return
 	}
 
@@ -824,6 +853,38 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
+}
+
+// validatePlannedCreate reports create-time errors whose inputs are already known.
+// Unknown inputs are replaced with stand-ins that pass validateCreateParameters;
+// Create repeats the checks once those values are known. The stand-ins are not
+// sent to the API.
+func validatePlannedCreate(plan *clusterResourceModel, configProjectName types.String) *util.SummaryWithDetailError {
+	checked := deferUnknownCreateInputs(*plan, configProjectName)
+
+	return validateCreateParameters(&checked)
+}
+
+func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName types.String) clusterResourceModel {
+	if configProjectName.IsNull() {
+		plan.ProjectName = types.StringNull()
+	} else if plan.ProjectName.IsUnknown() {
+		plan.ProjectName = types.StringValue("pending")
+	}
+
+	if plan.CloudProvider.IsUnknown() {
+		plan.CloudProvider = types.StringValue(string(management.CloudProviderAWS))
+	}
+	if plan.RegionName.IsUnknown() {
+		plan.RegionName = types.StringValue("us-east-1")
+	}
+	// ValueBool is false while opt-in is unknown. A known true paired with an
+	// unknown deployment type would otherwise look like a non-production mismatch.
+	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.IsUnknown() {
+		plan.OptInPreviewFeature = types.BoolValue(false)
+	}
+
+	return plan
 }
 
 func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetailError {

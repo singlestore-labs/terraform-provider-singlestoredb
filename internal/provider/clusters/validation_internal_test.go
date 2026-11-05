@@ -70,6 +70,47 @@ func TestValidateCreateParameters(t *testing.T) {
 	require.Equal(t, "Invalid auto_scale configuration.", validateCreateParameters(&badScale).Summary)
 }
 
+func TestValidatePlannedCreate(t *testing.T) {
+	plan := validClusterPlan()
+	require.Nil(t, validatePlannedCreate(&plan, plan.ProjectName))
+
+	require.Equal(t, "Missing project_name", validatePlannedCreate(&plan, types.StringNull()).Summary)
+
+	unknownProject := plan
+	unknownProject.ProjectName = types.StringUnknown()
+	require.Nil(t, validatePlannedCreate(&unknownProject, types.StringUnknown()))
+
+	unknownRegion := plan
+	unknownRegion.RegionName = types.StringUnknown()
+	require.Nil(t, validatePlannedCreate(&unknownRegion, plan.ProjectName))
+
+	missingRegion := plan
+	missingRegion.RegionName = types.StringNull()
+	require.Equal(t, "Invalid region configuration", validatePlannedCreate(&missingRegion, plan.ProjectName).Summary)
+
+	preview := plan
+	preview.OptInPreviewFeature = types.BoolValue(true)
+	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName).Detail, "NON-PRODUCTION")
+
+	preview.DeploymentType = types.StringUnknown()
+	require.Nil(t, validatePlannedCreate(&preview, plan.ProjectName))
+
+	// A known-bad scale still fails when another create input is not yet known.
+	badScale := plan
+	scale := *plan.AutoScale
+	badScale.AutoScale = &scale
+	badScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
+	badScale.ProjectName = types.StringUnknown()
+	require.Equal(t, "Invalid auto_scale configuration.", validatePlannedCreate(&badScale, plan.ProjectName).Summary)
+
+	unknownScale := plan
+	unknown := *plan.AutoScale
+	unknownScale.AutoScale = &unknown
+	unknownScale.AutoScale.MaxScaleFactor = types.Float32Unknown()
+	unknownScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
+	require.Nil(t, validatePlannedCreate(&unknownScale, plan.ProjectName))
+}
+
 func TestValidateModifyProjectName(t *testing.T) {
 	plan := validClusterPlan()
 	state := validClusterPlan()
