@@ -88,8 +88,20 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 	return result, nil
 }
 
+// isTerminatedCluster reports whether the cluster is terminated. Management API
+// reports a cluster terminated before its endpoint became ready as FAILED or
+// PENDING, but still sets terminatedAt, so terminatedAt is checked as well.
+func isTerminatedCluster(cluster management.Cluster) bool {
+	return util.Deref(cluster.State) == management.ClusterStateTERMINATED || cluster.TerminatedAt != nil
+}
+
 func terminalClusterError(cluster *management.Cluster) error {
 	id := util.Deref(cluster.ClusterID)
+	if cluster.TerminatedAt != nil {
+		return fmt.Errorf("cluster %s was terminated at %s; it may have expired or been deleted outside Terraform; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it",
+			id, cluster.TerminatedAt.UTC().Format(time.RFC3339))
+	}
+
 	switch util.Deref(cluster.State) {
 	case management.ClusterStateFAILED:
 		return fmt.Errorf("cluster %s failed; run terraform apply -replace=ADDRESS to replace it, or terraform destroy to remove it; %s",
@@ -151,6 +163,21 @@ func waitConditionTakesAtLeast(d time.Duration) func(management.Cluster) error {
 	}
 }
 
+// waitConditionAutoScale holds until the Management API reports the max scale factor.
+func waitConditionAutoScale(maxScaleFactor float32) waitCondition {
+	return func(c management.Cluster) error {
+		var got float32 = scaleX1
+		if c.AutoScale != nil && c.AutoScale.MaxScaleFactor != nil {
+			got = *c.AutoScale.MaxScaleFactor
+		}
+		if got != maxScaleFactor {
+			return fmt.Errorf("cluster %s max scale factor is %v, but should be %v", util.Deref(c.ClusterID), got, maxScaleFactor)
+		}
+
+		return nil
+	}
+}
+
 // waitConditionFirewallRanges holds until the Management API reports the configured
 // allowlist. Firewall changes are applied asynchronously, so for a while after a
 // create or update the API still reports the previous ranges.
@@ -181,8 +208,8 @@ func waitConditionSettled() waitCondition {
 	}
 }
 
-// waitTerminated polls until the Management API reports the cluster as TERMINATED
-// or no longer returns it.
+// waitTerminated polls until the Management API reports the cluster as terminated
+// (TERMINATED state or a terminatedAt timestamp) or no longer returns it.
 func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration) *util.SummaryWithDetailError {
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		cluster, err := c.GetV2ClustersClusterIDWithResponse(ctx, id, &management.GetV2ClustersClusterIDParams{})
@@ -197,7 +224,9 @@ func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterfa
 			return retry.RetryableError(fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code)))
 		}
 
-		if state := util.Deref(cluster.JSON200.State); state != management.ClusterStateTERMINATED {
+		if !isTerminatedCluster(*cluster.JSON200) {
+			state := util.Deref(cluster.JSON200.State)
+
 			return retry.RetryableError(fmt.Errorf("cluster %s state is %s, but should be %s", id, state, management.ClusterStateTERMINATED))
 		}
 

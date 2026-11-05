@@ -860,7 +860,12 @@ func TestClusterCreatePersistentFailureCanBeReplaced(t *testing.T) { //nolint:cy
 			}{ClusterID: id, GroupID: groupID}))
 			require.NoError(t, err)
 		case known && r.Method == http.MethodGet && deleted[*cluster.ClusterID]:
-			w.WriteHeader(http.StatusNotFound)
+			// Management API keeps reporting a cluster that never became ready as
+			// FAILED after delete, and only sets terminatedAt.
+			terminated := cluster
+			terminated.TerminatedAt = util.Ptr(time.Now())
+			_, err := w.Write(testutil.MustJSON(terminated))
+			require.NoError(t, err)
 		case known && r.Method == http.MethodGet:
 			_, err := w.Write(testutil.MustJSON(cluster))
 			require.NoError(t, err)

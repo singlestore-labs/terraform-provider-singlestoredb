@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -226,4 +227,129 @@ func TestClusterReadStateDiagnostics(t *testing.T) {
 		require.Equal(t, 1, diags.WarningsCount())
 	}
 	require.Contains(t, clusterReadStateDiagnostics(id, management.ClusterStateFAILED)[0].Detail(), "-replace")
+}
+
+func TestTerminatedAtIsTerminal(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	terminatedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	for _, state := range []management.ClusterState{management.ClusterStateFAILED, management.ClusterStatePENDING} {
+		t.Run(string(state), func(t *testing.T) {
+			gets := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				gets++
+				w.Header().Set("Content-Type", "application/json")
+				body, err := json.Marshal(management.Cluster{ClusterID: &clusterID, State: &state, TerminatedAt: &terminatedAt})
+				require.NoError(t, err)
+				_, err = w.Write(body)
+				require.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+			client, err := management.NewClientWithResponses(server.URL)
+			require.NoError(t, err)
+
+			require.True(t, isTerminatedCluster(management.Cluster{State: &state, TerminatedAt: &terminatedAt}))
+			require.False(t, isTerminatedCluster(management.Cluster{State: &state}))
+
+			// Delete finishes on the first poll instead of waiting for TERMINATED.
+			require.Nil(t, waitTerminated(t.Context(), client, clusterID, time.Hour))
+			require.Equal(t, 1, gets)
+
+			// Create and update waits stop instead of polling until the timeout.
+			_, serr := wait(t.Context(), client, clusterID, time.Hour, waitConditionState(management.ClusterStateACTIVE))
+			require.NotNil(t, serr)
+			require.Contains(t, serr.Detail, "terminated at 2026-01-02T03:04:05Z")
+			require.Equal(t, 2, gets)
+		})
+	}
+}
+
+func TestCreateDefersMaxScaleFactorFour(t *testing.T) {
+	plan := func(maxScaleFactor float32) clusterResourceModel {
+		return clusterResourceModel{AutoScale: &autoScaleResourceModel{
+			MaxScaleFactor: types.Float32Value(maxScaleFactor),
+			Sensitivity:    types.StringValue(string(management.HIGH)),
+		}}
+	}
+
+	require.Nil(t, toCreateAutoScale(plan(scaleX1)))
+	require.Nil(t, toCreateAutoScale(plan(scaleX4)), "POST stores only the 4x factor, so 4 is set with PATCH")
+	require.Equal(t, float32(scaleX2), *toCreateAutoScale(plan(scaleX2)).MaxScaleFactor)
+	require.True(t, createDefersAutoScale(plan(scaleX4)))
+	require.False(t, createDefersAutoScale(plan(scaleX2)))
+}
+
+func TestApplyAutoScaleAfterCreate(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	projectID := uuid.New()
+	active := management.ClusterStateACTIVE
+	plan := clusterResourceModel{AutoScale: &autoScaleResourceModel{
+		MaxScaleFactor: types.Float32Value(scaleX4),
+		Sensitivity:    types.StringValue(string(management.HIGH)),
+	}}
+	created := management.Cluster{ClusterID: &clusterID, Name: "cluster-1", ProjectID: projectID, State: &active}
+
+	t.Run("success", func(t *testing.T) {
+		var patched *management.Cluster
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == http.MethodPatch {
+				patched = &management.Cluster{}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(patched))
+				_, err := w.Write([]byte(`{}`))
+				require.NoError(t, err)
+
+				return
+			}
+			require.Equal(t, http.MethodGet, r.Method)
+			current := created
+			if patched != nil {
+				current.AutoScale = patched.AutoScale
+			}
+			body, err := json.Marshal(current)
+			require.NoError(t, err)
+			_, err = w.Write(body)
+			require.NoError(t, err)
+		}))
+		t.Cleanup(server.Close)
+		client, err := management.NewClientWithResponses(server.URL)
+		require.NoError(t, err)
+
+		var diags diag.Diagnostics
+		result := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		require.False(t, diags.HasError())
+		require.Empty(t, diags.Warnings())
+		require.NotNil(t, patched)
+		require.Equal(t, "cluster-1", patched.Name)
+		require.Equal(t, projectID, patched.ProjectID)
+		require.Equal(t, float32(scaleX4), *patched.AutoScale.MaxScaleFactor)
+		require.Equal(t, management.HIGH, *patched.AutoScale.Sensitivity)
+		require.Equal(t, float32(scaleX4), *result.AutoScale.MaxScaleFactor)
+	})
+
+	t.Run("not deferred", func(t *testing.T) {
+		client, err := management.NewClientWithResponses("http://127.0.0.1:1")
+		require.NoError(t, err)
+		notDeferred := clusterResourceModel{AutoScale: &autoScaleResourceModel{MaxScaleFactor: types.Float32Value(scaleX2)}}
+
+		var diags diag.Diagnostics
+		require.Equal(t, created, applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, notDeferred, &diags))
+		require.Empty(t, diags)
+	})
+
+	t.Run("failure is a warning", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		t.Cleanup(server.Close)
+		client, err := management.NewClientWithResponses(server.URL)
+		require.NoError(t, err)
+
+		var diags diag.Diagnostics
+		result := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		require.False(t, diags.HasError())
+		require.Len(t, diags.Warnings(), 1)
+		// State keeps the autoscale the API reports, so the next plan sets 4 again.
+		require.Nil(t, result.AutoScale)
+	})
 }

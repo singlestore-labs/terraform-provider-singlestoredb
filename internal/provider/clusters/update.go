@@ -55,7 +55,15 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 }
 
 func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID) (management.Cluster, *util.SummaryWithDetailError) {
-	return wait(ctx, c, id, config.ClusterUpdateTimeout, waitConditionSettled())
+	cluster, err := wait(ctx, c, id, config.ClusterUpdateTimeout, waitConditionSettled())
+	if err != nil {
+		// TODO: fail fast when GET /v2/clusters reports offline and impacted clusters
+		// separately from PENDING.
+		err.Detail += ". Management API also reports an offline or impacted cluster as PENDING, " +
+			"so a cluster that stays PENDING may need attention; check its status in the SingleStore Portal"
+	}
+
+	return cluster, err
 }
 
 func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:cyclop

@@ -84,7 +84,7 @@ output "group_id" {
 
 Optional:
 
-- `max_scale_factor` (Number) The maximum scale factor allowed for the cluster. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1.
+- `max_scale_factor` (Number) The maximum scale factor allowed for the cluster. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1. When this is 4 on create, Terraform creates the cluster without autoscale and then sets it with an update, because POST /v2/clusters does not enable the 2x step for 4. A cluster created at 4 by another tool may be unable to scale through 2x; GET does not report this, so set max_scale_factor to another value and back to 4 to repair it.
 - `sensitivity` (String) Specifies the sensitivity of the autoscale operation to changes in the workload. It can have the following values: `LOW`, `NORMAL`, or `HIGH`. Default is `NORMAL`.
 
 

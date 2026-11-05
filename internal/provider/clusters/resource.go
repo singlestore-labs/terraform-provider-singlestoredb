@@ -284,11 +284,13 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "Specifies the autoscale setting (scale factor) for the cluster.",
 				Attributes: map[string]schema.Attribute{
 					"max_scale_factor": schema.Float32Attribute{
-						Optional:            true,
-						Computed:            true,
-						Default:             float32default.StaticFloat32(scaleX1),
-						Validators:          []validator.Float32{float32validator.OneOf(scaleX1, scaleX2, scaleX4)},
-						MarkdownDescription: "The maximum scale factor allowed for the cluster. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1.",
+						Optional:   true,
+						Computed:   true,
+						Default:    float32default.StaticFloat32(scaleX1),
+						Validators: []validator.Float32{float32validator.OneOf(scaleX1, scaleX2, scaleX4)},
+						MarkdownDescription: "The maximum scale factor allowed for the cluster. It can have the following values: 1, 2, or 4. To disable autoscaling, set to 1. Default is 1. " +
+							"When this is 4 on create, Terraform creates the cluster without autoscale and then sets it with an update, because POST /v2/clusters does not enable the 2x step for 4. " +
+							"A cluster created at 4 by another tool may be unable to scale through 2x; GET does not report this, so set max_scale_factor to another value and back to 4 to repair it.",
 					},
 					"sensitivity": schema.StringAttribute{
 						Optional:            true,
@@ -447,6 +449,8 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	cluster = applyAutoScaleAfterCreate(ctx, r.ClientWithResponsesInterface, clusterID, cluster, plan, &resp.Diagnostics)
+
 	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
@@ -455,6 +459,52 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+// createDefersAutoScale reports whether create must leave autoScale out of
+// POST /v2/clusters and set it with PATCH once the cluster is active.
+// POST stores only the 4x factor for max_scale_factor 4, so the cluster cannot
+// autoscale through 2x. PATCH stores both the 2x and 4x factors.
+// TODO: send autoScale on create when POST /v2/clusters uses the same factors as PATCH.
+func createDefersAutoScale(plan clusterResourceModel) bool {
+	return plan.AutoScale != nil && plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX4))
+}
+
+// applyAutoScaleAfterCreate sets the configured autoscale on a newly active cluster
+// when createDefersAutoScale left it out of POST. A failure is a warning: the cluster is usable, and the returned cluster keeps
+// the autoscale the API reports, so the next plan proposes the change again.
+func applyAutoScaleAfterCreate(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, cluster management.Cluster, plan clusterResourceModel, diags *diag.Diagnostics) management.Cluster {
+	warn := func(err *util.SummaryWithDetailError) management.Cluster {
+		diags.AddWarning(
+			fmt.Sprintf("Cluster %s was created without the configured auto_scale", id),
+			fmt.Sprintf("Setting auto_scale after create failed. Run terraform apply again to set it. %s: %s", err.Summary, err.Detail),
+		)
+
+		return cluster
+	}
+
+	if !createDefersAutoScale(plan) {
+		return cluster
+	}
+
+	patchResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, management.Cluster{
+		Name:      cluster.Name,
+		ProjectID: cluster.ProjectID,
+		AutoScale: toAutoScale(plan),
+	})
+	if serr := util.StatusOK(patchResponse, err); serr != nil {
+		return warn(serr)
+	}
+
+	updated, werr := wait(ctx, c, id, config.ClusterUpdateTimeout,
+		waitConditionState(management.ClusterStateACTIVE),
+		waitConditionAutoScale(plan.AutoScale.MaxScaleFactor.ValueFloat32()),
+	)
+	if werr != nil {
+		return warn(werr)
+	}
+
+	return updated
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -487,7 +537,9 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	stateValue := util.Deref(cluster.JSON200.State)
-	if stateValue == management.ClusterStateTERMINATED {
+	if isTerminatedCluster(*cluster.JSON200) {
+		// A cluster terminated before its endpoint became ready is still reported as
+		// FAILED or PENDING, with terminatedAt set.
 		resp.State.RemoveResource(ctx)
 
 		return
@@ -549,7 +601,9 @@ func clusterReadStateDiagnostics(clusterID string, stateValue management.Cluster
 	case management.ClusterStatePENDING:
 		diags.AddWarning(
 			fmt.Sprintf("Cluster %s state is %s", clusterID, stateValue),
-			"The cluster is changing state. Updates wait until it is ACTIVE or SUSPENDED.",
+			"The cluster is changing state, or it is offline or impacted: Management API reports all of these as PENDING. "+
+				"Updates wait until it is ACTIVE or SUSPENDED. terraform destroy does not wait. "+
+				"If the cluster stays PENDING, check its status in the SingleStore Portal.",
 		)
 	case management.ClusterStateFAILED:
 		diags.AddWarning(
@@ -1086,7 +1140,7 @@ func normalizeCloudProvider(provider *management.CloudProvider) types.String {
 }
 
 func toCreateAutoScale(plan clusterResourceModel) *management.AutoScale {
-	if plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+	if plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) || createDefersAutoScale(plan) {
 		return nil
 	}
 
