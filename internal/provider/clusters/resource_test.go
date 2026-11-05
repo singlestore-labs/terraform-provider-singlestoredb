@@ -645,6 +645,14 @@ func TestClusterExpiresAtIsCreateOnly(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: examples.ClustersResource},
 			{
+				// Same instant as 2222-01-01T00:00:00Z. The plan must succeed and must
+				// not send expiresAt; state keeps the configured spelling.
+				Config: testutil.UpdatableConfig(examples.ClustersResource).
+					WithClusterResource("this")("expires_at", cty.StringVal("2222-01-01T00:00:00.000Z")).
+					String(),
+				Check: resource.TestCheckResourceAttr("singlestoredb_cluster.this", "expires_at", "2222-01-01T00:00:00.000Z"),
+			},
+			{
 				Config: testutil.UpdatableConfig(examples.ClustersResource).
 					WithClusterResource("this")("expires_at", cty.StringVal("2222-06-01T00:00:00Z")).
 					String(),

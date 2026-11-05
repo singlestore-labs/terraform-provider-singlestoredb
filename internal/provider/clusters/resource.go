@@ -224,7 +224,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					"Upon expiration, the cluster is terminated and all its data is lost. " +
 					"Set the expiration time as an RFC3339 UTC timestamp, for example \"2221-01-02T15:04:05Z\". " +
 					"Changing expires_at after creation is unavailable: PATCH /v2/clusters ignores expiresAt. " +
-					"After import, set expires_at to the cluster's current expiration.",
+					"After import, set expires_at to the cluster's current expiration. Equivalent RFC3339 spellings of that time are accepted.",
 				Validators: []validator.String{util.NewTimeValidator()},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -830,7 +830,9 @@ func validateModifyProjectName(plan, state *clusterResourceModel) *util.SummaryW
 // TODO: allow expires_at to change when PATCH /v2/clusters applies expiresAt.
 // applyClusterConfiguration already sends a changed expiresAt.
 func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
-	if plan.ExpiresAt.IsUnknown() || state.ExpiresAt.IsUnknown() || plan.ExpiresAt.Equal(state.ExpiresAt) {
+	// Compare instants. Import stores the normalized API timestamp, so the config
+	// may use another RFC3339 spelling of that same time.
+	if plan.ExpiresAt.IsUnknown() || state.ExpiresAt.IsUnknown() || util.SameTimestamp(plan.ExpiresAt, state.ExpiresAt) {
 		return nil
 	}
 

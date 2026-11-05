@@ -100,6 +100,16 @@ func TestValidateModifyExpiresAt(t *testing.T) {
 
 	plan.ExpiresAt = state.ExpiresAt
 	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+
+	// Import stores the normalized API timestamp. Another RFC3339 spelling of that
+	// instant is not a change, so it must not block a later update.
+	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
+	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+
+	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00Z")
+	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.000Z")
+	require.Nil(t, validateModifyExpiresAt(&plan, &state))
 }
 
 func TestValidateSuspendedAndConfigChanges(t *testing.T) {
@@ -204,6 +214,13 @@ func TestClusterModelHelpers(t *testing.T) {
 	state := validClusterPlan()
 	changed := validClusterPlan()
 	require.False(t, hasGeneralConfigChanged(state, changed))
+	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
+	changed.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.False(t, hasGeneralConfigChanged(state, changed))
+	changed.ExpiresAt = types.StringValue("2223-01-01T00:00:00Z")
+	require.True(t, hasGeneralConfigChanged(state, changed))
+	changed = validClusterPlan()
+	state = validClusterPlan()
 	changed.AdminPassword = types.StringValue("another-generated-pw")
 	require.False(t, hasGeneralConfigChanged(state, changed))
 	changed.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}

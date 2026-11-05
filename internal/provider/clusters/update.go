@@ -15,6 +15,9 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	// (e.g. unknown update_window) cannot divert the call to PATCH.
 	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
 	if !suspendedChanged && !hasGeneralConfigChanged(state, plan) {
+		// Adopt the configured spelling so an equivalent timestamp does not stay a diff.
+		state.ExpiresAt = expiresAtToStore(state.ExpiresAt, plan.ExpiresAt)
+
 		return state, nil
 	}
 
@@ -60,7 +63,7 @@ func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:c
 		!plan.CacheConfig.Equal(state.CacheConfig) ||
 		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
 		!equalFirewallRangesLists(state.FirewallRanges, plan.FirewallRanges) ||
-		!plan.ExpiresAt.Equal(state.ExpiresAt) ||
+		!util.SameTimestamp(plan.ExpiresAt, state.ExpiresAt) ||
 		!plan.DeploymentType.Equal(state.DeploymentType) ||
 		!plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) || !plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity) ||
 		!plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) || !plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds) ||
@@ -114,7 +117,8 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	}
 
 	// TODO: reached once validateModifyExpiresAt allows changes, when PATCH /v2/clusters applies expiresAt.
-	if !plan.ExpiresAt.Equal(state.ExpiresAt) {
+	// Equivalent RFC3339 spellings are the same expiration and are not sent.
+	if !util.SameTimestamp(plan.ExpiresAt, state.ExpiresAt) {
 		patchBody.ExpiresAt = util.MaybeString(plan.ExpiresAt)
 	}
 
@@ -225,6 +229,17 @@ func storedAdminPassword(state, plan types.String) string {
 	}
 
 	return ""
+}
+
+// expiresAtToStore keeps the configured spelling when it is the same instant
+// already stored. Import normalizes the API timestamp, so the config may use
+// another RFC3339 spelling of that time.
+func expiresAtToStore(state, plan types.String) types.String {
+	if util.SameTimestamp(state, plan) {
+		return plan
+	}
+
+	return state
 }
 
 func knownAdminPassword(value types.String) (string, bool) {

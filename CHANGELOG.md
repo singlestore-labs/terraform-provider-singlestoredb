@@ -13,7 +13,7 @@
 
 ### Changed
 
-- `singlestoredb_cluster` requires `cloud_provider` and `region_name`. `expires_at` can be set only on create. `update_window` is read-only until `POST` and `PATCH /v2/clusters` apply those fields.
+- `singlestoredb_cluster` requires `cloud_provider` and `region_name`. `expires_at` can be set only on create; equivalent RFC3339 spellings of the current expiration are not a change. `update_window` is read-only until `POST` and `PATCH /v2/clusters` apply those fields.
 
 ### Fixed
 

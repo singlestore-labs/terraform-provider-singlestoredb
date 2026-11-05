@@ -33,6 +33,54 @@ func TestApplyClusterConfigOrToggleSuspensionNoop(t *testing.T) {
 	require.Zero(t, calls)
 }
 
+func TestEquivalentExpiresAtDoesNotCallAPI(t *testing.T) {
+	state := readyClusterPlan()
+	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
+	plan := state
+	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
+
+	calls := 0
+	client := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateACTIVE, func(w http.ResponseWriter, _ *http.Request) bool {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+
+		return true
+	})
+
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, state, plan)
+	require.Nil(t, err)
+	require.Equal(t, plan.ExpiresAt.ValueString(), got.ExpiresAt.ValueString())
+	require.Zero(t, calls)
+}
+
+func TestApplyClusterConfigurationIgnoresEquivalentExpiresAt(t *testing.T) {
+	state := readyClusterPlan()
+	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
+	plan := state
+	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
+
+	var patched management.Cluster
+	cluster := lifecycleCluster(t)
+	cluster.DeploymentType = utilPtr(management.ClusterDeploymentTypeNONPRODUCTION)
+	cluster.ExpiresAt = utilPtr("2222-01-01T00:00:00.123Z")
+	client := clusterLifecycleClient(t, cluster, management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Method != http.MethodPatch {
+			return false
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&patched))
+		writeClusterAction(t, w, cluster.ClusterID)
+
+		return true
+	})
+
+	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	require.Nil(t, err)
+	require.Equal(t, plan.ExpiresAt.ValueString(), got.ExpiresAt.ValueString())
+	require.Nil(t, patched.ExpiresAt)
+	require.Equal(t, management.ClusterDeploymentTypeNONPRODUCTION, *patched.DeploymentType)
+}
+
 func TestApplyClusterConfiguration(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state

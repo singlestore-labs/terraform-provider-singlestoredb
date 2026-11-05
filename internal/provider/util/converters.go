@@ -117,6 +117,26 @@ func MaybeExpiresAtStringValue(s *string) types.String {
 	return types.StringValue(NormalizeTimestampString(*s))
 }
 
+// SameTimestamp reports whether two Terraform timestamps are the same instant.
+// Null matches null, and equivalent RFC3339 spellings match. Unknown values match
+// only each other. Values that do not parse match only when the strings are equal.
+func SameTimestamp(a, b types.String) bool {
+	if a.Equal(b) {
+		return true
+	}
+	if !IsConfiguredString(a) || !IsConfiguredString(b) {
+		return false
+	}
+
+	aTime, aErr := parseFlexibleTimestamp(a.ValueString())
+	bTime, bErr := parseFlexibleTimestamp(b.ValueString())
+	if aErr != nil || bErr != nil {
+		return false
+	}
+
+	return aTime.Equal(bTime)
+}
+
 // ExpiresAtStateValue maps an API expiresAt onto Terraform state. When configured is
 // the same instant, its spelling is kept so create and update stay consistent with the plan.
 func ExpiresAtStateValue(apiValue *string, configured types.String) types.String {

@@ -381,6 +381,21 @@ func TestNormalizeTimestampString(t *testing.T) {
 	require.Equal(t, fractional, util.MaybeExpiresAtStringValue(&fractional).ValueString())
 }
 
+func TestSameTimestamp(t *testing.T) {
+	normalized := types.StringValue("2222-01-01T00:00:00.123Z")
+	configured := types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.True(t, util.SameTimestamp(normalized, configured))
+	require.True(t, util.SameTimestamp(types.StringValue("2222-01-01T00:00:00Z"), types.StringValue("2222-01-01T00:00:00.000Z")))
+	require.True(t, util.SameTimestamp(types.StringNull(), types.StringNull()))
+	require.True(t, util.SameTimestamp(types.StringUnknown(), types.StringUnknown()))
+	require.True(t, util.SameTimestamp(types.StringValue("not-a-time"), types.StringValue("not-a-time")))
+
+	require.False(t, util.SameTimestamp(normalized, types.StringValue("2223-01-01T00:00:00Z")))
+	require.False(t, util.SameTimestamp(normalized, types.StringNull()))
+	require.False(t, util.SameTimestamp(normalized, types.StringUnknown()))
+	require.False(t, util.SameTimestamp(types.StringValue("not-a-time"), types.StringValue("also-not")))
+}
+
 func TestExpiresAtStateValueKeepsConfiguredSpelling(t *testing.T) {
 	api := "2222-01-01 00:00:00.123 +0000 UTC"
 	configured := types.StringValue("2222-01-01T00:00:00.123000Z")
