@@ -68,6 +68,8 @@ func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
 	resource.UnitTest(t, c)
 }
 
+// IntegrationTest runs a test against the live Management API and gives every
+// workspace group and cluster a short expiration.
 func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCase) {
 	t.Helper()
 

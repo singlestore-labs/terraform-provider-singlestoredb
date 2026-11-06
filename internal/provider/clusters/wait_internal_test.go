@@ -107,6 +107,7 @@ func TestWaitClusterFailures(t *testing.T) {
 	require.Contains(t, serr.Detail, "failed to get cluster")
 }
 
+// TestWaitRetriesTransportErrors retries a transport error until the cluster can be read.
 func TestWaitRetriesTransportErrors(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	active := management.ClusterStateACTIVE
@@ -171,6 +172,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
 
+// TestWaitTerminated finishes a delete once the cluster is terminated.
 func TestWaitTerminated(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	active := management.ClusterStateACTIVE
@@ -216,6 +218,7 @@ func TestWaitTerminated(t *testing.T) {
 	require.NotNil(t, waitTerminated(t.Context(), stuckClient, clusterID, time.Millisecond))
 }
 
+// TestClusterReadStateDiagnostics keeps a cluster that is not terminated in state.
 func TestClusterReadStateDiagnostics(t *testing.T) {
 	id := "3ca3d359-021d-45ed-86cb-38b8d14ac507"
 	for _, state := range []management.ClusterState{management.ClusterStateACTIVE, management.ClusterStateSUSPENDED, management.ClusterStateTERMINATED} {
@@ -229,6 +232,7 @@ func TestClusterReadStateDiagnostics(t *testing.T) {
 	require.Contains(t, clusterReadStateDiagnostics(id, management.ClusterStateFAILED)[0].Detail(), "-replace")
 }
 
+// TestTerminatedAtIsTerminal stops a wait when the cluster has terminatedAt set.
 func TestTerminatedAtIsTerminal(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	terminatedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -279,6 +283,7 @@ func TestCreateDefersMaxScaleFactorFour(t *testing.T) {
 	require.False(t, createDefersAutoScale(plan(scaleX2)))
 }
 
+// TestApplyAutoScaleAfterCreate patches a deferred max scale factor of 4 after create.
 func TestApplyAutoScaleAfterCreate(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	projectID := uuid.New()
@@ -316,7 +321,8 @@ func TestApplyAutoScaleAfterCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		var diags diag.Diagnostics
-		result := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		result, applied := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		require.True(t, applied)
 		require.False(t, diags.HasError())
 		require.Empty(t, diags.Warnings())
 		require.NotNil(t, patched)
@@ -333,7 +339,9 @@ func TestApplyAutoScaleAfterCreate(t *testing.T) {
 		notDeferred := clusterResourceModel{AutoScale: &autoScaleResourceModel{MaxScaleFactor: types.Float32Value(scaleX2)}}
 
 		var diags diag.Diagnostics
-		require.Equal(t, created, applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, notDeferred, &diags))
+		result, applied := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, notDeferred, &diags)
+		require.True(t, applied)
+		require.Equal(t, created, result)
 		require.Empty(t, diags)
 	})
 
@@ -346,10 +354,11 @@ func TestApplyAutoScaleAfterCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		var diags diag.Diagnostics
-		result := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		result, applied := applyAutoScaleAfterCreate(t.Context(), client, clusterID, created, plan, &diags)
+		require.False(t, applied)
 		require.False(t, diags.HasError())
 		require.Len(t, diags.Warnings(), 1)
-		// State keeps the autoscale the API reports, so the next plan sets 4 again.
+		// The helper returns the API cluster. Create keeps the planned autoscale.
 		require.Nil(t, result.AutoScale)
 	})
 }

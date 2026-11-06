@@ -33,6 +33,7 @@ func clusterPollError(ctx context.Context, id management.ClusterID, err error) *
 // mid-wait must fail fast instead of polling until the full timeout.
 const clusterNotFoundThreshold = 5
 
+// wait polls the cluster until every condition holds or the timeout elapses.
 func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
 	result := management.Cluster{}
 	notFound := 0
@@ -95,6 +96,8 @@ func isTerminatedCluster(cluster management.Cluster) bool {
 	return util.Deref(cluster.State) == management.ClusterStateTERMINATED || cluster.TerminatedAt != nil
 }
 
+// terminalClusterError reports a failed or terminated cluster so a wait stops
+// instead of polling until the timeout.
 func terminalClusterError(cluster *management.Cluster) error {
 	id := util.Deref(cluster.ClusterID)
 	if cluster.TerminatedAt != nil {
@@ -115,6 +118,7 @@ func terminalClusterError(cluster *management.Cluster) error {
 	return nil
 }
 
+// waitConditionState holds once the cluster reports one of states for several consecutive polls.
 func waitConditionState(states ...management.ClusterState) func(management.Cluster) error {
 	clusterStateHistory := make([]management.ClusterState, 0, config.WorkspaceConsistencyThreshold)
 
@@ -136,6 +140,7 @@ func waitConditionState(states ...management.ClusterState) func(management.Clust
 	}
 }
 
+// waitConditionSize holds once the Management API reports the desired cluster size.
 func waitConditionSize(desiredSize string) func(management.Cluster) error {
 	return func(c management.Cluster) error {
 		got := ""
@@ -150,6 +155,7 @@ func waitConditionSize(desiredSize string) func(management.Cluster) error {
 	}
 }
 
+// waitConditionTakesAtLeast holds only after d has elapsed, so a scale is not observed too early.
 func waitConditionTakesAtLeast(d time.Duration) func(management.Cluster) error {
 	begin := time.Now()
 	atLeast := begin.Add(d)

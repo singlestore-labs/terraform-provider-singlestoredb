@@ -17,6 +17,7 @@
 - `singlestoredb_cluster` with `auto_scale.max_scale_factor = 4` is created without autoscale and then updated to 4, so the cluster can autoscale through 2x. `POST /v2/clusters` enables only the 4x step.
 - `singlestoredb_cluster` destroy and refresh treat a cluster with `terminatedAt` set as terminated. Management API reports a cluster deleted before its endpoint became ready as `FAILED` or `PENDING`, so destroy previously waited an hour and then failed.
 - `singlestoredb_cluster` explains that `PENDING` can also mean the cluster is offline or impacted. Management API reports those states as `PENDING`, so updates wait until the cluster is `ACTIVE` or `SUSPENDED`; destroy does not wait.
+- Omitting `singlestoredb_cluster.suspended` leaves the current status unchanged, so a cluster suspended by `auto_suspend` is not resumed. On create it must be `false` or omitted. `singlestoredb_workspace.suspended` defaults to `false`, so an omitted value resumes a workspace that `auto_suspend` suspended. Neither resource can change `suspended` and other configuration in the same apply, or change other configuration while suspended.
 
 ### Fixed
 

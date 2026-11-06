@@ -23,7 +23,3 @@ output "admin_password" {
   value     = singlestoredb_cluster.this.admin_password
   sensitive = true
 }
-
-output "group_id" {
-  value = singlestoredb_cluster.this.group_id
-}

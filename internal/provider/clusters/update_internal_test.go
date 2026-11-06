@@ -53,6 +53,7 @@ func TestEquivalentExpiresAtDoesNotCallAPI(t *testing.T) {
 	require.Zero(t, calls)
 }
 
+// TestApplyClusterConfigurationIgnoresEquivalentExpiresAt does not send expiresAt when the plan is the same instant.
 func TestApplyClusterConfigurationIgnoresEquivalentExpiresAt(t *testing.T) {
 	state := readyClusterPlan()
 	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
@@ -81,6 +82,7 @@ func TestApplyClusterConfigurationIgnoresEquivalentExpiresAt(t *testing.T) {
 	require.Equal(t, management.ClusterDeploymentTypeNONPRODUCTION, *patched.DeploymentType)
 }
 
+// TestApplyClusterConfiguration patches the cluster settings that differ from state.
 func TestApplyClusterConfiguration(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state
@@ -113,6 +115,7 @@ func TestApplyClusterConfiguration(t *testing.T) {
 	require.Equal(t, cluster.ProjectID, patched.ProjectID, "PATCH reuses the project ID of the settled cluster")
 }
 
+// TestConfigUpdateRejectsClusterThatSettledSuspended stops a configuration update when the cluster settles suspended.
 func TestConfigUpdateRejectsClusterThatSettledSuspended(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state
@@ -153,6 +156,7 @@ func TestApplyClusterConfigOrToggleSuspensionInvalidID(t *testing.T) {
 	require.Equal(t, "Invalid cluster ID", err.Summary)
 }
 
+// TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds stops a size change when the context is canceled.
 func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state
@@ -173,6 +177,7 @@ func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
 	require.Contains(t, err.Detail, "not ready")
 }
 
+// TestApplyClusterConfigurationErrors surfaces Management API errors from a configuration update.
 func TestApplyClusterConfigurationErrors(t *testing.T) {
 	state := readyClusterPlan()
 	plan := state
@@ -203,6 +208,7 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+// TestSuspendAndResumeCluster suspends and resumes a cluster through the Management API.
 func TestSuspendAndResumeCluster(t *testing.T) {
 	active := readyClusterPlan()
 	suspended := active
@@ -251,6 +257,7 @@ func TestSuspendAndResumeCluster(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+// TestUpdateKeepsStoredAdminPasswordWhenPlanIsUnknown keeps the stored password when the plan value is unknown.
 func TestUpdateKeepsStoredAdminPasswordWhenPlanIsUnknown(t *testing.T) {
 	state := readyClusterPlan()
 	state.AdminPassword = types.StringValue("stored-secret")
@@ -323,6 +330,7 @@ func TestSuspendAfterEarlierSuspendFinished(t *testing.T) {
 	require.True(t, got.Suspended.ValueBool())
 }
 
+// TestApplyWaitsForPendingCluster waits for a pending cluster to settle before applying a change.
 func TestApplyWaitsForPendingCluster(t *testing.T) {
 	active := readyClusterPlan()
 	suspended := active
@@ -388,6 +396,7 @@ func lifecycleCluster(t *testing.T) management.Cluster {
 	}
 }
 
+// clusterLifecycleClient serves cluster reads and lifecycle actions for update tests.
 func clusterLifecycleClient(
 	t *testing.T,
 	cluster management.Cluster,

@@ -407,3 +407,18 @@ func TestExpiresAtStateValueKeepsConfiguredSpelling(t *testing.T) {
 	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringNull()).ValueString())
 	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringUnknown()).ValueString())
 }
+
+func TestClusterEnumConverters(t *testing.T) {
+	require.Nil(t, util.AutoSuspendSuspendTypeString(types.StringValue("nope")))
+	require.Equal(t, management.AutoSuspendSuspendTypeIDLE, *util.AutoSuspendSuspendTypeString(types.StringValue("idle")))
+	require.Equal(t, management.AutoSuspendSuspendTypeDISABLED, *util.AutoSuspendSuspendTypeString(types.StringValue("DISABLED")))
+	require.Equal(t, management.AutoSuspendSuspendTypeSCHEDULED, *util.AutoSuspendSuspendTypeString(types.StringValue("scheduled")))
+
+	require.Nil(t, util.ClusterDeploymentTypeString(types.StringValue("nope")))
+	require.Equal(t, management.ClusterDeploymentTypePRODUCTION, *util.ClusterDeploymentTypeString(types.StringValue("PRODUCTION")))
+	require.Equal(t, management.ClusterDeploymentTypeNONPRODUCTION, *util.ClusterDeploymentTypeString(types.StringValue("non-production")))
+
+	require.Nil(t, util.MaybeFloat32(types.Float32Null()))
+	require.Nil(t, util.MaybeFloat32(types.Float32Unknown()))
+	require.Equal(t, float32(2), *util.MaybeFloat32(types.Float32Value(2)))
+}

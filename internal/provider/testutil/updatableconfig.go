@@ -198,6 +198,8 @@ func (uc UpdatableConfig) WithIntegrationSafeguards(expiresAt string) UpdatableC
 	return UpdatableConfig(file.Bytes())
 }
 
+// applyIntegrationSafeguard sets a short expiration on example workspace groups
+// and clusters, and renames example workspaces to the test cluster name.
 func applyIntegrationSafeguard(block *hclwrite.Block, expires, clusterName cty.Value) bool {
 	labels := block.Labels()
 	if block.Type() != config.ResourceTypeName || len(labels) == 0 {

@@ -61,6 +61,7 @@ func firewallRangesForState(configured []types.String, cluster management.Cluste
 	return util.FirewallRanges(util.Ptr(effectiveFirewallRanges(cluster)))
 }
 
+// stringSet collects firewall ranges so allowlists can be compared without regard to order.
 func stringSet(ss []string) map[string]struct{} {
 	result := make(map[string]struct{}, len(ss))
 	for _, s := range ss {

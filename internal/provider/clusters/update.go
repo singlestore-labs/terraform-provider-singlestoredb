@@ -9,6 +9,8 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 )
 
+// applyClusterConfigOrToggleSuspension suspends, resumes, or patches the cluster.
+// It waits for a pending cluster to settle before sending the change.
 func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.ClientWithResponsesInterface, state, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
 	// ModifyPlan already rejects changing suspended together with other configuration.
 	// Prefer suspend/resume routing when suspended toggles so computed-only plan noise
@@ -54,6 +56,7 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	return applyClusterConfiguration(ctx, c, id, current, state, plan)
 }
 
+// waitSettled polls until the cluster is ACTIVE or SUSPENDED.
 func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID) (management.Cluster, *util.SummaryWithDetailError) {
 	cluster, err := wait(ctx, c, id, config.ClusterUpdateTimeout, waitConditionSettled())
 	if err != nil {
@@ -66,6 +69,7 @@ func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface,
 	return cluster, err
 }
 
+// hasGeneralConfigChanged reports whether any cluster setting other than suspended differs.
 func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:cyclop
 	return !plan.Size.Equal(state.Size) ||
 		!plan.CacheConfig.Equal(state.CacheConfig) ||
@@ -78,6 +82,7 @@ func hasGeneralConfigChanged(state, plan clusterResourceModel) bool { //nolint:c
 		updateWindowChanged(state.UpdateWindow, plan.UpdateWindow)
 }
 
+// updateWindowChanged reports whether the maintenance window in the plan differs from state.
 func updateWindowChanged(state, plan types.Object) bool {
 	if plan.IsUnknown() || state.IsUnknown() {
 		return false
@@ -86,6 +91,7 @@ func updateWindowChanged(state, plan types.Object) bool {
 	return !plan.Equal(state)
 }
 
+// equalFirewallRangesLists reports whether two allowlists match in order and value.
 func equalFirewallRangesLists(a, b []types.String) bool {
 	if len(a) != len(b) {
 		return false
@@ -177,6 +183,7 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 	return clusterModelFromAPI(cluster, storedAdminPassword(state.AdminPassword, plan.AdminPassword), plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
+// resume starts a suspended cluster and waits until it is active.
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateACTIVE {
 		// A resume that timed out earlier has finished since.
@@ -198,6 +205,7 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, id m
 	return clusterModelFromAPI(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 }
 
+// suspend stops an active cluster and waits until it is suspended.
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
 		// A suspend that timed out earlier has finished since.
@@ -250,6 +258,7 @@ func expiresAtToStore(state, plan types.String) types.String {
 	return state
 }
 
+// knownAdminPassword returns a password that was stored, ignoring null and unknown values.
 func knownAdminPassword(value types.String) (string, bool) {
 	if value.IsNull() || value.IsUnknown() || value.ValueString() == "" {
 		return "", false
@@ -258,6 +267,7 @@ func knownAdminPassword(value types.String) (string, bool) {
 	return value.ValueString(), true
 }
 
+// clusterModelFromAPI converts a Management API cluster into state, or returns the conversion error.
 func clusterModelFromAPI(cluster management.Cluster, adminPassword string, firewallRanges []types.String, projectName, expiresAt types.String) (clusterResourceModel, *util.SummaryWithDetailError) {
 	model, diags := toClusterResourceModel(cluster, adminPassword, firewallRanges, projectName, expiresAt)
 	if err := errorFromDiagnostics(diags); err != nil {

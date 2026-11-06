@@ -22,6 +22,7 @@ func (v wholeNumberValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
+// ValidateFloat32 rejects fractional numbers. The Management API stores this attribute as an integer.
 func (v wholeNumberValidator) ValidateFloat32(ctx context.Context, req validator.Float32Request, resp *validator.Float32Response) {
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return

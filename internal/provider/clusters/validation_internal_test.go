@@ -357,6 +357,7 @@ func TestClusterPlanConverters(t *testing.T) {
 	require.Nil(t, validateAutoSuspendConfig(&unknownSeconds))
 }
 
+// TestWholeNumberValidator rejects a fractional suspend_after_seconds value.
 func TestWholeNumberValidator(t *testing.T) {
 	ctx := t.Context()
 	v := wholeNumberValidator{}
@@ -369,6 +370,7 @@ func TestWholeNumberValidator(t *testing.T) {
 	var resp validator.Float32Response
 	v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: types.Float32Value(3600.5)}, &resp)
 	require.True(t, resp.Diagnostics.HasError())
+	require.Equal(t, v.Description(ctx), v.MarkdownDescription(ctx))
 }
 
 func TestFirewallRangeHelpers(t *testing.T) {
@@ -440,6 +442,7 @@ func TestResolveProjectLookup(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+// projectClient returns a Management API client that serves the given projects.
 func projectClient(t *testing.T, status int, projects []management.Project) *management.ClientWithResponses {
 	t.Helper()
 

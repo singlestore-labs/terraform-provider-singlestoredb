@@ -165,6 +165,7 @@ func NormalizeTimestampString(value string) string {
 	return t.Format(time.RFC3339Nano)
 }
 
+// parseFlexibleTimestamp parses the timestamp spellings the Management API returns.
 func parseFlexibleTimestamp(value string) (time.Time, error) {
 	layouts := []string{
 		time.RFC3339Nano,
@@ -224,6 +225,7 @@ func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnection
 	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
 }
 
+// AutoSuspendSuspendTypeString maps a Terraform suspend type onto the Management API enum.
 func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspendType {
 	for _, s := range []management.AutoSuspendSuspendType{
 		management.AutoSuspendSuspendTypeIDLE,
@@ -238,6 +240,7 @@ func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspe
 	return nil
 }
 
+// ClusterDeploymentTypeString maps a Terraform deployment type onto the Management API enum.
 func ClusterDeploymentTypeString(wgs types.String) *management.ClusterDeploymentType {
 	for _, s := range []management.ClusterDeploymentType{
 		management.ClusterDeploymentTypePRODUCTION,

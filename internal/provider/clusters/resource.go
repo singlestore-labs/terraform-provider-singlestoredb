@@ -449,16 +449,30 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	cluster = applyAutoScaleAfterCreate(ctx, r.ClientWithResponsesInterface, clusterID, cluster, plan, &resp.Diagnostics)
+	cluster, autoScaleApplied := applyAutoScaleAfterCreate(ctx, r.ClientWithResponsesInterface, clusterID, cluster, plan, &resp.Diagnostics)
 
 	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	keepPlannedAutoScale(&result, plan, autoScaleApplied)
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+// keepPlannedAutoScale stores the planned autoscale when deferred setup failed.
+// A failed setup leaves the API at the default factor of 1. Storing that would
+// disagree with a planned factor of 4, and Terraform would reject the apply.
+// The next refresh reads the API and can retry it.
+func keepPlannedAutoScale(result *clusterResourceModel, plan clusterResourceModel, autoScaleApplied bool) {
+	if autoScaleApplied || plan.AutoScale == nil {
+		return
+	}
+
+	autoScale := *plan.AutoScale
+	result.AutoScale = &autoScale
 }
 
 // createDefersAutoScale reports whether create must leave autoScale out of
@@ -471,20 +485,22 @@ func createDefersAutoScale(plan clusterResourceModel) bool {
 }
 
 // applyAutoScaleAfterCreate sets the configured autoscale on a newly active cluster
-// when createDefersAutoScale left it out of POST. A failure is a warning: the cluster is usable, and the returned cluster keeps
-// the autoscale the API reports, so the next plan proposes the change again.
-func applyAutoScaleAfterCreate(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, cluster management.Cluster, plan clusterResourceModel, diags *diag.Diagnostics) management.Cluster {
-	warn := func(err *util.SummaryWithDetailError) management.Cluster {
+// when createDefersAutoScale left it out of POST. It reports whether that setup
+// succeeded. A failure is a warning, and the returned cluster keeps the autoscale
+// the API reports. Create stores the planned autoscale in that case so the apply
+// result matches the plan.
+func applyAutoScaleAfterCreate(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, cluster management.Cluster, plan clusterResourceModel, diags *diag.Diagnostics) (management.Cluster, bool) {
+	warn := func(err *util.SummaryWithDetailError) (management.Cluster, bool) {
 		diags.AddWarning(
 			fmt.Sprintf("Cluster %s was created without the configured auto_scale", id),
 			fmt.Sprintf("Setting auto_scale after create failed. Run terraform apply again to set it. %s: %s", err.Summary, err.Detail),
 		)
 
-		return cluster
+		return cluster, false
 	}
 
 	if !createDefersAutoScale(plan) {
-		return cluster
+		return cluster, true
 	}
 
 	patchResponse, err := c.PatchV2ClustersClusterIDWithResponse(ctx, id, management.Cluster{
@@ -504,7 +520,7 @@ func applyAutoScaleAfterCreate(ctx context.Context, c management.ClientWithRespo
 		return warn(werr)
 	}
 
-	return updated
+	return updated, true
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -865,6 +881,8 @@ func validatePlannedCreate(plan *clusterResourceModel, configProjectName types.S
 	return validateCreateParameters(&checked)
 }
 
+// deferUnknownCreateInputs replaces unknown create inputs with values that pass
+// validation. Create checks the real values once they are known.
 func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName types.String) clusterResourceModel {
 	if configProjectName.IsNull() {
 		plan.ProjectName = types.StringNull()
@@ -887,11 +905,12 @@ func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName types
 	return plan
 }
 
+// validateCreateParameters reports configuration that POST /v2/clusters would reject.
 func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetailError {
 	if !util.IsConfiguredString(plan.ProjectName) {
 		return &util.SummaryWithDetailError{
 			Summary: "Missing project_name",
-			Detail:  "The project_name attribute is required when creating a cluster because the Management API requires a project ID.",
+			Detail:  "The project_name attribute is required when creating a cluster. Use the singlestoredb_projects data source or check https://docs.singlestore.com/cloud/getting-started-with-singlestore-helios/about-singlestore-helios/projects/ for more information.",
 		}
 	}
 
@@ -920,6 +939,8 @@ func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetai
 	return nil
 }
 
+// validateModifyProjectName rejects a change to project_name. The Management API
+// does not move a cluster between projects.
 func validateModifyProjectName(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
 	if plan.ProjectName.IsNull() {
 		return nil
@@ -968,6 +989,7 @@ func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWit
 	}
 }
 
+// validateAutoSuspendConfig rejects suspend_after_seconds when suspend_type is DISABLED.
 func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {
 	// A value only known at apply time may still satisfy the rule.
 	if plan.AutoSuspend.SuspendType.IsUnknown() || plan.AutoSuspend.SuspendAfterSeconds.IsUnknown() {
@@ -985,6 +1007,7 @@ func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDeta
 	return nil
 }
 
+// validateAutoScaleConfig rejects a non-default sensitivity when max_scale_factor is 1.
 func validateAutoScaleConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {
 	// A value only known at apply time may still satisfy the rule.
 	if plan.AutoScale.Sensitivity.IsUnknown() || plan.AutoScale.MaxScaleFactor.IsUnknown() {
@@ -1002,6 +1025,8 @@ func validateAutoScaleConfig(plan *clusterResourceModel) *util.SummaryWithDetail
 	return nil
 }
 
+// validateSuspendedAndConfigChanges rejects changing suspended together with other
+// configuration, and rejects configuration changes while the cluster stays suspended.
 func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.SummaryWithDetailError {
 	if err := validateAutoScaleConfig(plan); err != nil {
 		return err
@@ -1127,6 +1152,8 @@ func clusterStateAfterCreate(plan clusterResourceModel, clusterID, groupID uuid.
 	return &tracked
 }
 
+// nullUnknownClusterState replaces unknown attributes with null. Terraform cannot
+// store unknown values in state.
 func nullUnknownClusterState(model *clusterResourceModel) {
 	model.ID = nullUnknownString(model.ID)
 	model.Name = nullUnknownString(model.Name)
@@ -1163,6 +1190,7 @@ func nullUnknownClusterState(model *clusterResourceModel) {
 	}
 }
 
+// nullUnknownString returns null when value is unknown.
 func nullUnknownString(value types.String) types.String {
 	if value.IsUnknown() {
 		return types.StringNull()
@@ -1171,6 +1199,7 @@ func nullUnknownString(value types.String) types.String {
 	return value
 }
 
+// nullUnknownBool returns null when value is unknown.
 func nullUnknownBool(value types.Bool) types.Bool {
 	if value.IsUnknown() {
 		return types.BoolNull()
@@ -1179,6 +1208,7 @@ func nullUnknownBool(value types.Bool) types.Bool {
 	return value
 }
 
+// nullUnknownFloat32 returns null when value is unknown.
 func nullUnknownFloat32(value types.Float32) types.Float32 {
 	if value.IsUnknown() {
 		return types.Float32Null()
@@ -1187,6 +1217,7 @@ func nullUnknownFloat32(value types.Float32) types.Float32 {
 	return value
 }
 
+// normalizeCloudProvider maps the Management API provider onto the schema's values.
 func normalizeCloudProvider(provider *management.CloudProvider) types.String {
 	if provider == nil {
 		return types.StringNull()
@@ -1200,6 +1231,8 @@ func normalizeCloudProvider(provider *management.CloudProvider) types.String {
 	return types.StringValue(string(*result))
 }
 
+// toCreateAutoScale is the autoscale sent to POST /v2/clusters. Factor 1 is omitted,
+// and factor 4 is deferred to PATCH because POST stores only the 4x step.
 func toCreateAutoScale(plan clusterResourceModel) *management.AutoScale {
 	if plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) || createDefersAutoScale(plan) {
 		return nil
@@ -1211,6 +1244,7 @@ func toCreateAutoScale(plan clusterResourceModel) *management.AutoScale {
 	}
 }
 
+// toAutoScale is the autoscale sent to PATCH /v2/clusters. Factor 1 omits sensitivity.
 func toAutoScale(plan clusterResourceModel) *management.AutoScale {
 	var sensitivity *management.AutoScaleSensitivity
 	if !plan.AutoScale.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
@@ -1223,6 +1257,8 @@ func toAutoScale(plan clusterResourceModel) *management.AutoScale {
 	}
 }
 
+// toAutoScaleResourceModel copies the Management API autoscale into state. Omitted
+// fields use the schema defaults so a scale-down to 1 does not stay a perpetual diff.
 func toAutoScaleResourceModel(cluster management.Cluster) *autoScaleResourceModel {
 	// Omitted API fields use the schema defaults. A null or unknown value here
 	// disagrees with the plan and keeps proposing updates after a scale-down to 1,
@@ -1244,6 +1280,8 @@ func toAutoScaleResourceModel(cluster management.Cluster) *autoScaleResourceMode
 	return model
 }
 
+// toAutoSuspend maps the plan onto the Management API autoSuspend object, placing
+// the delay on the field the suspend type uses.
 func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 	suspendType := util.AutoSuspendSuspendTypeString(plan.AutoSuspend.SuspendType)
 	result := &management.AutoSuspend{
@@ -1264,6 +1302,7 @@ func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 	return result
 }
 
+// toAutoSuspendResourceModel copies the Management API auto suspend settings into state.
 func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResourceModel {
 	if cluster.AutoSuspend == nil || cluster.AutoSuspend.SuspendType == nil {
 		// A zero Float32 is unknown. The plan default for suspend_after_seconds is null.
@@ -1288,6 +1327,7 @@ func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResource
 	}
 }
 
+// float32ToIntPtr converts a whole-number Terraform value into the integer the API stores.
 func float32ToIntPtr(f types.Float32) *int {
 	if f.IsNull() || f.IsUnknown() {
 		return nil
@@ -1298,6 +1338,7 @@ func float32ToIntPtr(f types.Float32) *int {
 	return &v
 }
 
+// intPtrToFloat32 converts an API integer into the Terraform float32 attribute.
 func intPtrToFloat32(i *int) types.Float32 {
 	if i == nil {
 		return types.Float32Null()
@@ -1306,6 +1347,7 @@ func intPtrToFloat32(i *int) types.Float32 {
 	return types.Float32Value(float32(*i))
 }
 
+// toManagementUpdateWindow converts the planned update window into the Management API object.
 func toManagementUpdateWindow(ctx context.Context, uw types.Object) (*management.UpdateWindow, diag.Diagnostics) {
 	if uw.IsNull() || uw.IsUnknown() {
 		return nil, nil
@@ -1323,6 +1365,7 @@ func toManagementUpdateWindow(ctx context.Context, uw types.Object) (*management
 	}, diags
 }
 
+// toUpdateWindowResourceModel converts the Management API update window into state.
 func toUpdateWindowResourceModel(uw *management.UpdateWindow) (types.Object, diag.Diagnostics) {
 	if uw == nil {
 		return types.ObjectNull(updateWindowAttrTypes), nil
@@ -1342,6 +1385,7 @@ func toUpdateWindowResourceModel(uw *management.UpdateWindow) (types.Object, dia
 	return obj, diags
 }
 
+// errorFromDiagnostics returns the first diagnostic error, with every error detail joined.
 func errorFromDiagnostics(diags diag.Diagnostics) *util.SummaryWithDetailError {
 	if !diags.HasError() {
 		return nil
@@ -1362,6 +1406,7 @@ func errorFromDiagnostics(diags diag.Diagnostics) *util.SummaryWithDetailError {
 	}
 }
 
+// resolveProjectNameByID finds the project name for a Management API project ID.
 func resolveProjectNameByID(ctx context.Context, c management.ClientWithResponsesInterface, projectID uuid.UUID) (types.String, *util.SummaryWithDetailError) {
 	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
 	if serr := util.StatusOK(projectsResponse, err); serr != nil {

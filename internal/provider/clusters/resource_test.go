@@ -40,6 +40,7 @@ const (
 	testEndpoint   = "svc-94a328d2-8c3d-412d-91a0-c32a750673cb-dml.aws-oregon-3.svc.singlestore.com"
 )
 
+// TestCRUDCluster creates, reads, updates, and deletes a cluster against the mocked Management API.
 func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	regionsv2 := []management.RegionV2{
 		{
@@ -306,6 +307,7 @@ func TestCRUDCluster(t *testing.T) { //nolint:maintidx,cyclop
 	})
 }
 
+// TestClusterSuspendResume suspends and resumes a cluster against the mocked Management API.
 func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
@@ -462,6 +464,7 @@ func TestClusterSuspendResume(t *testing.T) { //nolint:cyclop
 	})
 }
 
+// TestImmutableClusterAttributes requires replacement when an immutable attribute changes.
 func TestImmutableClusterAttributes(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
@@ -562,6 +565,7 @@ func TestImmutableClusterAttributes(t *testing.T) {
 	})
 }
 
+// TestClusterExpiresAtIsCreateOnly rejects a change to expires_at after the cluster is created.
 func TestClusterExpiresAtIsCreateOnly(t *testing.T) {
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
@@ -707,6 +711,7 @@ func TestClusterAdminPasswordIsNotConfigurable(t *testing.T) {
 	})
 }
 
+// TestClusterCreateWaitFailureTracksCluster keeps the cluster in state when the readiness wait fails.
 func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	groupID := uuid.MustParse("4db4e46a-132e-56fe-97dc-49c9e25bd618")
@@ -800,6 +805,7 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 	require.Equal(t, []string{http.MethodPost, http.MethodDelete, http.MethodPost, http.MethodDelete}, mutations)
 }
 
+// TestClusterCreatePersistentFailureCanBeReplaced replaces a cluster that stayed failed after create.
 func TestClusterCreatePersistentFailureCanBeReplaced(t *testing.T) { //nolint:cyclop
 	failedID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
 	replacementID := uuid.MustParse("5ec5f57b-243f-67af-a8ed-5ad0f36ce729")
@@ -951,6 +957,7 @@ func clusterAdminCanConnect(resourceName string) resource.TestCheckFunc {
 	}
 }
 
+// integrationExpiresAtIsSoon reports whether an integration-test expiration is within the expected window.
 func integrationExpiresAtIsSoon(value string) error {
 	expires, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
