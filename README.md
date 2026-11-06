@@ -48,7 +48,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a cluster:
 
 ```hcl
 provider "singlestoredb" {
@@ -57,41 +57,40 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
+resource "singlestoredb_cluster" "this" {
+  name            = "cluster-1"
+  project_name    = "Standard Project"
+  size            = "S-00"
   firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
-}
-
-resource "singlestoredb_workspace" "this" {
-  name               = "workspace-1"
-  workspace_group_id = singlestoredb_workspace_group.example.id
-  size               = "S-00"
-  suspended          = false
+  suspended       = false
 }
 
 output "endpoint" {
-  value = singlestoredb_workspace.this.endpoint
+  value = singlestoredb_cluster.this.endpoint
 }
 
 output "admin_password" {
-  value     = singlestoredb_workspace_group.example.admin_password
+  value     = singlestoredb_cluster.this.admin_password
   sensitive = true
+}
+
+output "group_id" {
+  value = singlestoredb_cluster.this.group_id
 }
 ```
 
 To try this example, follow these steps:
 
-1. **Create the workspace:**
+1. **Create the cluster:**
 
    ```shell
    terraform apply
    ```
 
-2. **Connect to the new workspace:**
+2. **Connect to the new cluster:**
 
    ```shell
    export endpoint=$(terraform output -raw endpoint)
@@ -99,11 +98,27 @@ To try this example, follow these steps:
    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
    ```
 
-3. **Terminate the workspace:**
+3. **Terminate the cluster:**
 
    ```shell
    terraform destroy
    ```
+
+### Cluster admin password
+
+Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. The API returns the generated password only on create. Terraform stores that value, and refresh keeps it when later responses omit the password.
+
+Setting `admin_password` in configuration is unavailable. `terraform plan` fails with "Invalid Configuration for Read-Only Attribute" and asks you to remove that line. Choosing a password may be added in a later release.
+
+Read the password from state or from the sensitive output in the example above. The `singlestoredb_workspace_group` resource still accepts `admin_password` until that resource is removed.
+
+## Known limitations
+
+`singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider.
+
+- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. After import, set `expires_at` to the current expiration.
+- `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
+- Creating a cluster with `auto_scale.max_scale_factor` `4` enables only the 4x step. Updating autoscale to `4` enables both 2x and 4x. The provider sends `4` in both cases. The create path in the API drops the 2x step.
 
 ## Documentation
 

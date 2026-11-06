@@ -35,6 +35,10 @@ const (
 	WorkspaceCreationTimeout = 5 * time.Hour
 	// WorkspaceResumeTimeout limits the workspace resume time.
 	WorkspaceResumeTimeout = 6 * time.Hour
+	// ClusterUpdateTimeout limits a cluster suspend, resume, scale, or other configuration change.
+	ClusterUpdateTimeout = 6 * time.Hour
+	// ClusterDeletionTimeout limits the wait for a deleted cluster to terminate.
+	ClusterDeletionTimeout = time.Hour
 	// WorkspaceScaleTakesAtLeast ensures the least required time for scaling.
 	WorkspaceScaleTakesAtLeast = 30 * time.Second
 	// PrivateConnectionCreationTimeout limits the private connection creation time.
