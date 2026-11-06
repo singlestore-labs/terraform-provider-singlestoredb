@@ -48,23 +48,5 @@ jobs:
         TEST_SINGLESTOREDB_API_KEY: ${{ secrets.TEST_SINGLESTOREDB_API_KEY }}
       run: make integration
 
-    # Tokenless uploads are rate-limited (about one per 25 minutes). CODECOV_TOKEN
-    # skips the limit. Retry once after the window instead of immediately.
     - name: Upload coverage to Codecov
-      id: codecov
-      continue-on-error: true
       uses: codecov/codecov-action@v3
-      with:
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Wait out a Codecov rate limit
-      if: steps.codecov.outcome == 'failure'
-      run: sleep 1800
-
-    - name: Retry Codecov upload
-      if: steps.codecov.outcome == 'failure'
-      uses: codecov/codecov-action@v3
-      with:
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}

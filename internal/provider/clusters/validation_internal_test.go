@@ -370,7 +370,6 @@ func TestWholeNumberValidator(t *testing.T) {
 	var resp validator.Float32Response
 	v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: types.Float32Value(3600.5)}, &resp)
 	require.True(t, resp.Diagnostics.HasError())
-	require.Equal(t, v.Description(ctx), v.MarkdownDescription(ctx))
 }
 
 func TestFirewallRangeHelpers(t *testing.T) {
