@@ -108,17 +108,14 @@ To try this example, follow these steps:
 
 Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. The API returns the generated password only on create. Terraform stores that value, and refresh keeps it when later responses omit the password.
 
-Setting `admin_password` in configuration is unavailable. `terraform plan` fails with "Invalid Configuration for Read-Only Attribute" and asks you to remove that line. Choosing a password may be added in a later release.
-
-Read the password from state or from the sensitive output in the example above. The `singlestoredb_workspace_group` resource still accepts `admin_password` until that resource is removed.
+Read the password from state or from the sensitive output in the example above.
 
 ## Known limitations
 
-`singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider.
+`singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider. These may be relaxed in the future releases.
 
-- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. After import, set `expires_at` to the current expiration.
+- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. Import records the current expiration in state but does not add it to your configuration. After import, copy the value from state (for example, from `terraform state show singlestoredb_cluster.this`) into `expires_at` in your configuration. If the configuration leaves it unset or uses a different time, the plan fails.
 - `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
-- Creating a cluster with `auto_scale.max_scale_factor` `4` enables only the 4x step. Updating autoscale to `4` enables both 2x and 4x. The provider sends `4` in both cases. The create path in the API drops the 2x step.
 
 ## Documentation
 
