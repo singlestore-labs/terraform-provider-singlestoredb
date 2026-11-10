@@ -94,11 +94,14 @@ func TestWaitClusterFailures(t *testing.T) {
 	t.Cleanup(notFoundServer.Close)
 	notFoundClient, err := management.NewClientWithResponses(notFoundServer.URL)
 	require.NoError(t, err)
-	// A deleted cluster fails the wait after a few polls instead of at the timeout.
+	// A deleted cluster fails the wait after the not-found grace instead of at the timeout.
+	setNotFoundGrace(t, 600*time.Millisecond)
+	start := time.Now()
 	_, serr = wait(t.Context(), notFoundClient, clusterID, time.Hour, waitConditionState(management.ClusterStateACTIVE))
 	require.NotNil(t, serr)
 	require.Contains(t, serr.Detail, "deleted outside Terraform")
-	require.Equal(t, clusterNotFoundThreshold, notFoundGets)
+	require.Greater(t, notFoundGets, 1)
+	require.Less(t, time.Since(start), 10*time.Second)
 
 	down, err := management.NewClientWithResponses("http://127.0.0.1:1")
 	require.NoError(t, err)
@@ -149,6 +152,7 @@ func TestWaitStopsWhenContextIsCanceled(t *testing.T) {
 	start := time.Now()
 	_, serr := wait(ctx, client, clusterID, time.Minute, waitConditionState(management.ClusterStateACTIVE))
 	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "canceled")
 	require.Less(t, time.Since(start), 2*time.Second)
 }
 
@@ -164,6 +168,139 @@ func TestClusterPollError(t *testing.T) {
 	retryable := clusterPollError(t.Context(), clusterID, errors.New("connection reset by peer"))
 	require.True(t, retryable.Retryable)
 	require.ErrorContains(t, retryable.Err, "connection reset by peer")
+}
+
+func setNotFoundGrace(t *testing.T, d time.Duration) {
+	t.Helper()
+	prev := clusterNotFoundGrace
+	clusterNotFoundGrace = d
+	t.Cleanup(func() { clusterNotFoundGrace = prev })
+}
+
+// TestNotFoundTracker tolerates 404s for the grace and restarts it after any other response.
+func TestNotFoundTracker(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tracker := &notFoundTracker{grace: time.Minute, now: func() time.Time { return now }}
+
+	require.False(t, tracker.notFound())
+	now = now.Add(59 * time.Second)
+	require.False(t, tracker.notFound())
+
+	// A read in between restarts the grace.
+	tracker.found()
+	now = now.Add(time.Second)
+	require.False(t, tracker.notFound())
+	now = now.Add(59 * time.Second)
+	require.False(t, tracker.notFound())
+	now = now.Add(time.Second)
+	require.True(t, tracker.notFound())
+}
+
+// TestWaitNotFoundResets keeps waiting when 404s are interrupted by a successful read.
+func TestWaitNotFoundResets(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	pending := management.ClusterStatePENDING
+	active := management.ClusterStateACTIVE
+	setNotFoundGrace(t, 3*time.Second)
+
+	// Polls back off to 0s, 0.5s, 1.5s, 3.5s, 7.5s: 404, PENDING, 404, 404, ACTIVE.
+	// The last run of 404s spans 2s, under the grace; without the PENDING reset the
+	// 404s would span 3.5s and fail the wait.
+	responses := []*management.ClusterState{nil, &pending, nil, nil, &active}
+	gets := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		state := responses[min(gets, len(responses)-1)]
+		gets++
+		if state == nil {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(mustJSON(t, management.Cluster{ClusterID: &clusterID, State: state}))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	activeNow := func(c management.Cluster) error {
+		if util.Deref(c.State) != management.ClusterStateACTIVE {
+			return errors.New("not active")
+		}
+
+		return nil
+	}
+	got, serr := wait(t.Context(), client, clusterID, time.Minute, activeNow)
+	require.Nil(t, serr)
+	require.Equal(t, management.ClusterStateACTIVE, util.Deref(got.State))
+	require.Equal(t, len(responses), gets)
+}
+
+// TestWaitRetriesNonJSONOK retries a 200 response without a JSON body instead of panicking.
+func TestWaitRetriesNonJSONOK(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	active := management.ClusterStateACTIVE
+	gets := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		gets++
+		if gets == 1 {
+			w.Header().Set("Content-Type", "text/html")
+			_, err := w.Write([]byte("<html>proxy</html>"))
+			require.NoError(t, err)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(mustJSON(t, management.Cluster{ClusterID: &clusterID, State: &active}))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	_, serr := wait(t.Context(), client, clusterID, time.Minute, func(management.Cluster) error { return nil })
+	require.Nil(t, serr)
+	require.Equal(t, 2, gets)
+}
+
+// TestWaitTerminatedRetriesNonJSONOK retries a 200 response without a JSON body instead of panicking.
+func TestWaitTerminatedRetriesNonJSONOK(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, err := w.Write([]byte("<html>proxy</html>"))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	serr := waitTerminated(t.Context(), client, clusterID, 50*time.Millisecond)
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "not a JSON cluster")
+}
+
+// TestWaitErrorDetail reports a timeout or cancellation instead of only the last poll error.
+func TestWaitErrorDetail(t *testing.T) {
+	last := errors.New("cluster x state is PENDING, but should be ACTIVE")
+
+	timedOut := waitErrorDetail(t.Context(), time.Hour, false, last, "Cluster did not reach the expected state")
+	require.Equal(t, "Cluster did not reach the expected state within 1h0m0s: "+last.Error(), timedOut)
+
+	require.Equal(t, last.Error(), waitErrorDetail(t.Context(), time.Hour, true, last, "unused"))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.Contains(t, waitErrorDetail(ctx, time.Hour, true, last, "unused"), "canceled")
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	body, err := json.Marshal(v)
+	require.NoError(t, err)
+
+	return body
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -215,7 +352,9 @@ func TestWaitTerminated(t *testing.T) {
 	t.Cleanup(stuck.Close)
 	stuckClient, err := management.NewClientWithResponses(stuck.URL)
 	require.NoError(t, err)
-	require.NotNil(t, waitTerminated(t.Context(), stuckClient, clusterID, time.Millisecond))
+	serr := waitTerminated(t.Context(), stuckClient, clusterID, time.Millisecond)
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "did not terminate within 1ms")
 }
 
 // TestClusterReadStateDiagnostics keeps a cluster that is not terminated in state.

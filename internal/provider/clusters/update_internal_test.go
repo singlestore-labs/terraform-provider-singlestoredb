@@ -174,7 +174,7 @@ func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
 	defer cancel()
 	_, err := applyClusterConfiguration(ctx, client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
 	require.NotNil(t, err)
-	require.Contains(t, err.Detail, "not ready")
+	require.Contains(t, err.Detail, "canceled")
 }
 
 // TestApplyClusterConfigurationErrors surfaces Management API errors from a configuration update.

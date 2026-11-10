@@ -789,7 +789,7 @@ func TestClusterCreateWaitFailureTracksCluster(t *testing.T) { //nolint:cyclop
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.ClustersResource,
-				ExpectError: regexp.MustCompile("Failed to wait for a cluster"),
+				ExpectError: regexp.MustCompile("Failed to wait for cluster"),
 			},
 			{
 				// A failed create taints the saved cluster, so the next apply deletes
@@ -895,7 +895,7 @@ func TestClusterCreatePersistentFailureCanBeReplaced(t *testing.T) { //nolint:cy
 		Steps: []resource.TestStep{
 			{
 				Config:      examples.ClustersResource,
-				ExpectError: regexp.MustCompile("Failed to wait for a cluster"),
+				ExpectError: regexp.MustCompile("Failed to wait for cluster"),
 			},
 			{
 				// Refresh still sees FAILED and must keep the tainted cluster in state,
