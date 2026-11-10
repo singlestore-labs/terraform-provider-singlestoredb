@@ -69,8 +69,8 @@ type autoScaleResourceModel struct {
 }
 
 type autoSuspendResourceModel struct {
-	SuspendAfterSeconds types.Float32 `tfsdk:"suspend_after_seconds"`
-	SuspendType         types.String  `tfsdk:"suspend_type"`
+	SuspendAfterSeconds types.Int64  `tfsdk:"suspend_after_seconds"`
+	SuspendType         types.String `tfsdk:"suspend_type"`
 }
 
 // clusterResourceModel maps the resource schema data.
@@ -124,11 +124,11 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	)
 	autoSuspendDefaultValue, _ := basetypes.NewObjectValue(
 		map[string]attr.Type{
-			"suspend_after_seconds": basetypes.Float32Type{},
+			"suspend_after_seconds": basetypes.Int64Type{},
 			"suspend_type":          basetypes.StringType{},
 		},
 		map[string]attr.Value{
-			"suspend_after_seconds": basetypes.NewFloat32Null(),
+			"suspend_after_seconds": basetypes.NewInt64Null(),
 			"suspend_type":          basetypes.NewStringValue(string(management.AutoSuspendSuspendTypeDISABLED)),
 		},
 	)
@@ -309,10 +309,9 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				MarkdownDescription: "Auto suspend settings for the cluster.",
 				Default:             objectdefault.StaticValue(autoSuspendDefaultValue),
 				Attributes: map[string]schema.Attribute{
-					"suspend_after_seconds": schema.Float32Attribute{
+					"suspend_after_seconds": schema.Int64Attribute{
 						Optional:            true,
-						MarkdownDescription: "When to suspend the cluster, according to the suspend type chosen. Must be a whole number of seconds.",
-						Validators:          []validator.Float32{wholeNumberValidator{}},
+						MarkdownDescription: "When to suspend the cluster, in whole seconds, according to the suspend type chosen.",
 					},
 					"suspend_type": schema.StringAttribute{
 						Optional:            true,
@@ -1182,7 +1181,7 @@ func nullUnknownClusterState(model *clusterResourceModel) {
 		model.AutoScale.Sensitivity = nullUnknownString(model.AutoScale.Sensitivity)
 	}
 	if model.AutoSuspend != nil {
-		model.AutoSuspend.SuspendAfterSeconds = nullUnknownFloat32(model.AutoSuspend.SuspendAfterSeconds)
+		model.AutoSuspend.SuspendAfterSeconds = nullUnknownInt64(model.AutoSuspend.SuspendAfterSeconds)
 		model.AutoSuspend.SuspendType = nullUnknownString(model.AutoSuspend.SuspendType)
 	}
 	if model.UpdateWindow.IsNull() || model.UpdateWindow.IsUnknown() {
@@ -1212,6 +1211,15 @@ func nullUnknownBool(value types.Bool) types.Bool {
 func nullUnknownFloat32(value types.Float32) types.Float32 {
 	if value.IsUnknown() {
 		return types.Float32Null()
+	}
+
+	return value
+}
+
+// nullUnknownInt64 returns null when value is unknown.
+func nullUnknownInt64(value types.Int64) types.Int64 {
+	if value.IsUnknown() {
+		return types.Int64Null()
 	}
 
 	return value
@@ -1288,7 +1296,7 @@ func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 		SuspendType: suspendType,
 	}
 
-	seconds := float32ToIntPtr(plan.AutoSuspend.SuspendAfterSeconds)
+	seconds := int64ToIntPtr(plan.AutoSuspend.SuspendAfterSeconds)
 	if suspendType != nil {
 		switch *suspendType {
 		case management.AutoSuspendSuspendTypeIDLE:
@@ -1305,9 +1313,9 @@ func toAutoSuspend(plan clusterResourceModel) *management.AutoSuspend {
 // toAutoSuspendResourceModel copies the Management API auto suspend settings into state.
 func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResourceModel {
 	if cluster.AutoSuspend == nil || cluster.AutoSuspend.SuspendType == nil {
-		// A zero Float32 is unknown. The plan default for suspend_after_seconds is null.
+		// A zero Int64 is unknown. The plan default for suspend_after_seconds is null.
 		return &autoSuspendResourceModel{
-			SuspendAfterSeconds: types.Float32Null(),
+			SuspendAfterSeconds: types.Int64Null(),
 			SuspendType:         types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED)),
 		}
 	}
@@ -1322,29 +1330,29 @@ func toAutoSuspendResourceModel(cluster management.Cluster) *autoSuspendResource
 	}
 
 	return &autoSuspendResourceModel{
-		SuspendAfterSeconds: intPtrToFloat32(suspendAfterSeconds),
+		SuspendAfterSeconds: intPtrToInt64(suspendAfterSeconds),
 		SuspendType:         util.StringValueOrNull(cluster.AutoSuspend.SuspendType),
 	}
 }
 
-// float32ToIntPtr converts a whole-number Terraform value into the integer the API stores.
-func float32ToIntPtr(f types.Float32) *int {
-	if f.IsNull() || f.IsUnknown() {
+// int64ToIntPtr converts the Terraform value into the integer the Management API stores.
+func int64ToIntPtr(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
 		return nil
 	}
 
-	v := int(f.ValueFloat32())
+	n := int(v.ValueInt64())
 
-	return &v
+	return &n
 }
 
-// intPtrToFloat32 converts an API integer into the Terraform float32 attribute.
-func intPtrToFloat32(i *int) types.Float32 {
+// intPtrToInt64 converts an API integer into the Terraform int64 attribute.
+func intPtrToInt64(i *int) types.Int64 {
 	if i == nil {
-		return types.Float32Null()
+		return types.Int64Null()
 	}
 
-	return types.Float32Value(float32(*i))
+	return types.Int64Value(int64(*i))
 }
 
 // toManagementUpdateWindow converts the planned update window into the Management API object.

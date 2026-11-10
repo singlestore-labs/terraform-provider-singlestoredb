@@ -60,7 +60,7 @@ func TestValidateCreateParameters(t *testing.T) {
 	badSuspend := plan
 	suspend := *plan.AutoSuspend
 	badSuspend.AutoSuspend = &suspend
-	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Float32Value(60)
+	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60)
 	require.Equal(t, "Invalid auto_suspend configuration.", validateCreateParameters(&badSuspend).Summary)
 
 	badScale := plan
@@ -199,7 +199,7 @@ func TestClusterModelHelpers(t *testing.T) {
 	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
 	require.Equal(t, string(management.ClusterDeploymentTypePRODUCTION), model.DeploymentType.ValueString())
 	require.True(t, model.Size.IsNull())
-	require.Equal(t, float32(120), model.AutoSuspend.SuspendAfterSeconds.ValueFloat32())
+	require.Equal(t, int64(120), model.AutoSuspend.SuspendAfterSeconds.ValueInt64())
 	require.Equal(t, float32(2), model.AutoScale.MaxScaleFactor.ValueFloat32())
 	require.Equal(t, string(management.LOW), model.AutoScale.Sensitivity.ValueString())
 	require.False(t, model.UpdateWindow.IsNull())
@@ -208,7 +208,7 @@ func TestClusterModelHelpers(t *testing.T) {
 		SuspendType:           util.Ptr(management.AutoSuspendSuspendTypeSCHEDULED),
 		ScheduledAfterSeconds: util.Ptr(30),
 	}})
-	require.Equal(t, float32(30), scheduled.SuspendAfterSeconds.ValueFloat32())
+	require.Equal(t, int64(30), scheduled.SuspendAfterSeconds.ValueInt64())
 
 	omittedSuspend := toAutoSuspendResourceModel(management.Cluster{})
 	require.True(t, omittedSuspend.SuspendAfterSeconds.IsNull())
@@ -247,10 +247,11 @@ func TestClusterModelHelpers(t *testing.T) {
 	plan := validClusterPlan()
 	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)
 	require.Equal(t, float32(2), *toCreateAutoScale(plan).MaxScaleFactor)
-	require.Nil(t, float32ToIntPtr(types.Float32Null()))
-	require.Equal(t, 4, *float32ToIntPtr(types.Float32Value(4)))
-	require.True(t, intPtrToFloat32(nil).IsNull())
-	require.Equal(t, float32(4), intPtrToFloat32(util.Ptr(4)).ValueFloat32())
+	require.Nil(t, int64ToIntPtr(types.Int64Null()))
+	require.Nil(t, int64ToIntPtr(types.Int64Unknown()))
+	require.Equal(t, 4, *int64ToIntPtr(types.Int64Value(4)))
+	require.True(t, intPtrToInt64(nil).IsNull())
+	require.Equal(t, int64(4), intPtrToInt64(util.Ptr(4)).ValueInt64())
 
 	state := validClusterPlan()
 	changed := validClusterPlan()
@@ -285,14 +286,14 @@ func TestClusterPlanConverters(t *testing.T) {
 	idleSuspend := *plan.AutoSuspend
 	idle.AutoSuspend = &idleSuspend
 	idle.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeIDLE))
-	idle.AutoSuspend.SuspendAfterSeconds = types.Float32Value(90)
+	idle.AutoSuspend.SuspendAfterSeconds = types.Int64Value(90)
 	require.Equal(t, 90, *toAutoSuspend(idle).IdleAfterSeconds)
 
 	scheduled := plan
 	scheduledSuspend := *plan.AutoSuspend
 	scheduled.AutoSuspend = &scheduledSuspend
 	scheduled.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeSCHEDULED))
-	scheduled.AutoSuspend.SuspendAfterSeconds = types.Float32Value(30)
+	scheduled.AutoSuspend.SuspendAfterSeconds = types.Int64Value(30)
 	require.Equal(t, 30, *toAutoSuspend(scheduled).ScheduledAfterSeconds)
 
 	window, diags := types.ObjectValue(
@@ -340,7 +341,7 @@ func TestClusterPlanConverters(t *testing.T) {
 	badSuspend := validClusterPlan()
 	badSuspendConfig := *badSuspend.AutoSuspend
 	badSuspend.AutoSuspend = &badSuspendConfig
-	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Float32Value(10)
+	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Int64Value(10)
 	require.Equal(t, "Invalid auto_suspend configuration.", validateSuspendedAndConfigChanges(&state, &badSuspend).Summary)
 
 	// Values known only at apply time may still be valid, so plan-time checks skip them.
@@ -353,24 +354,8 @@ func TestClusterPlanConverters(t *testing.T) {
 	unknownSeconds := validClusterPlan()
 	unknownSuspendConfig := *unknownSeconds.AutoSuspend
 	unknownSeconds.AutoSuspend = &unknownSuspendConfig
-	unknownSeconds.AutoSuspend.SuspendAfterSeconds = types.Float32Unknown()
+	unknownSeconds.AutoSuspend.SuspendAfterSeconds = types.Int64Unknown()
 	require.Nil(t, validateAutoSuspendConfig(&unknownSeconds))
-}
-
-// TestWholeNumberValidator rejects a fractional suspend_after_seconds value.
-func TestWholeNumberValidator(t *testing.T) {
-	ctx := t.Context()
-	v := wholeNumberValidator{}
-	for _, value := range []types.Float32{types.Float32Null(), types.Float32Unknown(), types.Float32Value(3600)} {
-		var resp validator.Float32Response
-		v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: value}, &resp)
-		require.False(t, resp.Diagnostics.HasError(), "value %s", value)
-	}
-
-	var resp validator.Float32Response
-	v.ValidateFloat32(ctx, validator.Float32Request{Path: path.Root("suspend_after_seconds"), ConfigValue: types.Float32Value(3600.5)}, &resp)
-	require.True(t, resp.Diagnostics.HasError())
-	require.Equal(t, v.Description(ctx), v.MarkdownDescription(ctx))
 }
 
 func TestFirewallRangeHelpers(t *testing.T) {
@@ -486,7 +471,7 @@ func validClusterPlan() clusterResourceModel {
 			Sensitivity:    types.StringValue(string(management.NORMAL)),
 		},
 		AutoSuspend: &autoSuspendResourceModel{
-			SuspendAfterSeconds: types.Float32Null(),
+			SuspendAfterSeconds: types.Int64Null(),
 			SuspendType:         types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED)),
 		},
 		UpdateWindow: types.ObjectNull(updateWindowAttrTypes),

@@ -89,7 +89,7 @@ Optional:
 
 Optional:
 
-- `suspend_after_seconds` (Number) When to suspend the cluster, according to the suspend type chosen. Must be a whole number of seconds.
+- `suspend_after_seconds` (Number) When to suspend the cluster, in whole seconds, according to the suspend type chosen.
 - `suspend_type` (String) The auto suspend mode for the cluster can have the values `IDLE`, `SCHEDULED`, or `DISABLED`. Default is `DISABLED`.
 
 
