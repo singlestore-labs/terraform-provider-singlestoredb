@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float32validator"
@@ -57,11 +56,6 @@ var updateWindowAttrTypes = map[string]attr.Type{
 // clusterResource is the resource implementation.
 type clusterResource struct {
 	management.ClientWithResponsesInterface
-}
-
-type updateWindowResourceModel struct {
-	Hour types.Int64 `tfsdk:"hour"`
-	Day  types.Int64 `tfsdk:"day"`
 }
 
 type autoScaleResourceModel struct {
@@ -381,12 +375,6 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
-	resp.Diagnostics.Append(updateWindowDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 	createBody := management.Cluster{
 		AutoScale:           toCreateAutoScale(plan),
@@ -406,7 +394,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 			ScaleFactor: util.MaybeFloat32(plan.ScaleFactor),
 			CacheConfig: util.MaybeFloat32(plan.CacheConfig),
 		},
-		UpdateWindow: updateWindow,
+		UpdateWindow: toManagementUpdateWindow(plan.UpdateWindow),
 	}
 
 	clusterCreateResponse, cerr := r.PostV2ClustersWithResponse(ctx, createBody)
@@ -450,11 +438,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	cluster, autoScaleApplied := applyAutoScaleAfterCreate(ctx, r.ClientWithResponsesInterface, clusterID, cluster, plan, &resp.Diagnostics)
 
-	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName)
-	resp.Diagnostics.Append(modelDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	result := toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName)
 	keepPlannedAutoScale(&result, plan, autoScaleApplied)
 	// expires_at is Optional only, so apply must store the planned value. An expiry
 	// the API set on its own shows up on the next refresh instead, where
@@ -467,13 +451,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 // prepareCreatePlan checks the plan before POST /v2/clusters.
 func prepareCreatePlan(plan *clusterResourceModel, diags *diag.Diagnostics) {
-	if plan.Suspended.ValueBool() {
-		diags.AddAttributeError(
-			path.Root("suspended"),
-			"Cannot suspend a cluster during creation",
-			"Either set value to false or omit the field.",
-		)
-
+	if rejectSuspendedCreate(*plan, diags) {
 		return
 	}
 
@@ -487,6 +465,32 @@ func prepareCreatePlan(plan *clusterResourceModel, diags *diag.Diagnostics) {
 	if err := validateCreateParameters(plan); err != nil {
 		diags.AddError(err.Summary, err.Detail)
 	}
+}
+
+// rejectSuspendedCreate reports an error and returns true when the plan creates a
+// suspended cluster. ValueBool is false for null and unknown, so an omitted or
+// not-yet-known value passes at plan time and is checked again by Create.
+func rejectSuspendedCreate(plan clusterResourceModel, diags *diag.Diagnostics) bool {
+	if !plan.Suspended.ValueBool() {
+		return false
+	}
+
+	diags.AddAttributeError(
+		path.Root("suspended"),
+		"Cannot suspend a cluster during creation",
+		"Either set value to false or omit the field.",
+	)
+
+	return true
+}
+
+// previewRequiresNonProduction reports whether opt_in_preview_feature is enabled
+// with a known deployment type other than NON-PRODUCTION. An omitted type is the
+// API default PRODUCTION.
+func previewRequiresNonProduction(optInPreviewFeature types.Bool, deploymentType types.String) bool {
+	effective, known := effectiveDeploymentType(deploymentType)
+
+	return optInPreviewFeature.ValueBool() && known && effective != string(management.ClusterDeploymentTypeNONPRODUCTION)
 }
 
 // unreadableCreateResponseError reports a 200 create response without a JSON cluster.
@@ -631,11 +635,7 @@ func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *re
 	}
 
 	previousSuspended := state.Suspended
-	state, modelDiags := toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state, projectName)
-	resp.Diagnostics.Append(modelDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	state = toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state, projectName)
 	if !isSettledClusterState(stateValue) {
 		// PENDING also covers suspend, resume, and scale. Deriving suspended from a
 		// transitional state would plan a suspend or resume nobody asked for.
@@ -774,7 +774,7 @@ func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
-func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) { //nolint:cyclop
+func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return // Destroy.
 	}
@@ -804,105 +804,72 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	// Create has no prior state. Run the checks here so plan fails before apply.
-	// ValueBool is false for null and unknown, so an omitted or not-yet-known
-	// suspended value is left to Create.
 	if state == nil {
 		modifyCreatePlan(ctx, req.Config, plan, &resp.Diagnostics)
 
 		return
 	}
 
-	// A value that is not known yet, for example a name built from a resource being
-	// replaced, is checked when Terraform plans again during apply.
-	if changedKnown(plan.Name, state.Name) {
-		resp.Diagnostics.AddError("Cannot update cluster name",
-			"Updating the name is not permitted. "+
-				"Current value: \""+state.Name.ValueString()+"\", configured value: \""+plan.Name.ValueString()+"\".")
+	modifyUpdatePlan(ctx, &resp.Plan, plan, state, &resp.Diagnostics)
+}
 
-		return
+// modifyUpdatePlan rejects changes the Management API cannot apply to an existing
+// cluster. A value that is not known yet, for example a name built from a resource
+// being replaced, is checked when Terraform plans again during apply.
+func modifyUpdatePlan(ctx context.Context, respPlan *tfsdk.Plan, plan, state *clusterResourceModel, diags *diag.Diagnostics) {
+	for _, a := range []struct {
+		name        string
+		plan, state attr.Value
+	}{
+		{"name", plan.Name, state.Name},
+		{"cloud_provider", plan.CloudProvider, state.CloudProvider},
+		{"region_name", plan.RegionName, state.RegionName},
+		{"kai", plan.Kai, state.Kai},
+		{"multi_az", plan.MultiAZ, state.MultiAZ},
+		{"opt_in_preview_feature", plan.OptInPreviewFeature, state.OptInPreviewFeature},
+	} {
+		if changedKnown(a.plan, a.state) {
+			diags.AddAttributeError(path.Root(a.name), "Cannot update cluster "+a.name,
+				fmt.Sprintf("Changing %s after the cluster is created is not supported. Current value: %s, configured value: %s.", a.name, a.state, a.plan))
+
+			return
+		}
 	}
 
 	// UseStateForUnknown skips a null state, so an unconfigured project_name the API
 	// did not return stays unknown and would look like a change. Keep it null.
-	for _, a := range []struct {
-		name  string
-		plan  *types.String
-		state types.String
-	}{
-		{"project_name", &plan.ProjectName, state.ProjectName},
-	} {
-		if a.plan.IsUnknown() && a.state.IsNull() {
-			*a.plan = types.StringNull()
-			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(a.name), types.StringNull())...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
+	if plan.ProjectName.IsUnknown() && state.ProjectName.IsNull() {
+		plan.ProjectName = types.StringNull()
+		diags.Append(respPlan.SetAttribute(ctx, path.Root("project_name"), types.StringNull())...)
+		if diags.HasError() {
+			return
 		}
 	}
 
 	if err := validateModifyProjectName(plan, state); err != nil {
-		resp.Diagnostics.AddError(err.Summary, err.Detail)
+		diags.AddError(err.Summary, err.Detail)
 
 		return
 	}
 
 	if err := validateModifyExpiresAt(plan, state); err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("expires_at"), err.Summary, err.Detail)
+		diags.AddAttributeError(path.Root("expires_at"), err.Summary, err.Detail)
 
 		return
 	}
 
-	if changedKnown(plan.CloudProvider, state.CloudProvider) {
-		resp.Diagnostics.AddError("Cannot update cluster cloud_provider",
-			fmt.Sprintf("Updating the cloud_provider is not permitted. Expected value is '%s'.", state.CloudProvider.ValueString()))
-
-		return
-	}
-
-	if changedKnown(plan.RegionName, state.RegionName) {
-		resp.Diagnostics.AddError("Cannot update cluster region_name",
-			fmt.Sprintf("Updating the region_name is not permitted. Expected value is '%s', but now is '%s'.", state.RegionName.ValueString(), plan.RegionName.ValueString()))
-
-		return
-	}
-
-	if changedKnown(plan.Kai, state.Kai) {
-		resp.Diagnostics.AddError("Cannot change the kai configuration for the cluster",
-			"Changing the kai configuration is currently not supported. "+
-				"Current value: "+state.Kai.String()+", configured value: "+plan.Kai.String()+".")
-
-		return
-	}
-
-	if changedKnown(plan.MultiAZ, state.MultiAZ) {
-		resp.Diagnostics.AddError("Cannot change the multi_az configuration for the cluster",
-			"Changing the multi_az configuration is currently not supported. "+
-				"Current value: "+state.MultiAZ.String()+", configured value: "+plan.MultiAZ.String()+".")
-
-		return
-	}
-
-	if changedKnown(plan.OptInPreviewFeature, state.OptInPreviewFeature) {
-		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the cluster",
-			"Changing the opt_in_preview_feature configuration is currently not supported. "+
-				"Current value: "+state.OptInPreviewFeature.String()+", configured value: "+plan.OptInPreviewFeature.String()+".")
-
-		return
-	}
-
-	if deploymentType, known := effectiveDeploymentType(plan.DeploymentType); state.OptInPreviewFeature.ValueBool() && known &&
-		deploymentType != string(management.ClusterDeploymentTypeNONPRODUCTION) {
-		resp.Diagnostics.AddError(
-			"Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the cluster when the opt_in_preview_feature is enabled.",
-			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. "+
-				"Current value: \""+state.DeploymentType.ValueString()+"\", configured value: \""+plan.DeploymentType.ValueString()+"\".",
+	if previewRequiresNonProduction(state.OptInPreviewFeature, plan.DeploymentType) {
+		diags.AddAttributeError(path.Root("deployment_type"),
+			"Cannot change cluster deployment_type",
+			"A cluster with opt_in_preview_feature enabled must stay NON-PRODUCTION. "+
+				"Current value: "+state.DeploymentType.String()+", configured value: "+plan.DeploymentType.String()+".",
 		)
 
 		return
 	}
 
 	if err := validateSuspendedAndConfigChanges(state, plan); err != nil {
-		resp.Diagnostics.AddError(err.Summary, err.Detail)
+		diags.AddError(err.Summary, err.Detail)
 
 		return
 	}
@@ -910,13 +877,7 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 // modifyCreatePlan runs the create checks at plan time.
 func modifyCreatePlan(ctx context.Context, cfg tfsdk.Config, plan *clusterResourceModel, diags *diag.Diagnostics) {
-	if plan.Suspended.ValueBool() {
-		diags.AddAttributeError(
-			path.Root("suspended"),
-			"Cannot suspend a cluster during creation",
-			"Either set value to false or omit the field.",
-		)
-
+	if rejectSuspendedCreate(*plan, diags) {
 		return
 	}
 
@@ -1012,8 +973,7 @@ func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetai
 		}
 	}
 
-	if deploymentType, known := effectiveDeploymentType(plan.DeploymentType); plan.OptInPreviewFeature.ValueBool() && known &&
-		deploymentType != string(management.ClusterDeploymentTypeNONPRODUCTION) {
+	if previewRequiresNonProduction(plan.OptInPreviewFeature, plan.DeploymentType) {
 		return &util.SummaryWithDetailError{
 			Summary: "Wrong configuration for opt_in_preview_feature and deployment_type",
 			Detail:  "The enabled opt_in_preview_feature configuration is suitable only for the 'NON-PRODUCTION' deployment_type.",
@@ -1166,15 +1126,14 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 // prior is the plan or state being refreshed. It supplies the configured firewall
 // ranges and expires_at spelling, and the deployment_type and kai values to keep
 // when the response omits them.
-func toClusterResourceModel(cluster management.Cluster, adminPassword string, prior clusterResourceModel, projectName types.String) (clusterResourceModel, diag.Diagnostics) {
+func toClusterResourceModel(cluster management.Cluster, adminPassword string, prior clusterResourceModel, projectName types.String) clusterResourceModel {
 	size := types.StringNull()
 	if cluster.SizeConfig != nil {
 		size = util.MaybeStringValue(cluster.SizeConfig.Size)
 	}
 	scaleFactor, cacheConfig := sizeConfigForState(cluster.SizeConfig)
 
-	updateWindow, diags := toUpdateWindowResourceModel(cluster.UpdateWindow)
-	model := clusterResourceModel{
+	return clusterResourceModel{
 		ID:                  util.MaybeUUIDStringValue(cluster.ClusterID),
 		Name:                types.StringValue(cluster.Name),
 		ProjectName:         projectName,
@@ -1185,7 +1144,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, pr
 		Suspended:           types.BoolValue(util.Deref(cluster.State) == management.ClusterStateSUSPENDED),
 		Kai:                 kaiForState(cluster.Kai, prior.Kai),
 		AdminPassword:       passwordFromAPI(cluster.AdminPassword, adminPassword),
-		FirewallRanges:      firewallRangesForState(prior.FirewallRanges, cluster),
+		FirewallRanges:      util.FirewallRangesForState(prior.FirewallRanges, cluster.AllowAllTraffic, cluster.FirewallRanges),
 		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, prior.ExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
@@ -1197,10 +1156,8 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, pr
 		CreatedAt:           util.MaybeTimeValue(cluster.CreatedAt),
 		AutoScale:           toAutoScaleResourceModel(cluster),
 		AutoSuspend:         toAutoSuspendResourceModel(cluster),
-		UpdateWindow:        updateWindow,
+		UpdateWindow:        toUpdateWindowResourceModel(cluster.UpdateWindow),
 	}
-
-	return model, diags
 }
 
 // sizeConfigForState returns the scale factor and cache multiplier to store.
@@ -1502,62 +1459,32 @@ func intPtrToInt64(i *int) types.Int64 {
 }
 
 // toManagementUpdateWindow converts the planned update window into the Management API object.
-func toManagementUpdateWindow(ctx context.Context, uw types.Object) (*management.UpdateWindow, diag.Diagnostics) {
+func toManagementUpdateWindow(uw types.Object) *management.UpdateWindow {
 	if uw.IsNull() || uw.IsUnknown() {
-		return nil, nil
-	}
-
-	var model updateWindowResourceModel
-	diags := uw.As(ctx, &model, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	return &management.UpdateWindow{
-		Hour: float32(model.Hour.ValueInt64()),
-		Day:  float32(model.Day.ValueInt64()),
-	}, diags
-}
-
-// toUpdateWindowResourceModel converts the Management API update window into state.
-func toUpdateWindowResourceModel(uw *management.UpdateWindow) (types.Object, diag.Diagnostics) {
-	if uw == nil {
-		return types.ObjectNull(updateWindowAttrTypes), nil
-	}
-
-	obj, diags := types.ObjectValue(
-		updateWindowAttrTypes,
-		map[string]attr.Value{
-			"hour": types.Int64Value(int64(uw.Hour)),
-			"day":  types.Int64Value(int64(uw.Day)),
-		},
-	)
-	if diags.HasError() {
-		return types.ObjectNull(updateWindowAttrTypes), diags
-	}
-
-	return obj, diags
-}
-
-// errorFromDiagnostics returns the first diagnostic error, with every error detail joined.
-func errorFromDiagnostics(diags diag.Diagnostics) *util.SummaryWithDetailError {
-	if !diags.HasError() {
 		return nil
 	}
 
-	errs := diags.Errors()
-	details := make([]string, len(errs))
-	for i, d := range errs {
-		details[i] = d.Detail()
-		if details[i] == "" {
-			details[i] = d.Summary()
-		}
+	// The schema fixes both attribute types, so the assertions cannot fail.
+	attrs := uw.Attributes()
+	hour, _ := attrs["hour"].(types.Int64)
+	day, _ := attrs["day"].(types.Int64)
+
+	return &management.UpdateWindow{
+		Hour: float32(hour.ValueInt64()),
+		Day:  float32(day.ValueInt64()),
+	}
+}
+
+// toUpdateWindowResourceModel converts the Management API update window into state.
+func toUpdateWindowResourceModel(uw *management.UpdateWindow) types.Object {
+	if uw == nil {
+		return types.ObjectNull(updateWindowAttrTypes)
 	}
 
-	return &util.SummaryWithDetailError{
-		Summary: errs[0].Summary(),
-		Detail:  strings.Join(details, "\n"),
-	}
+	return types.ObjectValueMust(updateWindowAttrTypes, map[string]attr.Value{
+		"hour": types.Int64Value(int64(uw.Hour)),
+		"day":  types.Int64Value(int64(uw.Day)),
+	})
 }
 
 // resolveProjectNameByID finds the project name for a Management API project ID.

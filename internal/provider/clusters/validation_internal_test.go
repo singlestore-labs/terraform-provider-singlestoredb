@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -20,175 +19,212 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClusterSizeValidator(t *testing.T) {
-	v := NewSizeValidator()
-	ctx := t.Context()
-	require.Contains(t, v.MarkdownDescription(ctx), "S-00")
+// planWith returns validClusterPlan changed by mutate.
+func planWith(mutate func(*clusterResourceModel)) clusterResourceModel {
+	plan := validClusterPlan()
+	mutate(&plan)
 
-	var skipped validator.StringResponse
-	v.ValidateString(ctx, validator.StringRequest{Path: path.Root("size"), ConfigValue: types.StringNull()}, &skipped)
-	v.ValidateString(ctx, validator.StringRequest{Path: path.Root("size"), ConfigValue: types.StringUnknown()}, &skipped)
-	require.False(t, skipped.Diagnostics.HasError())
+	return plan
+}
 
-	var valid validator.StringResponse
-	v.ValidateString(ctx, validator.StringRequest{Path: path.Root("size"), ConfigValue: types.StringValue("S-1")}, &valid)
-	require.False(t, valid.Diagnostics.HasError())
+// requireErr checks err against want: nil when want is empty, otherwise a
+// summary or detail that contains want.
+func requireErr(t *testing.T, want string, err *util.SummaryWithDetailError) {
+	t.Helper()
+	if want == "" {
+		require.Nil(t, err)
 
-	var invalid validator.StringResponse
-	v.ValidateString(ctx, validator.StringRequest{Path: path.Root("size"), ConfigValue: types.StringValue("nope")}, &invalid)
-	require.True(t, invalid.Diagnostics.HasError())
+		return
+	}
+	require.NotNil(t, err)
+	require.Contains(t, err.Summary+"\n"+err.Detail, want)
 }
 
 func TestValidateCreateParameters(t *testing.T) {
-	plan := validClusterPlan()
-	require.Nil(t, validateCreateParameters(&plan))
-
-	missingProject := plan
-	missingProject.ProjectName = types.StringNull()
-	require.Equal(t, "Missing project_name", validateCreateParameters(&missingProject).Summary)
-
-	regionOnly := plan
-	regionOnly.CloudProvider = types.StringNull()
-	require.Equal(t, "Invalid region configuration", validateCreateParameters(&regionOnly).Summary)
-
-	omittedRegion := plan
-	omittedRegion.CloudProvider = types.StringNull()
-	omittedRegion.RegionName = types.StringNull()
-	require.Contains(t, validateCreateParameters(&omittedRegion).Detail, "POST /v2/clusters")
-
-	preview := plan
-	preview.OptInPreviewFeature = types.BoolValue(true)
-	require.Contains(t, validateCreateParameters(&preview).Detail, "NON-PRODUCTION")
-
-	badSuspend := plan
-	suspend := *plan.AutoSuspend
-	badSuspend.AutoSuspend = &suspend
-	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60)
-	require.Equal(t, "Invalid auto_suspend configuration.", validateCreateParameters(&badSuspend).Summary)
-
-	badScale := plan
-	scale := *plan.AutoScale
-	badScale.AutoScale = &scale
-	badScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
-	require.Equal(t, "Invalid auto_scale configuration.", validateCreateParameters(&badScale).Summary)
+	for name, tc := range map[string]struct {
+		mutate func(*clusterResourceModel)
+		want   string
+	}{
+		"valid":              {mutate: func(*clusterResourceModel) {}},
+		"missing project":    {mutate: func(p *clusterResourceModel) { p.ProjectName = types.StringNull() }, want: "Missing project_name"},
+		"missing provider":   {mutate: func(p *clusterResourceModel) { p.CloudProvider = types.StringNull() }, want: "Invalid region configuration"},
+		"missing region":     {mutate: func(p *clusterResourceModel) { p.CloudProvider, p.RegionName = types.StringNull(), types.StringNull() }, want: "POST /v2/clusters"},
+		"preview production": {mutate: func(p *clusterResourceModel) { p.OptInPreviewFeature = types.BoolValue(true) }, want: "NON-PRODUCTION"},
+		"preview omitted type": {mutate: func(p *clusterResourceModel) {
+			p.OptInPreviewFeature = types.BoolValue(true)
+			p.DeploymentType = types.StringNull()
+		}, want: "NON-PRODUCTION"},
+		"disabled suspend with seconds": {mutate: func(p *clusterResourceModel) { p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60) }, want: "Invalid auto_suspend configuration."},
+		"idle suspend without seconds":  {mutate: func(p *clusterResourceModel) { p.AutoSuspend.SuspendType = types.StringValue("IDLE") }, want: "suspend_after_seconds is required"},
+		"scheduled without seconds":     {mutate: func(p *clusterResourceModel) { p.AutoSuspend.SuspendType = types.StringValue("SCHEDULED") }, want: "suspend_after_seconds is required"},
+		"idle suspend with seconds": {mutate: func(p *clusterResourceModel) {
+			p.AutoSuspend.SuspendType = types.StringValue("IDLE")
+			p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60)
+		}},
+		"unknown suspend seconds":       {mutate: func(p *clusterResourceModel) { p.AutoSuspend.SuspendAfterSeconds = types.Int64Unknown() }},
+		"sensitivity without autoscale": {mutate: func(p *clusterResourceModel) { p.AutoScale.Sensitivity = types.StringValue("HIGH") }, want: "Invalid auto_scale configuration."},
+		"unknown autoscale sensitivity": {mutate: func(p *clusterResourceModel) { p.AutoScale.Sensitivity = types.StringUnknown() }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plan := planWith(tc.mutate)
+			requireErr(t, tc.want, validateCreateParameters(&plan))
+		})
+	}
 }
 
 func TestValidatePlannedCreate(t *testing.T) {
-	plan := validClusterPlan()
-	require.Nil(t, validatePlannedCreate(&plan, plan.ProjectName, plan.DeploymentType))
-
-	require.Equal(t, "Missing project_name", validatePlannedCreate(&plan, types.StringNull(), plan.DeploymentType).Summary)
-
-	unknownProject := plan
-	unknownProject.ProjectName = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&unknownProject, types.StringUnknown(), plan.DeploymentType))
-
-	unknownRegion := plan
-	unknownRegion.RegionName = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&unknownRegion, plan.ProjectName, plan.DeploymentType))
-
-	missingRegion := plan
-	missingRegion.RegionName = types.StringNull()
-	require.Equal(t, "Invalid region configuration", validatePlannedCreate(&missingRegion, plan.ProjectName, plan.DeploymentType).Summary)
-
-	preview := plan
-	preview.OptInPreviewFeature = types.BoolValue(true)
-	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName, plan.DeploymentType).Detail, "NON-PRODUCTION")
-
-	// A configured deployment type that is not known yet is left to Create.
-	preview.DeploymentType = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&preview, plan.ProjectName, types.StringUnknown()))
-
-	// An omitted deployment type is unknown in the plan but means PRODUCTION.
-	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName, types.StringNull()).Detail, "NON-PRODUCTION")
-
-	// Create stores an omitted deployment type as null before validating.
-	preview.DeploymentType = types.StringNull()
-	require.Contains(t, validateCreateParameters(&preview).Detail, "NON-PRODUCTION")
-
-	// A known-bad scale still fails when another create input is not yet known.
-	badScale := plan
-	scale := *plan.AutoScale
-	badScale.AutoScale = &scale
-	badScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
-	badScale.ProjectName = types.StringUnknown()
-	require.Equal(t, "Invalid auto_scale configuration.", validatePlannedCreate(&badScale, plan.ProjectName, plan.DeploymentType).Summary)
-
-	unknownScale := plan
-	unknown := *plan.AutoScale
-	unknownScale.AutoScale = &unknown
-	unknownScale.AutoScale.MaxScaleFactor = types.Float32Unknown()
-	unknownScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
-	require.Nil(t, validatePlannedCreate(&unknownScale, plan.ProjectName, plan.DeploymentType))
+	known := validClusterPlan()
+	for name, tc := range map[string]struct {
+		mutate                     func(*clusterResourceModel)
+		configProject, configDType types.String
+		want                       string
+	}{
+		"valid":              {mutate: func(*clusterResourceModel) {}, configProject: known.ProjectName, configDType: known.DeploymentType},
+		"omitted project":    {mutate: func(*clusterResourceModel) {}, configProject: types.StringNull(), configDType: known.DeploymentType, want: "Missing project_name"},
+		"unknown project":    {mutate: func(p *clusterResourceModel) { p.ProjectName = types.StringUnknown() }, configProject: types.StringUnknown(), configDType: known.DeploymentType},
+		"unknown region":     {mutate: func(p *clusterResourceModel) { p.RegionName = types.StringUnknown() }, configProject: known.ProjectName, configDType: known.DeploymentType},
+		"missing region":     {mutate: func(p *clusterResourceModel) { p.RegionName = types.StringNull() }, configProject: known.ProjectName, configDType: known.DeploymentType, want: "Invalid region configuration"},
+		"preview production": {mutate: func(p *clusterResourceModel) { p.OptInPreviewFeature = types.BoolValue(true) }, configProject: known.ProjectName, configDType: known.DeploymentType, want: "NON-PRODUCTION"},
+		"preview type unknown": {mutate: func(p *clusterResourceModel) {
+			p.OptInPreviewFeature = types.BoolValue(true)
+			p.DeploymentType = types.StringUnknown()
+		}, configProject: known.ProjectName, configDType: types.StringUnknown()},
+		// An omitted deployment type is unknown in the plan but means PRODUCTION.
+		"preview type omitted": {mutate: func(p *clusterResourceModel) {
+			p.OptInPreviewFeature = types.BoolValue(true)
+			p.DeploymentType = types.StringUnknown()
+		}, configProject: known.ProjectName, configDType: types.StringNull(), want: "NON-PRODUCTION"},
+		// A known-bad scale still fails when another create input is not yet known.
+		"bad scale, unknown project": {mutate: func(p *clusterResourceModel) {
+			p.AutoScale.Sensitivity = types.StringValue("HIGH")
+			p.ProjectName = types.StringUnknown()
+		}, configProject: known.ProjectName, configDType: known.DeploymentType, want: "Invalid auto_scale configuration."},
+		"unknown scale factor": {mutate: func(p *clusterResourceModel) {
+			p.AutoScale.MaxScaleFactor = types.Float32Unknown()
+			p.AutoScale.Sensitivity = types.StringValue("HIGH")
+		}, configProject: known.ProjectName, configDType: known.DeploymentType},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plan := planWith(tc.mutate)
+			requireErr(t, tc.want, validatePlannedCreate(&plan, tc.configProject, tc.configDType))
+		})
+	}
 }
 
-func TestValidateModifyProjectName(t *testing.T) {
-	plan := validClusterPlan()
-	state := validClusterPlan()
-	require.Nil(t, validateModifyProjectName(&plan, &state))
-
-	unset := plan
-	unset.ProjectName = types.StringNull()
-	require.Nil(t, validateModifyProjectName(&unset, &state))
-
-	state.ProjectName = types.StringNull()
-	require.Equal(t, "Cannot update cluster project_name", validateModifyProjectName(&plan, &state).Summary)
-
-	state.ProjectName = types.StringValue("Other Project")
-	require.Contains(t, validateModifyProjectName(&plan, &state).Detail, "Other Project")
+func TestValidateModify(t *testing.T) {
+	for name, tc := range map[string]struct {
+		state, plan func(*clusterResourceModel)
+		check       func(plan, state *clusterResourceModel) *util.SummaryWithDetailError
+		want        string
+	}{
+		"project unchanged":     {check: validateModifyProjectName},
+		"project unset in plan": {plan: func(p *clusterResourceModel) { p.ProjectName = types.StringNull() }, check: validateModifyProjectName},
+		"project unknown":       {plan: func(p *clusterResourceModel) { p.ProjectName = types.StringUnknown() }, check: validateModifyProjectName},
+		"project set from null": {state: func(s *clusterResourceModel) { s.ProjectName = types.StringNull() }, check: validateModifyProjectName, want: "Cannot update cluster project_name"},
+		"project changed":       {state: func(s *clusterResourceModel) { s.ProjectName = types.StringValue("Other Project") }, check: validateModifyProjectName, want: "Other Project"},
+		"expires_at unchanged":  {check: validateModifyExpiresAt},
+		"expires_at changed": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2221-01-02T15:04:05Z") },
+			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2222-01-02T15:04:05Z") },
+			check: validateModifyExpiresAt, want: "Cannot change cluster expires_at",
+		},
+		"expires_at removed": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2221-01-02T15:04:05Z") },
+			check: validateModifyExpiresAt, want: "Cannot change cluster expires_at",
+		},
+		// Import stores the normalized API timestamp. Another RFC3339 spelling of that
+		// instant is not a change, so it must not block a later update.
+		"expires_at fractional spelling": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z") },
+			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z") },
+			check: validateModifyExpiresAt,
+		},
+		"expires_at zero fraction": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2222-01-01T00:00:00Z") },
+			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2222-01-01T00:00:00.000Z") },
+			check: validateModifyExpiresAt,
+		},
+		"no change": {check: flip(validateSuspendedAndConfigChanges)},
+		"suspend with resize": {
+			plan:  func(p *clusterResourceModel) { p.Suspended, p.Size = types.BoolValue(true), types.StringValue("S-1") },
+			check: flip(validateSuspendedAndConfigChanges), want: "suspension state",
+		},
+		"resize while suspended": {
+			state: func(s *clusterResourceModel) { s.Suspended = types.BoolValue(true) },
+			plan:  func(p *clusterResourceModel) { p.Suspended, p.Size = types.BoolValue(true), types.StringValue("S-1") },
+			check: flip(validateSuspendedAndConfigChanges), want: "suspended cluster",
+		},
+		"update with bad scale": {
+			plan:  func(p *clusterResourceModel) { p.AutoScale.Sensitivity = types.StringValue("HIGH") },
+			check: flip(validateSuspendedAndConfigChanges), want: "Invalid auto_scale configuration.",
+		},
+		"update with bad suspend": {
+			plan:  func(p *clusterResourceModel) { p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(10) },
+			check: flip(validateSuspendedAndConfigChanges), want: "Invalid auto_suspend configuration.",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			noop := func(*clusterResourceModel) {}
+			if tc.state == nil {
+				tc.state = noop
+			}
+			if tc.plan == nil {
+				tc.plan = noop
+			}
+			state, plan := planWith(tc.state), planWith(tc.plan)
+			requireErr(t, tc.want, tc.check(&plan, &state))
+		})
+	}
 }
 
-func TestValidateModifyExpiresAt(t *testing.T) {
-	plan := validClusterPlan()
-	state := validClusterPlan()
-	require.Nil(t, validateModifyExpiresAt(&plan, &state))
-
-	state.ExpiresAt = types.StringValue("2221-01-02T15:04:05Z")
-	plan.ExpiresAt = types.StringValue("2222-01-02T15:04:05Z")
-	require.Equal(t, "Cannot change cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
-
-	plan.ExpiresAt = types.StringNull()
-	require.Equal(t, "Cannot change cluster expires_at", validateModifyExpiresAt(&plan, &state).Summary)
-
-	plan.ExpiresAt = state.ExpiresAt
-	require.Nil(t, validateModifyExpiresAt(&plan, &state))
-
-	// Import stores the normalized API timestamp. Another RFC3339 spelling of that
-	// instant is not a change, so it must not block a later update.
-	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
-	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
-	require.Nil(t, validateModifyExpiresAt(&plan, &state))
-
-	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00Z")
-	plan.ExpiresAt = types.StringValue("2222-01-01T00:00:00.000Z")
-	require.Nil(t, validateModifyExpiresAt(&plan, &state))
+// flip adapts a (state, plan) check to the (plan, state) order of the table above.
+func flip(f func(state, plan *clusterResourceModel) *util.SummaryWithDetailError) func(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
+	return func(plan, state *clusterResourceModel) *util.SummaryWithDetailError { return f(state, plan) }
 }
 
-func TestValidateSuspendedAndConfigChanges(t *testing.T) {
-	state := validClusterPlan()
-	plan := validClusterPlan()
-	require.Nil(t, validateSuspendedAndConfigChanges(&state, &plan))
-
-	plan.Suspended = types.BoolValue(true)
-	plan.Size = types.StringValue("S-1")
-	require.Contains(t, validateSuspendedAndConfigChanges(&state, &plan).Summary, "suspension state")
-
-	plan.Suspended = types.BoolValue(true)
-	state.Suspended = types.BoolValue(true)
-	require.Contains(t, validateSuspendedAndConfigChanges(&state, &plan).Summary, "suspended cluster")
+func TestHasGeneralConfigChanged(t *testing.T) {
+	ab := []types.String{types.StringValue("10.0.0.0/8"), types.StringValue("192.168.0.0/16")}
+	ba := []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
+	for name, tc := range map[string]struct {
+		state, plan func(*clusterResourceModel)
+		want        bool
+	}{
+		"same": {},
+		"equivalent expires_at": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z") },
+			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z") },
+		},
+		"different expires_at": {
+			state: func(s *clusterResourceModel) { s.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z") },
+			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2223-01-01T00:00:00Z") },
+			want:  true,
+		},
+		"admin password only":   {plan: func(p *clusterResourceModel) { p.AdminPassword = types.StringValue("another-generated-pw") }},
+		"firewall ranges":       {plan: func(p *clusterResourceModel) { p.FirewallRanges = ab[:1] }, want: true},
+		"reordered ranges":      {state: func(s *clusterResourceModel) { s.FirewallRanges = ab }, plan: func(p *clusterResourceModel) { p.FirewallRanges = ba }},
+		"unknown update window": {state: func(s *clusterResourceModel) { s.UpdateWindow = types.ObjectUnknown(updateWindowAttrTypes) }},
+		"size":                  {plan: func(p *clusterResourceModel) { p.Size = types.StringValue("S-1") }, want: true},
+		"auto suspend":          {plan: func(p *clusterResourceModel) { p.AutoSuspend.SuspendType = types.StringValue("IDLE") }, want: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			noop := func(*clusterResourceModel) {}
+			if tc.state == nil {
+				tc.state = noop
+			}
+			if tc.plan == nil {
+				tc.plan = noop
+			}
+			require.Equal(t, tc.want, hasGeneralConfigChanged(planWith(tc.state), planWith(tc.plan)))
+		})
+	}
 }
 
-func TestClusterModelHelpers(t *testing.T) {
-	require.True(t, normalizeCloudProvider(nil).IsNull())
-	require.Equal(t, "AWS", normalizeCloudProvider(util.Ptr(management.CloudProviderAWS)).ValueString())
-	unknown := management.CloudProvider("DigitalOcean")
-	require.Equal(t, "DigitalOcean", normalizeCloudProvider(&unknown).ValueString())
-
+func TestToClusterResourceModel(t *testing.T) {
 	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
 	apiExpiresAt := "2222-01-01 00:00:00.123 +0000 UTC"
 	configuredExpiresAt := "2222-01-01T00:00:00.123000Z"
-	model, modelDiags := toClusterResourceModel(management.Cluster{
+	model := toClusterResourceModel(management.Cluster{
 		Name:      "cluster",
 		ClusterID: &clusterID,
 		CreatedAt: &createdAt,
@@ -204,7 +240,6 @@ func TestClusterModelHelpers(t *testing.T) {
 		UpdateWindow:  &management.UpdateWindow{Hour: 6, Day: 2},
 		AdminPassword: util.Ptr("from-api"),
 	}, "secret", clusterResourceModel{ExpiresAt: types.StringValue(configuredExpiresAt)}, types.StringValue("Standard Project"))
-	require.False(t, modelDiags.HasError())
 	require.Equal(t, "from-api", model.AdminPassword.ValueString())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
 	require.Equal(t, configuredExpiresAt, model.ExpiresAt.ValueString())
@@ -213,256 +248,113 @@ func TestClusterModelHelpers(t *testing.T) {
 	require.Equal(t, int64(120), model.AutoSuspend.SuspendAfterSeconds.ValueInt64())
 	require.Equal(t, float32(2), model.AutoScale.MaxScaleFactor.ValueFloat32())
 	require.Equal(t, string(management.LOW), model.AutoScale.Sensitivity.ValueString())
-	require.False(t, model.UpdateWindow.IsNull())
-
-	scheduled := toAutoSuspendResourceModel(management.Cluster{AutoSuspend: &management.AutoSuspend{
-		SuspendType:           util.Ptr(management.AutoSuspendSuspendTypeSCHEDULED),
-		ScheduledAfterSeconds: util.Ptr(30),
-	}})
-	require.Equal(t, int64(30), scheduled.SuspendAfterSeconds.ValueInt64())
-
-	omittedSuspend := toAutoSuspendResourceModel(management.Cluster{})
-	require.True(t, omittedSuspend.SuspendAfterSeconds.IsNull())
-	require.False(t, omittedSuspend.SuspendAfterSeconds.IsUnknown())
-	require.Equal(t, string(management.AutoSuspendSuspendTypeDISABLED), omittedSuspend.SuspendType.ValueString())
-
-	disabled := toAutoSuspendResourceModel(management.Cluster{AutoSuspend: &management.AutoSuspend{
-		SuspendType: util.Ptr(management.AutoSuspendSuspendTypeDISABLED),
-	}})
-	require.True(t, disabled.SuspendAfterSeconds.IsNull())
-
-	partialScale := toAutoScaleResourceModel(management.Cluster{AutoScale: &management.AutoScale{
-		MaxScaleFactor: util.Ptr[float32](1),
-	}})
-	require.Equal(t, float32(scaleX1), partialScale.MaxScaleFactor.ValueFloat32())
-	require.Equal(t, string(management.NORMAL), partialScale.Sensitivity.ValueString())
-
-	omittedFactor := toAutoScaleResourceModel(management.Cluster{AutoScale: &management.AutoScale{
-		Sensitivity: util.Ptr(management.LOW),
-	}})
-	require.Equal(t, float32(scaleX1), omittedFactor.MaxScaleFactor.ValueFloat32())
-	require.Equal(t, string(management.LOW), omittedFactor.Sensitivity.ValueString())
+	require.Equal(t, int64(6), model.UpdateWindow.Attributes()["hour"].(types.Int64).ValueInt64())
 
 	nonProduction := management.ClusterDeploymentTypeNONPRODUCTION
-	explicitDeployment, explicitDiags := toClusterResourceModel(management.Cluster{
-		DeploymentType: &nonProduction,
-	}, "", clusterResourceModel{DeploymentType: types.StringValue("PRODUCTION")}, types.StringNull())
-	require.False(t, explicitDiags.HasError())
-	require.Equal(t, string(nonProduction), explicitDeployment.DeploymentType.ValueString())
-	require.True(t, explicitDeployment.AdminPassword.IsNull())
+	explicit := toClusterResourceModel(management.Cluster{DeploymentType: &nonProduction}, "",
+		clusterResourceModel{DeploymentType: types.StringValue("PRODUCTION")}, types.StringNull())
+	require.Equal(t, string(nonProduction), explicit.DeploymentType.ValueString())
+	require.True(t, explicit.AdminPassword.IsNull())
+	require.True(t, explicit.UpdateWindow.IsNull())
 
-	kept, keptDiags := toClusterResourceModel(management.Cluster{}, "kept-secret", clusterResourceModel{}, types.StringNull())
-	require.False(t, keptDiags.HasError())
+	kept := toClusterResourceModel(management.Cluster{}, "kept-secret", clusterResourceModel{}, types.StringNull())
 	require.Equal(t, "kept-secret", kept.AdminPassword.ValueString())
 	require.False(t, kept.Kai.ValueBool())
 
 	// Fields the response omits keep the planned value, so apply matches the plan.
-	planned := clusterResourceModel{
-		DeploymentType: types.StringValue(string(nonProduction)),
-		Kai:            types.BoolValue(true),
-	}
-	omitted, omittedDiags := toClusterResourceModel(management.Cluster{}, "", planned, types.StringNull())
-	require.False(t, omittedDiags.HasError())
+	planned := clusterResourceModel{DeploymentType: types.StringValue(string(nonProduction)), Kai: types.BoolValue(true)}
+	omitted := toClusterResourceModel(management.Cluster{}, "", planned, types.StringNull())
 	require.Equal(t, string(nonProduction), omitted.DeploymentType.ValueString())
 	require.True(t, omitted.Kai.ValueBool())
 
 	// A value the API returns wins over the plan.
-	reported, reportedDiags := toClusterResourceModel(management.Cluster{Kai: util.Ptr(false)}, "", planned, types.StringNull())
-	require.False(t, reportedDiags.HasError())
-	require.False(t, reported.Kai.ValueBool())
+	require.False(t, toClusterResourceModel(management.Cluster{Kai: util.Ptr(false)}, "", planned, types.StringNull()).Kai.ValueBool())
+}
 
-	plan := validClusterPlan()
-	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)
-	require.Equal(t, float32(2), *toCreateAutoScale(plan).MaxScaleFactor)
+func TestStateConverters(t *testing.T) {
+	require.True(t, normalizeCloudProvider(nil).IsNull())
+	require.Equal(t, "AWS", normalizeCloudProvider(util.Ptr(management.CloudProviderAWS)).ValueString())
+	require.Equal(t, "DigitalOcean", normalizeCloudProvider(util.Ptr(management.CloudProvider("DigitalOcean"))).ValueString())
+
+	for name, tc := range map[string]struct {
+		in          *management.AutoSuspend
+		wantType    string
+		wantSeconds types.Int64
+	}{
+		"omitted":   {wantType: "DISABLED", wantSeconds: types.Int64Null()},
+		"disabled":  {in: &management.AutoSuspend{SuspendType: util.Ptr(management.AutoSuspendSuspendTypeDISABLED)}, wantType: "DISABLED", wantSeconds: types.Int64Null()},
+		"scheduled": {in: &management.AutoSuspend{SuspendType: util.Ptr(management.AutoSuspendSuspendTypeSCHEDULED), ScheduledAfterSeconds: util.Ptr(30)}, wantType: "SCHEDULED", wantSeconds: types.Int64Value(30)},
+	} {
+		got := toAutoSuspendResourceModel(management.Cluster{AutoSuspend: tc.in})
+		require.Equal(t, tc.wantType, got.SuspendType.ValueString(), name)
+		require.Equal(t, tc.wantSeconds, got.SuspendAfterSeconds, name)
+	}
+
+	for name, tc := range map[string]struct {
+		in              *management.AutoScale
+		wantFactor      float32
+		wantSensitivity management.AutoScaleSensitivity
+	}{
+		"factor only":      {in: &management.AutoScale{MaxScaleFactor: util.Ptr[float32](1)}, wantFactor: scaleX1, wantSensitivity: management.NORMAL},
+		"sensitivity only": {in: &management.AutoScale{Sensitivity: util.Ptr(management.LOW)}, wantFactor: scaleX1, wantSensitivity: management.LOW},
+	} {
+		got := toAutoScaleResourceModel(management.Cluster{AutoScale: tc.in})
+		require.Equal(t, tc.wantFactor, got.MaxScaleFactor.ValueFloat32(), name)
+		require.Equal(t, string(tc.wantSensitivity), got.Sensitivity.ValueString(), name)
+	}
+
 	require.Nil(t, int64ToIntPtr(types.Int64Null()))
 	require.Nil(t, int64ToIntPtr(types.Int64Unknown()))
 	require.Equal(t, 4, *int64ToIntPtr(types.Int64Value(4)))
 	require.True(t, intPtrToInt64(nil).IsNull())
 	require.Equal(t, int64(4), intPtrToInt64(util.Ptr(4)).ValueInt64())
-
-	state := validClusterPlan()
-	changed := validClusterPlan()
-	require.False(t, hasGeneralConfigChanged(state, changed))
-	state.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123Z")
-	changed.ExpiresAt = types.StringValue("2222-01-01T00:00:00.123000Z")
-	require.False(t, hasGeneralConfigChanged(state, changed))
-	changed.ExpiresAt = types.StringValue("2223-01-01T00:00:00Z")
-	require.True(t, hasGeneralConfigChanged(state, changed))
-	changed = validClusterPlan()
-	state = validClusterPlan()
-	changed.AdminPassword = types.StringValue("another-generated-pw")
-	require.False(t, hasGeneralConfigChanged(state, changed))
-	changed.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
-	require.True(t, hasGeneralConfigChanged(state, changed))
-	require.False(t, updateWindowChanged(types.ObjectUnknown(updateWindowAttrTypes), types.ObjectNull(updateWindowAttrTypes)))
-	require.True(t, sameFirewallRanges(nil, nil))
-
-	// Order does not matter; contents and unknown ranges do.
-	ab := []types.String{types.StringValue("10.0.0.0/8"), types.StringValue("192.168.0.0/16")}
-	ba := []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
-	require.True(t, sameFirewallRanges(ab, ba))
-	require.False(t, sameFirewallRanges(ab, ab[:1]))
-	require.False(t, sameFirewallRanges(ab, []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}))
-
-	reordered := state
-	reordered.FirewallRanges = ba
-	state.FirewallRanges = ab
-	require.False(t, hasGeneralConfigChanged(state, reordered))
 }
 
 func TestClusterPlanConverters(t *testing.T) {
-	plan := validClusterPlan()
-	require.Nil(t, toAutoScale(plan).Sensitivity)
+	require.Nil(t, toAutoScale(validClusterPlan()).Sensitivity)
 
-	scaled := plan
-	autoScale := *plan.AutoScale
-	scaled.AutoScale = &autoScale
-	scaled.AutoScale.MaxScaleFactor = types.Float32Value(2)
-	scaled.AutoScale.Sensitivity = types.StringValue(string(management.LOW))
+	scaled := planWith(func(p *clusterResourceModel) {
+		p.AutoScale.MaxScaleFactor = types.Float32Value(2)
+		p.AutoScale.Sensitivity = types.StringValue(string(management.LOW))
+	})
 	require.Equal(t, management.LOW, *toAutoScale(scaled).Sensitivity)
+	require.Equal(t, float32(2), *toCreateAutoScale(scaled).MaxScaleFactor)
 
-	idle := plan
-	idleSuspend := *plan.AutoSuspend
-	idle.AutoSuspend = &idleSuspend
-	idle.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeIDLE))
-	idle.AutoSuspend.SuspendAfterSeconds = types.Int64Value(90)
+	idle := planWith(func(p *clusterResourceModel) {
+		p.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeIDLE))
+		p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(90)
+	})
 	require.Equal(t, 90, *toAutoSuspend(idle).IdleAfterSeconds)
 
-	scheduled := plan
-	scheduledSuspend := *plan.AutoSuspend
-	scheduled.AutoSuspend = &scheduledSuspend
-	scheduled.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeSCHEDULED))
-	scheduled.AutoSuspend.SuspendAfterSeconds = types.Int64Value(30)
+	scheduled := planWith(func(p *clusterResourceModel) {
+		p.AutoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeSCHEDULED))
+		p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(30)
+	})
 	require.Equal(t, 30, *toAutoSuspend(scheduled).ScheduledAfterSeconds)
 
-	window, diags := types.ObjectValue(
-		updateWindowAttrTypes,
-		map[string]attr.Value{
-			"hour": types.Int64Value(6),
-			"day":  types.Int64Value(2),
-		},
-	)
-	require.False(t, diags.HasError())
-	gotWindow, windowDiags := toManagementUpdateWindow(t.Context(), window)
-	require.False(t, windowDiags.HasError())
-	require.Equal(t, float32(6), gotWindow.Hour)
-	require.Equal(t, float32(2), gotWindow.Day)
-	nullWindow, nullWindowDiags := toManagementUpdateWindow(t.Context(), types.ObjectNull(updateWindowAttrTypes))
-	require.False(t, nullWindowDiags.HasError())
-	require.Nil(t, nullWindow)
-	unknownWindow, unknownWindowDiags := toManagementUpdateWindow(t.Context(), types.ObjectUnknown(updateWindowAttrTypes))
-	require.False(t, unknownWindowDiags.HasError())
-	require.Nil(t, unknownWindow)
-
-	badWindow, badWindowDiags := types.ObjectValue(
-		map[string]attr.Type{
-			"hour": types.StringType,
-			"day":  types.Int64Type,
-		},
-		map[string]attr.Value{
-			"hour": types.StringValue("6"),
-			"day":  types.Int64Value(2),
-		},
-	)
-	require.False(t, badWindowDiags.HasError())
-	gotBadWindow, badConvDiags := toManagementUpdateWindow(t.Context(), badWindow)
-	require.Nil(t, gotBadWindow)
-	require.True(t, badConvDiags.HasError())
-	require.NotNil(t, errorFromDiagnostics(badConvDiags))
-
-	state := validClusterPlan()
-	badScale := validClusterPlan()
-	badScaleConfig := *badScale.AutoScale
-	badScale.AutoScale = &badScaleConfig
-	badScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
-	require.Equal(t, "Invalid auto_scale configuration.", validateSuspendedAndConfigChanges(&state, &badScale).Summary)
-
-	badSuspend := validClusterPlan()
-	badSuspendConfig := *badSuspend.AutoSuspend
-	badSuspend.AutoSuspend = &badSuspendConfig
-	badSuspend.AutoSuspend.SuspendAfterSeconds = types.Int64Value(10)
-	require.Equal(t, "Invalid auto_suspend configuration.", validateSuspendedAndConfigChanges(&state, &badSuspend).Summary)
-
-	// Values known only at apply time may still be valid, so plan-time checks skip them.
-	unknownSensitivity := validClusterPlan()
-	unknownScaleConfig := *unknownSensitivity.AutoScale
-	unknownSensitivity.AutoScale = &unknownScaleConfig
-	unknownSensitivity.AutoScale.Sensitivity = types.StringUnknown()
-	require.Nil(t, validateAutoScaleConfig(&unknownSensitivity))
-
-	unknownSeconds := validClusterPlan()
-	unknownSuspendConfig := *unknownSeconds.AutoSuspend
-	unknownSeconds.AutoSuspend = &unknownSuspendConfig
-	unknownSeconds.AutoSuspend.SuspendAfterSeconds = types.Int64Unknown()
-	require.Nil(t, validateAutoSuspendConfig(&unknownSeconds))
-}
-
-func TestFirewallRangeHelpers(t *testing.T) {
-	require.Equal(t, []string{unrestrictedCIDR}, effectiveFirewallRanges(management.Cluster{
-		AllowAllTraffic: util.Ptr(true),
-	}))
-	require.True(t, firewallRangesConverged(
-		[]types.String{types.StringValue(unrestrictedCIDR), types.StringValue("10.0.0.0/8")},
-		management.Cluster{AllowAllTraffic: util.Ptr(true)},
-	))
-	require.False(t, firewallRangesConverged(
-		[]types.String{types.StringValue("10.0.0.0/8"), types.StringValue("10.1.0.0/8")},
-		management.Cluster{FirewallRanges: util.Ptr([]string{"10.0.0.0/8"})},
-	))
-	require.False(t, firewallRangesConverged(
-		[]types.String{types.StringValue("10.0.0.0/8")},
-		management.Cluster{FirewallRanges: util.Ptr([]string{"10.1.0.0/8"})},
-	))
-
-	configured := []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
-	require.Equal(t, configured, firewallRangesForState(configured, management.Cluster{
-		FirewallRanges: util.Ptr([]string{"10.0.0.0/8", "192.168.0.0/16"}),
-	}))
-	drifted := firewallRangesForState(configured, management.Cluster{
-		FirewallRanges: util.Ptr([]string{"10.1.0.0/8"}),
+	window := types.ObjectValueMust(updateWindowAttrTypes, map[string]attr.Value{
+		"hour": types.Int64Value(6),
+		"day":  types.Int64Value(2),
 	})
-	require.Equal(t, []types.String{types.StringValue("10.1.0.0/8")}, drifted)
-	require.Equal(t, []types.String{types.StringValue(unrestrictedCIDR)}, firewallRangesForState(nil, management.Cluster{
-		AllowAllTraffic: util.Ptr(true),
-	}))
+	require.Equal(t, &management.UpdateWindow{Hour: 6, Day: 2}, toManagementUpdateWindow(window))
+	require.Nil(t, toManagementUpdateWindow(types.ObjectNull(updateWindowAttrTypes)))
+	require.Nil(t, toManagementUpdateWindow(types.ObjectUnknown(updateWindowAttrTypes)))
 }
 
-func TestResolveProjectLookup(t *testing.T) {
+func TestResolveProjectNameByID(t *testing.T) {
 	projectID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
 	otherID := uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
 
-	client := projectClient(t, http.StatusOK, []management.Project{
-		{Name: "Other", ProjectID: otherID},
-	})
-	_, err := util.ResolveProjectIDByName(t.Context(), client, "Standard Project", "cluster")
-	require.NotNil(t, err)
-	require.Contains(t, err.Detail, "Other")
-
-	empty := projectClient(t, http.StatusOK, []management.Project{})
-	_, err = util.ResolveProjectIDByName(t.Context(), empty, "Standard Project", "cluster")
-	require.Equal(t, "Project not found", err.Summary)
-
-	dup := projectClient(t, http.StatusOK, []management.Project{
-		{Name: "Standard Project", ProjectID: projectID},
-		{Name: "Standard Project", ProjectID: otherID},
-	})
-	_, err = util.ResolveProjectIDByName(t.Context(), dup, "Standard Project", "cluster")
-	require.Equal(t, "Multiple projects found", err.Summary)
-
-	okClient := projectClient(t, http.StatusOK, []management.Project{
-		{Name: "Standard Project", ProjectID: projectID},
-	})
+	okClient := projectClient(t, http.StatusOK, []management.Project{{Name: "Standard Project", ProjectID: projectID}})
 	got, err := resolveProjectNameByID(t.Context(), okClient, projectID)
 	require.Nil(t, err)
 	require.Equal(t, "Standard Project", got.ValueString())
+
 	missing, err := resolveProjectNameByID(t.Context(), okClient, otherID)
 	require.Nil(t, err)
 	require.True(t, missing.IsNull())
 
-	failed := projectClient(t, http.StatusInternalServerError, nil)
-	_, err = util.ResolveProjectIDByName(t.Context(), failed, "Standard Project", "cluster")
-	require.NotNil(t, err)
-	_, err = resolveProjectNameByID(t.Context(), failed, projectID)
+	_, err = resolveProjectNameByID(t.Context(), projectClient(t, http.StatusInternalServerError, nil), projectID)
 	require.NotNil(t, err)
 }
 
@@ -515,24 +407,6 @@ func validClusterPlan() clusterResourceModel {
 		},
 		UpdateWindow: types.ObjectNull(updateWindowAttrTypes),
 	}
-}
-
-// TestValidateAutoSuspendRequiresSeconds requires suspend_after_seconds for IDLE and SCHEDULED.
-func TestValidateAutoSuspendRequiresSeconds(t *testing.T) {
-	for _, suspendType := range []management.AutoSuspendSuspendType{management.AutoSuspendSuspendTypeIDLE, management.AutoSuspendSuspendTypeSCHEDULED} {
-		plan := validClusterPlan()
-		plan.AutoSuspend.SuspendType = types.StringValue(string(suspendType))
-
-		err := validateAutoSuspendConfig(&plan)
-		require.NotNil(t, err, suspendType)
-		require.Contains(t, err.Detail, "suspend_after_seconds is required")
-
-		plan.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60)
-		require.Nil(t, validateAutoSuspendConfig(&plan), suspendType)
-	}
-
-	disabled := validClusterPlan()
-	require.Nil(t, validateAutoSuspendConfig(&disabled))
 }
 
 // TestModifyPlanUnknownValues does not treat a value that is not known yet as a change.

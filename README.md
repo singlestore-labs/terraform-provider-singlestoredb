@@ -114,7 +114,7 @@ Read the password from state or from the sensitive output in the example above.
 
 `singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider. These may be relaxed in the future releases.
 
-- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. Import records the current expiration in state but does not add it to your configuration. After import, copy the value from state (for example, from `terraform state show singlestoredb_cluster.this`) into `expires_at` in your configuration. If the configuration leaves it unset or uses a different time, the plan fails.
+- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. Import records the current expiration in state but does not add it to your configuration. When the imported cluster has an expiration, copy that timestamp from state (for example, from `terraform state show singlestoredb_cluster.this`) into `expires_at`. When it has no expiration, leave `expires_at` unset. The plan fails if the configuration sets a different time or removes an existing expiration.
 - `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
 
 ## Documentation

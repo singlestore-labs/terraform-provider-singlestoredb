@@ -16,16 +16,31 @@ import (
 // waitCondition return nil if it is satisfied.
 type waitCondition func(management.Cluster) error
 
+// pollGrace is how long an in-flight poll may run after the wait timeout.
+// It matches the unexported refresh grace in helper/retry. RetryContext still
+// accepts a poll that reaches the expected state during that window. Canceling
+// the poll at the wait deadline drops that result and replaces the last
+// condition error with context.DeadlineExceeded.
+const pollGrace = 30 * time.Second
+
 // clusterPollError classifies a Management API transport failure during a wait.
-// Context cancellation stops immediately. Other transport errors are retried
-// until the wait timeout.
-func clusterPollError(ctx context.Context, id management.ClusterID, err error) *retry.RetryError {
-	ferr := fmt.Errorf("failed to get cluster %s: %w", id, err)
+// Cancellation of the caller's context stops immediately. Cancellation of the
+// poll context means the wait deadline and its grace have passed, so the last
+// unsatisfied condition is kept instead of reporting the canceled GET. Other
+// transport errors are retried until the wait timeout.
+func clusterPollError(ctx, pollCtx context.Context, id management.ClusterID, err error, lastCondition error) *retry.RetryError {
 	if ctx.Err() != nil {
-		return retry.NonRetryableError(ferr)
+		return retry.NonRetryableError(fmt.Errorf("failed to get cluster %s: %w", id, err))
+	}
+	if pollCtx.Err() != nil {
+		if lastCondition != nil {
+			return retry.NonRetryableError(lastCondition)
+		}
+
+		return retry.NonRetryableError(fmt.Errorf("failed to get cluster %s: %w", id, err))
 	}
 
-	return retry.RetryableError(ferr)
+	return retry.RetryableError(fmt.Errorf("failed to get cluster %s: %w", id, err))
 }
 
 // clusterNotFoundGrace is how long a wait tolerates consecutive 404 responses.
@@ -85,23 +100,17 @@ func waitErrorDetail(ctx context.Context, timeout time.Duration, stopped bool, e
 
 // wait polls the cluster until every condition holds or the timeout elapses.
 func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
-	cluster, err, _ := waitReportingTimeout(ctx, c, id, timeout, conditions...)
-
-	return cluster, err
-}
-
-// waitReportingTimeout is wait that also reports whether a failed wait ran out of
-// time, as opposed to being canceled or stopped on a failed, terminated, or
-// missing cluster.
-func waitReportingTimeout(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError, bool) {
 	result := management.Cluster{}
 	notFound := newNotFoundTracker()
 	stopped := false
+	var lastCondition error
 
-	// RetryContext does not cancel a poll in flight when it times out, and returns
-	// after a 30s grace while the poll may still run and write to result. Bound
-	// every request by the wait timeout so polls end with the wait.
-	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	// Bound each request by the wait timeout plus pollGrace. RetryContext does
+	// not cancel a poll that is in flight when the timeout fires, and it keeps
+	// that poll if it reaches the expected state during the grace period.
+	// Ending the request at the wait deadline aborts that poll and records the
+	// cancellation as the last error.
+	pollCtx, cancel := context.WithTimeout(ctx, timeout+pollGrace)
 	defer cancel()
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
@@ -112,11 +121,14 @@ func waitReportingTimeout(ctx context.Context, c management.ClientWithResponsesI
 			// cluster before this wait, so one blip must not fail it and taint
 			// a cluster that is still provisioning. Context cancellation stops
 			// the wait so Terraform can shut the plugin down.
-			return clusterPollError(ctx, id, err)
+			return clusterPollError(ctx, pollCtx, id, err, lastCondition)
 		}
 
 		if rerr := clusterResponseError(id, cluster, notFound); rerr != nil {
 			stopped = !rerr.Retryable
+			if rerr.Retryable {
+				lastCondition = rerr.Err
+			}
 
 			return rerr
 		}
@@ -131,6 +143,8 @@ func waitReportingTimeout(ctx context.Context, c management.ClientWithResponsesI
 
 		for _, cond := range conditions {
 			if err := cond(*cluster.JSON200); err != nil {
+				lastCondition = err
+
 				return retry.RetryableError(err)
 			}
 		}
@@ -142,10 +156,10 @@ func waitReportingTimeout(ctx context.Context, c management.ClientWithResponsesI
 		return result, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for cluster %s", id),
 			Detail:  waitErrorDetail(ctx, timeout, stopped, err, "Cluster did not reach the expected state"),
-		}, ctx.Err() == nil && !stopped
+		}
 	}
 
-	return result, nil, false
+	return result, nil
 }
 
 // clusterResponseError classifies a poll response other than 200 with a JSON
@@ -323,13 +337,13 @@ func waitConditionDeploymentType(want types.String) waitCondition {
 // create or update the API still reports the previous ranges.
 func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 	return func(c management.Cluster) error {
-		if firewallRangesConverged(firewallRanges, c) {
+		if util.FirewallRangesConverged(firewallRanges, c.AllowAllTraffic, c.FirewallRanges) {
 			return nil
 		}
 
 		return fmt.Errorf("cluster %s firewall ranges are [%s] but should be [%s]",
 			util.Deref(c.ClusterID),
-			util.Join(effectiveFirewallRanges(c), ", "),
+			util.Join(util.EffectiveFirewallRanges(c.AllowAllTraffic, c.FirewallRanges), ", "),
 			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
 		)
 	}
@@ -337,45 +351,62 @@ func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 
 // waitConditionSettled holds while the cluster is changing state, for example
 // while a suspend, resume, or scale that timed out earlier is still running.
+// A wait that runs out of time reports the last condition error, so the PENDING
+// hint below reaches the user only when the cluster was still PENDING.
 func waitConditionSettled() waitCondition {
 	return func(c management.Cluster) error {
-		if state := util.Deref(c.State); !isSettledClusterState(state) {
-			return fmt.Errorf("cluster %s state is %s, but should be %s or %s",
-				util.Deref(c.ClusterID), state, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED)
+		state := util.Deref(c.State)
+		if isSettledClusterState(state) {
+			return nil
 		}
 
-		return nil
+		err := fmt.Errorf("cluster %s state is %s, but should be %s or %s",
+			util.Deref(c.ClusterID), state, management.ClusterStateACTIVE, management.ClusterStateSUSPENDED)
+		if state == management.ClusterStatePENDING {
+			// TODO: fail fast when GET /v2/clusters reports offline and impacted clusters
+			// separately from PENDING.
+			err = fmt.Errorf("%w; Management API also reports an offline or impacted cluster as PENDING, "+
+				"so a cluster that stays PENDING may need attention; check its status in the SingleStore Portal", err)
+		}
+
+		return err
 	}
 }
 
 // waitTerminated polls until the Management API reports the cluster as terminated
 // (TERMINATED state or a terminatedAt timestamp) or no longer returns it.
 func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration) *util.SummaryWithDetailError {
-	// See wait for why requests are bounded by the wait timeout.
-	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	// See wait for why a poll may outlive the wait timeout by pollGrace.
+	var lastCondition error
+	pollCtx, cancel := context.WithTimeout(ctx, timeout+pollGrace)
 	defer cancel()
 
 	if err := retry.RetryContext(ctx, timeout, func() *retry.RetryError {
 		cluster, err := c.GetV2ClustersClusterIDWithResponse(pollCtx, id, &management.GetV2ClustersClusterIDParams{})
 		if err != nil {
-			return clusterPollError(ctx, id, err)
+			return clusterPollError(ctx, pollCtx, id, err, lastCondition)
 		}
 
 		switch code := cluster.StatusCode(); {
 		case code == http.StatusNotFound:
 			return nil
 		case code != http.StatusOK:
-			return retry.RetryableError(fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code)))
+			lastCondition = fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
+
+			return retry.RetryableError(lastCondition)
 		}
 
 		if cluster.JSON200 == nil {
-			return retry.RetryableError(errMissingClusterBody(id, cluster.HTTPResponse.Header.Get("Content-Type")))
+			lastCondition = errMissingClusterBody(id, cluster.HTTPResponse.Header.Get("Content-Type"))
+
+			return retry.RetryableError(lastCondition)
 		}
 
 		if !isTerminatedCluster(*cluster.JSON200) {
 			state := util.Deref(cluster.JSON200.State)
+			lastCondition = fmt.Errorf("cluster %s state is %s, but should be %s", id, state, management.ClusterStateTERMINATED)
 
-			return retry.RetryableError(fmt.Errorf("cluster %s state is %s, but should be %s", id, state, management.ClusterStateTERMINATED))
+			return retry.RetryableError(lastCondition)
 		}
 
 		return nil

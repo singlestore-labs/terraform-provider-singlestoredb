@@ -508,8 +508,8 @@ func TestReorderedFirewallRangesDoNotCallAPI(t *testing.T) {
 	require.Equal(t, plan.FirewallRanges, got.FirewallRanges)
 }
 
-// TestWaitSettledHintsOnlyForPending adds the PENDING hint only when the wait
-// ran out of time; a failed cluster or a canceled wait does not get it.
+// TestWaitSettledHintsOnlyForPending adds the PENDING hint when the wait runs
+// out of time on a PENDING cluster; a failed cluster does not get it.
 func TestWaitSettledHintsOnlyForPending(t *testing.T) {
 	failed := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateFAILED, nil)
 	_, err := waitSettled(t.Context(), failed, lifecycleClusterUUID)
@@ -517,14 +517,7 @@ func TestWaitSettledHintsOnlyForPending(t *testing.T) {
 	require.NotContains(t, err.Detail, "offline or impacted")
 
 	pending := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStatePENDING, nil)
-	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
-	defer cancel()
-	_, err = waitSettled(ctx, pending, lifecycleClusterUUID)
+	_, err = wait(t.Context(), pending, lifecycleClusterUUID, 300*time.Millisecond, waitConditionSettled())
 	require.NotNil(t, err)
-	require.NotContains(t, err.Detail, "offline or impacted")
-
-	// Running out of the wait's own timeout is the case the hint is for.
-	_, err, timedOut := waitReportingTimeout(t.Context(), pending, lifecycleClusterUUID, 300*time.Millisecond, waitConditionSettled())
-	require.NotNil(t, err)
-	require.True(t, timedOut)
+	require.Contains(t, err.Detail, "offline or impacted")
 }

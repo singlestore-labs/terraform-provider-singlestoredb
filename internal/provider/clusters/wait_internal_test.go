@@ -161,13 +161,93 @@ func TestClusterPollError(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	canceled := clusterPollError(ctx, clusterID, errors.New("connection reset by peer"))
+	canceled := clusterPollError(ctx, t.Context(), clusterID, errors.New("connection reset by peer"), nil)
 	require.False(t, canceled.Retryable)
 	require.ErrorContains(t, canceled.Err, "failed to get cluster")
 
-	retryable := clusterPollError(t.Context(), clusterID, errors.New("connection reset by peer"))
+	retryable := clusterPollError(t.Context(), t.Context(), clusterID, errors.New("connection reset by peer"), nil)
 	require.True(t, retryable.Retryable)
 	require.ErrorContains(t, retryable.Err, "connection reset by peer")
+
+	pollCtx, pollCancel := context.WithCancel(t.Context())
+	pollCancel()
+	last := errors.New("cluster state is PENDING, but should be ACTIVE")
+	kept := clusterPollError(t.Context(), pollCtx, clusterID, context.DeadlineExceeded, last)
+	require.False(t, kept.Retryable)
+	require.ErrorIs(t, kept.Err, last)
+
+	bare := clusterPollError(t.Context(), pollCtx, clusterID, context.DeadlineExceeded, nil)
+	require.False(t, bare.Retryable)
+	require.ErrorIs(t, bare.Err, context.DeadlineExceeded)
+}
+
+// TestWaitInFlightPollCanSucceedAfterTimeout keeps a poll that reaches the
+// expected state during the retry grace period after the wait timeout.
+func TestWaitInFlightPollCanSucceedAfterTimeout(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	active := management.ClusterStateACTIVE
+	client := delayedClusterClient(t, 800*time.Millisecond, management.Cluster{ClusterID: &clusterID, State: &active})
+
+	got, serr := wait(t.Context(), client, clusterID, 200*time.Millisecond, func(c management.Cluster) error {
+		if util.Deref(c.State) != management.ClusterStateACTIVE {
+			return errors.New("cluster state is not ACTIVE")
+		}
+
+		return nil
+	})
+	require.Nil(t, serr)
+	require.Equal(t, management.ClusterStateACTIVE, util.Deref(got.State))
+}
+
+// TestWaitTimeoutReportsCondition keeps the unsatisfied condition when the
+// in-flight poll is still running at the wait deadline.
+func TestWaitTimeoutReportsCondition(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	pending := management.ClusterStatePENDING
+	client := delayedClusterClient(t, 800*time.Millisecond, management.Cluster{ClusterID: &clusterID, State: &pending})
+
+	_, serr := wait(t.Context(), client, clusterID, 200*time.Millisecond, func(management.Cluster) error {
+		return errors.New("cluster state is PENDING, but should be ACTIVE")
+	})
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "should be ACTIVE")
+	require.NotContains(t, serr.Detail, "deadline exceeded")
+}
+
+// TestWaitTerminatedTimeoutReportsState keeps the cluster state when a delete
+// wait times out during an in-flight poll.
+func TestWaitTerminatedTimeoutReportsState(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	active := management.ClusterStateACTIVE
+	client := delayedClusterClient(t, 800*time.Millisecond, management.Cluster{ClusterID: &clusterID, State: &active})
+
+	serr := waitTerminated(t.Context(), client, clusterID, 200*time.Millisecond)
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "should be TERMINATED")
+	require.NotContains(t, serr.Detail, "deadline exceeded")
+}
+
+// delayedClusterClient answers GET /v2/clusters/{id} after delay, unless the request is canceled.
+func delayedClusterClient(t *testing.T, delay time.Duration, cluster management.Cluster) *management.ClientWithResponses {
+	t.Helper()
+	body := mustJSON(t, cluster)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-r.Context().Done():
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(body)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	return client
 }
 
 func setNotFoundGrace(t *testing.T, d time.Duration) {

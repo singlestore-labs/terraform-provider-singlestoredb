@@ -625,13 +625,13 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 //
 // configuredFirewallRanges is the allowlist Terraform holds for the resource, either
 // from the plan or from the prior state. It decides how the reported ranges are
-// spelled, see firewallRangesForState.
+// spelled, see util.FirewallRangesForState.
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
 		ProjectName:              util.StringValueOrNull(workspaceGroup.ProjectName),
-		FirewallRanges:           firewallRangesForState(configuredFirewallRanges, workspaceGroup),
+		FirewallRanges:           util.FirewallRangesForState(configuredFirewallRanges, workspaceGroup.AllowAllTraffic, workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		AdminPassword:            types.StringValue(adminPassword),
@@ -726,13 +726,13 @@ func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
 // create or update the API still reports the previous ranges.
 func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 	return func(w management.WorkspaceGroup) error {
-		if firewallRangesConverged(firewallRanges, w) {
+		if util.FirewallRangesConverged(firewallRanges, w.AllowAllTraffic, w.FirewallRanges) {
 			return nil
 		}
 
 		return fmt.Errorf("workspace group %s firewall ranges are [%s] but should be [%s]",
 			w.WorkspaceGroupID,
-			util.Join(effectiveFirewallRanges(w), ", "),
+			util.Join(util.EffectiveFirewallRanges(w.AllowAllTraffic, w.FirewallRanges), ", "),
 			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
 		)
 	}

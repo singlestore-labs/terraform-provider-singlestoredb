@@ -61,28 +61,13 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 
 // waitSettled polls until the cluster is ACTIVE or SUSPENDED.
 func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID) (management.Cluster, *util.SummaryWithDetailError) {
-	var lastState management.ClusterState
-	recordState := func(c management.Cluster) error {
-		lastState = util.Deref(c.State)
-
-		return nil
-	}
-
-	cluster, err, timedOut := waitReportingTimeout(ctx, c, id, config.ClusterUpdateTimeout, recordState, waitConditionSettled())
-	if err != nil && timedOut && lastState == management.ClusterStatePENDING {
-		// TODO: fail fast when GET /v2/clusters reports offline and impacted clusters
-		// separately from PENDING.
-		err.Detail += ". Management API also reports an offline or impacted cluster as PENDING, " +
-			"so a cluster that stays PENDING may need attention; check its status in the SingleStore Portal"
-	}
-
-	return cluster, err
+	return wait(ctx, c, id, config.ClusterUpdateTimeout, waitConditionSettled())
 }
 
 // hasGeneralConfigChanged reports whether any cluster setting other than suspended differs.
 func hasGeneralConfigChanged(state, plan clusterResourceModel) bool {
 	return sizeConfigChanged(state, plan) ||
-		!sameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) ||
+		!util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) ||
 		!util.SameTimestamp(plan.ExpiresAt, state.ExpiresAt) ||
 		!plan.DeploymentType.Equal(state.DeploymentType) ||
 		autoScaleChanged(state, plan) ||
@@ -118,41 +103,12 @@ func updateWindowChanged(state, plan types.Object) bool {
 	return !plan.Equal(state)
 }
 
-// sameFirewallRanges reports whether two allowlists hold the same ranges in any
-// order. The Management API does not keep the order, so a reordered list is not a
-// change to send. A list with an unknown range is treated as changed.
-func sameFirewallRanges(a, b []types.String) bool {
-	for _, r := range append(append([]types.String(nil), a...), b...) {
-		if r.IsUnknown() {
-			return false
-		}
-	}
-
-	setA := stringSet(util.StringFirewallRanges(a))
-	setB := stringSet(util.StringFirewallRanges(b))
-	if len(setA) != len(setB) {
-		return false
-	}
-	for r := range setA {
-		if _, ok := setB[r]; !ok {
-			return false
-		}
-	}
-
-	return true
-}
-
 // applyClusterConfiguration patches the cluster. current is the settled cluster
 // read just before; project_name cannot change, so its project ID is reused
 // instead of resolving the name again. The cluster must be ACTIVE: the wait
 // below requires ACTIVE, and a suspended cluster is rejected by the caller.
 func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, current management.Cluster, state, plan clusterResourceModel, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
-	patchBody, perr := clusterPatchBody(ctx, current, state, plan)
-	if perr != nil {
-		return clusterResourceModel{}, perr
-	}
-
-	clusterUpdateResponse, uerr := c.PatchV2ClustersClusterIDWithResponse(ctx, id, patchBody)
+	clusterUpdateResponse, uerr := c.PatchV2ClustersClusterIDWithResponse(ctx, id, clusterPatchBody(current, state, plan))
 	if serr := util.StatusOK(clusterUpdateResponse, uerr); serr != nil {
 		return clusterResourceModel{}, serr
 	}
@@ -162,11 +118,11 @@ func applyClusterConfiguration(ctx context.Context, c management.ClientWithRespo
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, adminPassword, plan)
+	return toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName), nil
 }
 
 // clusterPatchBody builds PATCH /v2/clusters with only the settings that changed.
-func clusterPatchBody(ctx context.Context, current management.Cluster, state, plan clusterResourceModel) (management.Cluster, *util.SummaryWithDetailError) {
+func clusterPatchBody(current management.Cluster, state, plan clusterResourceModel) management.Cluster {
 	patchBody := management.Cluster{
 		Name:      plan.Name.ValueString(),
 		ProjectID: current.ProjectID,
@@ -180,7 +136,7 @@ func clusterPatchBody(ctx context.Context, current management.Cluster, state, pl
 		}
 	}
 
-	if !sameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
+	if !util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
 		firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 		patchBody.FirewallRanges = &firewallRanges
 	}
@@ -205,14 +161,10 @@ func clusterPatchBody(ctx context.Context, current management.Cluster, state, pl
 
 	// TODO: reached once update_window is Optional, when POST and PATCH /v2/clusters apply updateWindow.
 	if updateWindowChanged(state.UpdateWindow, plan.UpdateWindow) {
-		updateWindow, updateWindowDiags := toManagementUpdateWindow(ctx, plan.UpdateWindow)
-		if err := errorFromDiagnostics(updateWindowDiags); err != nil {
-			return management.Cluster{}, err
-		}
-		patchBody.UpdateWindow = updateWindow
+		patchBody.UpdateWindow = toManagementUpdateWindow(plan.UpdateWindow)
 	}
 
-	return patchBody, nil
+	return patchBody
 }
 
 // updateWaitConditions waits until the Management API reports every changed
@@ -229,7 +181,7 @@ func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 			waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
 		)
 	}
-	if !sameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
+	if !util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
 		conditions = append(conditions, waitConditionFirewallRanges(plan.FirewallRanges))
 	}
 	if !plan.DeploymentType.Equal(state.DeploymentType) && util.IsConfiguredString(plan.DeploymentType) {
@@ -249,7 +201,7 @@ func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 func resume(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateACTIVE {
 		// A resume that timed out earlier has finished since.
-		return clusterModelFromAPI(current, adminPassword, plan)
+		return toClusterResourceModel(current, adminPassword, plan, plan.ProjectName), nil
 	}
 
 	clusterResumeResponse, err := c.PostV2ClustersClusterIDResumeWithResponse(ctx, id, management.ClusterResume{})
@@ -264,14 +216,14 @@ func resume(ctx context.Context, c management.ClientWithResponsesInterface, id m
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, adminPassword, plan)
+	return toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName), nil
 }
 
 // suspend stops an active cluster and waits until it is suspended.
 func suspend(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, plan clusterResourceModel, current management.Cluster, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	if util.Deref(current.State) == management.ClusterStateSUSPENDED {
 		// A suspend that timed out earlier has finished since.
-		return clusterModelFromAPI(current, adminPassword, plan)
+		return toClusterResourceModel(current, adminPassword, plan, plan.ProjectName), nil
 	}
 
 	clusterSuspendResponse, err := c.PostV2ClustersClusterIDSuspendWithResponse(ctx, id)
@@ -286,7 +238,7 @@ func suspend(ctx context.Context, c management.ClientWithResponsesInterface, id 
 		return clusterResourceModel{}, werr
 	}
 
-	return clusterModelFromAPI(cluster, adminPassword, plan)
+	return toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName), nil
 }
 
 func suspendedConfigUpdateError() *util.SummaryWithDetailError {
@@ -327,14 +279,4 @@ func knownAdminPassword(value types.String) (string, bool) {
 	}
 
 	return value.ValueString(), true
-}
-
-// clusterModelFromAPI converts a Management API cluster into state, or returns the conversion error.
-func clusterModelFromAPI(cluster management.Cluster, adminPassword string, plan clusterResourceModel) (clusterResourceModel, *util.SummaryWithDetailError) {
-	model, diags := toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName)
-	if err := errorFromDiagnostics(diags); err != nil {
-		return clusterResourceModel{}, err
-	}
-
-	return model, nil
 }
