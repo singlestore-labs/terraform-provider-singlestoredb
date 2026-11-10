@@ -10,8 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
@@ -72,28 +75,36 @@ func TestValidateCreateParameters(t *testing.T) {
 
 func TestValidatePlannedCreate(t *testing.T) {
 	plan := validClusterPlan()
-	require.Nil(t, validatePlannedCreate(&plan, plan.ProjectName))
+	require.Nil(t, validatePlannedCreate(&plan, plan.ProjectName, plan.DeploymentType))
 
-	require.Equal(t, "Missing project_name", validatePlannedCreate(&plan, types.StringNull()).Summary)
+	require.Equal(t, "Missing project_name", validatePlannedCreate(&plan, types.StringNull(), plan.DeploymentType).Summary)
 
 	unknownProject := plan
 	unknownProject.ProjectName = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&unknownProject, types.StringUnknown()))
+	require.Nil(t, validatePlannedCreate(&unknownProject, types.StringUnknown(), plan.DeploymentType))
 
 	unknownRegion := plan
 	unknownRegion.RegionName = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&unknownRegion, plan.ProjectName))
+	require.Nil(t, validatePlannedCreate(&unknownRegion, plan.ProjectName, plan.DeploymentType))
 
 	missingRegion := plan
 	missingRegion.RegionName = types.StringNull()
-	require.Equal(t, "Invalid region configuration", validatePlannedCreate(&missingRegion, plan.ProjectName).Summary)
+	require.Equal(t, "Invalid region configuration", validatePlannedCreate(&missingRegion, plan.ProjectName, plan.DeploymentType).Summary)
 
 	preview := plan
 	preview.OptInPreviewFeature = types.BoolValue(true)
-	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName).Detail, "NON-PRODUCTION")
+	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName, plan.DeploymentType).Detail, "NON-PRODUCTION")
 
+	// A configured deployment type that is not known yet is left to Create.
 	preview.DeploymentType = types.StringUnknown()
-	require.Nil(t, validatePlannedCreate(&preview, plan.ProjectName))
+	require.Nil(t, validatePlannedCreate(&preview, plan.ProjectName, types.StringUnknown()))
+
+	// An omitted deployment type is unknown in the plan but means PRODUCTION.
+	require.Contains(t, validatePlannedCreate(&preview, plan.ProjectName, types.StringNull()).Detail, "NON-PRODUCTION")
+
+	// Create stores an omitted deployment type as null before validating.
+	preview.DeploymentType = types.StringNull()
+	require.Contains(t, validateCreateParameters(&preview).Detail, "NON-PRODUCTION")
 
 	// A known-bad scale still fails when another create input is not yet known.
 	badScale := plan
@@ -101,14 +112,14 @@ func TestValidatePlannedCreate(t *testing.T) {
 	badScale.AutoScale = &scale
 	badScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
 	badScale.ProjectName = types.StringUnknown()
-	require.Equal(t, "Invalid auto_scale configuration.", validatePlannedCreate(&badScale, plan.ProjectName).Summary)
+	require.Equal(t, "Invalid auto_scale configuration.", validatePlannedCreate(&badScale, plan.ProjectName, plan.DeploymentType).Summary)
 
 	unknownScale := plan
 	unknown := *plan.AutoScale
 	unknownScale.AutoScale = &unknown
 	unknownScale.AutoScale.MaxScaleFactor = types.Float32Unknown()
 	unknownScale.AutoScale.Sensitivity = types.StringValue(string(management.HIGH))
-	require.Nil(t, validatePlannedCreate(&unknownScale, plan.ProjectName))
+	require.Nil(t, validatePlannedCreate(&unknownScale, plan.ProjectName, plan.DeploymentType))
 }
 
 func TestValidateModifyProjectName(t *testing.T) {
@@ -192,7 +203,7 @@ func TestClusterModelHelpers(t *testing.T) {
 		},
 		UpdateWindow:  &management.UpdateWindow{Hour: 6, Day: 2},
 		AdminPassword: util.Ptr("from-api"),
-	}, "secret", nil, types.StringValue("Standard Project"), types.StringValue(configuredExpiresAt))
+	}, "secret", clusterResourceModel{ExpiresAt: types.StringValue(configuredExpiresAt)}, types.StringValue("Standard Project"))
 	require.False(t, modelDiags.HasError())
 	require.Equal(t, "from-api", model.AdminPassword.ValueString())
 	require.Equal(t, clusterID.String(), model.ID.ValueString())
@@ -235,14 +246,30 @@ func TestClusterModelHelpers(t *testing.T) {
 	nonProduction := management.ClusterDeploymentTypeNONPRODUCTION
 	explicitDeployment, explicitDiags := toClusterResourceModel(management.Cluster{
 		DeploymentType: &nonProduction,
-	}, "", nil, types.StringNull(), types.StringNull())
+	}, "", clusterResourceModel{DeploymentType: types.StringValue("PRODUCTION")}, types.StringNull())
 	require.False(t, explicitDiags.HasError())
 	require.Equal(t, string(nonProduction), explicitDeployment.DeploymentType.ValueString())
 	require.True(t, explicitDeployment.AdminPassword.IsNull())
 
-	kept, keptDiags := toClusterResourceModel(management.Cluster{}, "kept-secret", nil, types.StringNull(), types.StringNull())
+	kept, keptDiags := toClusterResourceModel(management.Cluster{}, "kept-secret", clusterResourceModel{}, types.StringNull())
 	require.False(t, keptDiags.HasError())
 	require.Equal(t, "kept-secret", kept.AdminPassword.ValueString())
+	require.False(t, kept.Kai.ValueBool())
+
+	// Fields the response omits keep the planned value, so apply matches the plan.
+	planned := clusterResourceModel{
+		DeploymentType: types.StringValue(string(nonProduction)),
+		Kai:            types.BoolValue(true),
+	}
+	omitted, omittedDiags := toClusterResourceModel(management.Cluster{}, "", planned, types.StringNull())
+	require.False(t, omittedDiags.HasError())
+	require.Equal(t, string(nonProduction), omitted.DeploymentType.ValueString())
+	require.True(t, omitted.Kai.ValueBool())
+
+	// A value the API returns wins over the plan.
+	reported, reportedDiags := toClusterResourceModel(management.Cluster{Kai: util.Ptr(false)}, "", planned, types.StringNull())
+	require.False(t, reportedDiags.HasError())
+	require.False(t, reported.Kai.ValueBool())
 
 	plan := validClusterPlan()
 	plan.AutoScale.MaxScaleFactor = types.Float32Value(2)
@@ -268,7 +295,19 @@ func TestClusterModelHelpers(t *testing.T) {
 	changed.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
 	require.True(t, hasGeneralConfigChanged(state, changed))
 	require.False(t, updateWindowChanged(types.ObjectUnknown(updateWindowAttrTypes), types.ObjectNull(updateWindowAttrTypes)))
-	require.True(t, equalFirewallRangesLists(nil, nil))
+	require.True(t, sameFirewallRanges(nil, nil))
+
+	// Order does not matter; contents and unknown ranges do.
+	ab := []types.String{types.StringValue("10.0.0.0/8"), types.StringValue("192.168.0.0/16")}
+	ba := []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
+	require.True(t, sameFirewallRanges(ab, ba))
+	require.False(t, sameFirewallRanges(ab, ab[:1]))
+	require.False(t, sameFirewallRanges(ab, []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}))
+
+	reordered := state
+	reordered.FirewallRanges = ba
+	state.FirewallRanges = ab
+	require.False(t, hasGeneralConfigChanged(state, reordered))
 }
 
 func TestClusterPlanConverters(t *testing.T) {
@@ -476,4 +515,85 @@ func validClusterPlan() clusterResourceModel {
 		},
 		UpdateWindow: types.ObjectNull(updateWindowAttrTypes),
 	}
+}
+
+// TestValidateAutoSuspendRequiresSeconds requires suspend_after_seconds for IDLE and SCHEDULED.
+func TestValidateAutoSuspendRequiresSeconds(t *testing.T) {
+	for _, suspendType := range []management.AutoSuspendSuspendType{management.AutoSuspendSuspendTypeIDLE, management.AutoSuspendSuspendTypeSCHEDULED} {
+		plan := validClusterPlan()
+		plan.AutoSuspend.SuspendType = types.StringValue(string(suspendType))
+
+		err := validateAutoSuspendConfig(&plan)
+		require.NotNil(t, err, suspendType)
+		require.Contains(t, err.Detail, "suspend_after_seconds is required")
+
+		plan.AutoSuspend.SuspendAfterSeconds = types.Int64Value(60)
+		require.Nil(t, validateAutoSuspendConfig(&plan), suspendType)
+	}
+
+	disabled := validClusterPlan()
+	require.Nil(t, validateAutoSuspendConfig(&disabled))
+}
+
+// TestModifyPlanUnknownValues does not treat a value that is not known yet as a change.
+func TestModifyPlanUnknownValues(t *testing.T) {
+	require.False(t, changedKnown(types.StringUnknown(), types.StringValue("cluster")))
+	require.False(t, changedKnown(types.StringValue("cluster"), types.StringValue("cluster")))
+	require.True(t, changedKnown(types.StringValue("renamed"), types.StringValue("cluster")))
+
+	plan := validClusterPlan()
+	state := validClusterPlan()
+	plan.ProjectName = types.StringUnknown()
+	require.Nil(t, validateModifyProjectName(&plan, &state))
+
+	deploymentType, known := effectiveDeploymentType(types.StringUnknown())
+	require.False(t, known)
+	require.Empty(t, deploymentType)
+	deploymentType, known = effectiveDeploymentType(types.StringNull())
+	require.True(t, known)
+	require.Equal(t, string(management.ClusterDeploymentTypePRODUCTION), deploymentType)
+}
+
+// TestModifyPlanUnknownNestedBlock skips plan checks while auto_suspend is unknown
+// instead of failing to decode the plan.
+func TestModifyPlanUnknownNestedBlock(t *testing.T) {
+	ctx := t.Context()
+	r := &clusterResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+
+	plan := tfsdk.Plan{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+	model := validClusterPlan()
+	model.ID = types.StringUnknown()
+	model.GroupID = types.StringUnknown()
+	model.OutboundAllowList = types.StringUnknown()
+	model.Endpoint = types.StringUnknown()
+	model.CreatedAt = types.StringUnknown()
+	model.MultiAZ = types.BoolValue(false)
+	model.UpdateWindow = types.ObjectUnknown(updateWindowAttrTypes)
+	require.False(t, plan.Set(ctx, &model).HasError())
+
+	unknown, diags := hasUnknownNestedBlock(ctx, plan)
+	require.False(t, diags.HasError())
+	require.False(t, unknown)
+
+	autoSuspendType := s.Attributes["auto_suspend"].GetType().(types.ObjectType)
+	require.False(t, plan.SetAttribute(ctx, path.Root("auto_suspend"), types.ObjectUnknown(autoSuspendType.AttrTypes)).HasError())
+
+	unknown, diags = hasUnknownNestedBlock(ctx, plan)
+	require.False(t, diags.HasError())
+	require.True(t, unknown)
+
+	// Decoding this plan into the model fails, which is why ModifyPlan checks first.
+	var decoded clusterResourceModel
+	require.True(t, plan.Get(ctx, &decoded).HasError())
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{
+		Plan:   plan,
+		State:  tfsdk.State{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)},
+		Config: tfsdk.Config{Schema: s, Raw: plan.Raw},
+	}, resp)
+	require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 }

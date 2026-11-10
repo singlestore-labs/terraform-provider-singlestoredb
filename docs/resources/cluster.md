@@ -56,7 +56,7 @@ output "admin_password" {
 - `auto_scale` (Attributes) Specifies the autoscale setting (scale factor) for the cluster. (see [below for nested schema](#nestedatt--auto_scale))
 - `auto_suspend` (Attributes) Auto suspend settings for the cluster. (see [below for nested schema](#nestedatt--auto_suspend))
 - `cache_config` (Number) Specifies the multiplier for the persistent cache associated with the cluster. It can have one of the following values: 1, 2, or 4. Default is 1.
-- `deployment_type` (String) The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.
+- `deployment_type` (String) The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If omitted, the Management API default applies (`PRODUCTION`) and Terraform reports the type the API returns.
 - `expires_at` (String) The expiration timestamp applied when the cluster is created. If unset, the cluster does not expire. Upon expiration, the cluster is terminated and all its data is lost. Set the expiration time as an RFC3339 UTC timestamp, for example "2221-01-02T15:04:05Z". Changing expires_at after creation is unavailable: PATCH /v2/clusters ignores expiresAt. After import, set expires_at to the cluster's current expiration. Equivalent RFC3339 spellings of that time are accepted.
 - `kai` (Boolean) Whether SingleStore Kai (MongoDB compatibility) is enabled for the cluster.
 - `multi_az` (Boolean) Enables deployment across multiple availability zones.
@@ -89,7 +89,7 @@ Optional:
 
 Optional:
 
-- `suspend_after_seconds` (Number) When to suspend the cluster, in whole seconds, according to the suspend type chosen.
+- `suspend_after_seconds` (Number) When to suspend the cluster, in whole seconds, according to the suspend type chosen. Required when suspend_type is `IDLE` or `SCHEDULED`, and not allowed when it is `DISABLED`.
 - `suspend_type` (String) The auto suspend mode for the cluster can have the values `IDLE`, `SCHEDULED`, or `DISABLED`. Default is `DISABLED`.
 
 

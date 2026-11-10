@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/singlestore-labs/singlestore-go/management"
@@ -241,8 +242,10 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"deployment_type": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. The default value is `PRODUCTION`.",
-				Default:             stringdefault.StaticString(string(management.ClusterDeploymentTypePRODUCTION)),
+				MarkdownDescription: "The deployment type of the cluster. It can have one of the following values: `PRODUCTION` or `NON-PRODUCTION`. If omitted, the Management API default applies (`PRODUCTION`) and Terraform reports the type the API returns.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf(string(management.ClusterDeploymentTypePRODUCTION), string(management.ClusterDeploymentTypeNONPRODUCTION)),
 				},
@@ -311,7 +314,10 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Attributes: map[string]schema.Attribute{
 					"suspend_after_seconds": schema.Int64Attribute{
 						Optional:            true,
-						MarkdownDescription: "When to suspend the cluster, in whole seconds, according to the suspend type chosen.",
+						MarkdownDescription: "When to suspend the cluster, in whole seconds, according to the suspend type chosen. Required when suspend_type is `IDLE` or `SCHEDULED`, and not allowed when it is `DISABLED`.",
+						Validators: []validator.Int64{
+							int64validator.AtLeast(1),
+						},
 					},
 					"suspend_type": schema.StringAttribute{
 						Optional:            true,
@@ -364,19 +370,7 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	if plan.Suspended.ValueBool() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("suspended"),
-			"Cannot suspend a cluster during creation",
-			"Either set value to false or omit the field.",
-		)
-
-		return
-	}
-
-	if err := validateCreateParameters(&plan); err != nil {
-		resp.Diagnostics.AddError(err.Summary, err.Detail)
-
+	if prepareCreatePlan(&plan, &resp.Diagnostics); resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -422,6 +416,12 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	if clusterCreateResponse.JSON200 == nil {
+		resp.Diagnostics.AddError(unreadableCreateResponseError(clusterCreateResponse, plan.Name.ValueString()))
+
+		return
+	}
+
 	clusterID := clusterCreateResponse.JSON200.ClusterID
 	// The create response is the first API object that carries the generated password.
 	adminPassword := util.Deref(clusterCreateResponse.JSON200.AdminPassword)
@@ -450,15 +450,52 @@ func (r *clusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	cluster, autoScaleApplied := applyAutoScaleAfterCreate(ctx, r.ClientWithResponsesInterface, clusterID, cluster, plan, &resp.Diagnostics)
 
-	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan.FirewallRanges, plan.ProjectName, plan.ExpiresAt)
+	result, modelDiags := toClusterResourceModel(cluster, adminPassword, plan, plan.ProjectName)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	keepPlannedAutoScale(&result, plan, autoScaleApplied)
+	// expires_at is Optional only, so apply must store the planned value. An expiry
+	// the API set on its own shows up on the next refresh instead, where
+	// validateModifyExpiresAt reports it.
+	result.ExpiresAt = plan.ExpiresAt
 
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
+}
+
+// prepareCreatePlan checks the plan before POST /v2/clusters.
+func prepareCreatePlan(plan *clusterResourceModel, diags *diag.Diagnostics) {
+	if plan.Suspended.ValueBool() {
+		diags.AddAttributeError(
+			path.Root("suspended"),
+			"Cannot suspend a cluster during creation",
+			"Either set value to false or omit the field.",
+		)
+
+		return
+	}
+
+	// Every configured value is known at apply, so an unknown deployment_type was
+	// omitted. Null makes validation use the API default PRODUCTION, and create
+	// leaves deploymentType out of the request.
+	if plan.DeploymentType.IsUnknown() {
+		plan.DeploymentType = types.StringNull()
+	}
+
+	if err := validateCreateParameters(plan); err != nil {
+		diags.AddError(err.Summary, err.Detail)
+	}
+}
+
+// unreadableCreateResponseError reports a 200 create response without a JSON cluster.
+// The request was accepted, so a cluster may exist that Terraform cannot track.
+func unreadableCreateResponseError(r *management.PostV2ClustersResponse, name string) (string, string) {
+	return "Cluster create returned an unreadable response",
+		fmt.Sprintf("POST /v2/clusters returned status code OK without a JSON cluster (Content-Type %q). "+
+			"A cluster named %q may have been created. Check the SingleStore Portal, and import or delete it before applying again.",
+			r.HTTPResponse.Header.Get("Content-Type"), name)
 }
 
 // keepPlannedAutoScale stores the planned autoscale when deferred setup failed.
@@ -513,7 +550,7 @@ func applyAutoScaleAfterCreate(ctx context.Context, c management.ClientWithRespo
 
 	updated, werr := wait(ctx, c, id, config.ClusterUpdateTimeout,
 		waitConditionState(management.ClusterStateACTIVE),
-		waitConditionAutoScale(plan.AutoScale.MaxScaleFactor.ValueFloat32()),
+		waitConditionAutoScale(*plan.AutoScale),
 	)
 	if werr != nil {
 		return warn(werr)
@@ -551,6 +588,16 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return // The resource got deleted externally, deleting it from the state file to recreate.
 	}
 
+	if cluster.JSON200 == nil {
+		resp.Diagnostics.AddError(
+			"Cluster read returned an unreadable response",
+			fmt.Sprintf("GET /v2/clusters/%s returned status code OK without a JSON cluster (Content-Type %q). Try again later.",
+				id, cluster.HTTPResponse.Header.Get("Content-Type")),
+		)
+
+		return
+	}
+
 	stateValue := util.Deref(cluster.JSON200.State)
 	if isTerminatedCluster(*cluster.JSON200) {
 		// A cluster terminated before its endpoint became ready is still reported as
@@ -583,9 +630,8 @@ func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *re
 		projectName = resolved
 	}
 
-	configuredExpiresAt := state.ExpiresAt
 	previousSuspended := state.Suspended
-	state, modelDiags := toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state.FirewallRanges, projectName, configuredExpiresAt)
+	state, modelDiags := toClusterResourceModel(cluster, state.AdminPassword.ValueString(), state, projectName)
 	resp.Diagnostics.Append(modelDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -617,7 +663,7 @@ func clusterReadStateDiagnostics(clusterID string, stateValue management.Cluster
 		diags.AddWarning(
 			fmt.Sprintf("Cluster %s state is %s", clusterID, stateValue),
 			"The cluster is changing state, or it is offline or impacted: Management API reports all of these as PENDING. "+
-				"Updates wait until it is ACTIVE or SUSPENDED. terraform destroy does not wait. "+
+				"Updates wait until it is ACTIVE or SUSPENDED. terraform destroy deletes it without waiting for that, then waits for it to terminate. "+
 				"If the cluster stays PENDING, check its status in the SingleStore Portal.",
 		)
 	case management.ClusterStateFAILED:
@@ -729,6 +775,20 @@ func (r *clusterResource) Configure(_ context.Context, req resource.ConfigureReq
 
 // ModifyPlan emits an error if a required yet immutable field changes or if incompatible state is set.
 func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) { //nolint:cyclop
+	if req.Plan.Raw.IsNull() {
+		return // Destroy.
+	}
+
+	// auto_scale and auto_suspend decode into structs, which cannot hold an unknown
+	// object, for example `auto_suspend = local.x` that depends on another resource.
+	// Skip the checks while either block is unknown: Terraform plans again during
+	// apply with every value known, and these checks run then.
+	if unknown, diags := hasUnknownNestedBlock(ctx, req.Plan); diags.HasError() || unknown {
+		resp.Diagnostics.Append(diags...)
+
+		return
+	}
+
 	var state *clusterResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -747,32 +807,14 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	// ValueBool is false for null and unknown, so an omitted or not-yet-known
 	// suspended value is left to Create.
 	if state == nil {
-		if plan.Suspended.ValueBool() {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("suspended"),
-				"Cannot suspend a cluster during creation",
-				"Either set value to false or omit the field.",
-			)
-
-			return
-		}
-
-		// An omitted project_name is null in config and unknown in the plan.
-		var configProjectName types.String
-		diags = req.Config.GetAttribute(ctx, path.Root("project_name"), &configProjectName)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if err := validatePlannedCreate(plan, configProjectName); err != nil {
-			resp.Diagnostics.AddError(err.Summary, err.Detail)
-		}
+		modifyCreatePlan(ctx, req.Config, plan, &resp.Diagnostics)
 
 		return
 	}
 
-	if !plan.Name.Equal(state.Name) {
+	// A value that is not known yet, for example a name built from a resource being
+	// replaced, is checked when Terraform plans again during apply.
+	if changedKnown(plan.Name, state.Name) {
 		resp.Diagnostics.AddError("Cannot update cluster name",
 			"Updating the name is not permitted. "+
 				"Current value: \""+state.Name.ValueString()+"\", configured value: \""+plan.Name.ValueString()+"\".")
@@ -810,21 +852,21 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if !plan.CloudProvider.Equal(state.CloudProvider) {
+	if changedKnown(plan.CloudProvider, state.CloudProvider) {
 		resp.Diagnostics.AddError("Cannot update cluster cloud_provider",
 			fmt.Sprintf("Updating the cloud_provider is not permitted. Expected value is '%s'.", state.CloudProvider.ValueString()))
 
 		return
 	}
 
-	if !plan.RegionName.Equal(state.RegionName) {
+	if changedKnown(plan.RegionName, state.RegionName) {
 		resp.Diagnostics.AddError("Cannot update cluster region_name",
 			fmt.Sprintf("Updating the region_name is not permitted. Expected value is '%s', but now is '%s'.", state.RegionName.ValueString(), plan.RegionName.ValueString()))
 
 		return
 	}
 
-	if !plan.Kai.Equal(state.Kai) {
+	if changedKnown(plan.Kai, state.Kai) {
 		resp.Diagnostics.AddError("Cannot change the kai configuration for the cluster",
 			"Changing the kai configuration is currently not supported. "+
 				"Current value: "+state.Kai.String()+", configured value: "+plan.Kai.String()+".")
@@ -832,7 +874,7 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if !plan.MultiAZ.Equal(state.MultiAZ) {
+	if changedKnown(plan.MultiAZ, state.MultiAZ) {
 		resp.Diagnostics.AddError("Cannot change the multi_az configuration for the cluster",
 			"Changing the multi_az configuration is currently not supported. "+
 				"Current value: "+state.MultiAZ.String()+", configured value: "+plan.MultiAZ.String()+".")
@@ -840,7 +882,7 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if !plan.OptInPreviewFeature.Equal(state.OptInPreviewFeature) {
+	if changedKnown(plan.OptInPreviewFeature, state.OptInPreviewFeature) {
 		resp.Diagnostics.AddError("Cannot change the opt_in_preview_feature configuration for the cluster",
 			"Changing the opt_in_preview_feature configuration is currently not supported. "+
 				"Current value: "+state.OptInPreviewFeature.String()+", configured value: "+plan.OptInPreviewFeature.String()+".")
@@ -848,7 +890,8 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if state.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.ClusterDeploymentTypeNONPRODUCTION) {
+	if deploymentType, known := effectiveDeploymentType(plan.DeploymentType); state.OptInPreviewFeature.ValueBool() && known &&
+		deploymentType != string(management.ClusterDeploymentTypeNONPRODUCTION) {
 		resp.Diagnostics.AddError(
 			"Cannot change the deployment_type configuration to anything other than 'NON-PRODUCTION' for the cluster when the opt_in_preview_feature is enabled.",
 			"Changing the deployment_type configuration to anything other than 'NON-PRODUCTION' when the opt_in_preview_feature is enabled is not currently supported. "+
@@ -865,6 +908,54 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 }
 
+// modifyCreatePlan runs the create checks at plan time.
+func modifyCreatePlan(ctx context.Context, cfg tfsdk.Config, plan *clusterResourceModel, diags *diag.Diagnostics) {
+	if plan.Suspended.ValueBool() {
+		diags.AddAttributeError(
+			path.Root("suspended"),
+			"Cannot suspend a cluster during creation",
+			"Either set value to false or omit the field.",
+		)
+
+		return
+	}
+
+	// Omitted project_name and deployment_type are null in config and unknown in the plan.
+	var configProjectName, configDeploymentType types.String
+	diags.Append(cfg.GetAttribute(ctx, path.Root("project_name"), &configProjectName)...)
+	diags.Append(cfg.GetAttribute(ctx, path.Root("deployment_type"), &configDeploymentType)...)
+	if diags.HasError() {
+		return
+	}
+
+	if err := validatePlannedCreate(plan, configProjectName, configDeploymentType); err != nil {
+		diags.AddError(err.Summary, err.Detail)
+	}
+}
+
+// changedKnown reports whether a known planned value differs from state. An unknown
+// planned value is not a change yet.
+func changedKnown(plan, state attr.Value) bool {
+	return !plan.IsUnknown() && !plan.Equal(state)
+}
+
+// hasUnknownNestedBlock reports whether auto_scale or auto_suspend is unknown in the plan.
+func hasUnknownNestedBlock(ctx context.Context, plan tfsdk.Plan) (bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	for _, name := range []string{"auto_scale", "auto_suspend"} {
+		var block types.Object
+		diags.Append(plan.GetAttribute(ctx, path.Root(name), &block)...)
+		if diags.HasError() {
+			return false, diags
+		}
+		if block.IsUnknown() {
+			return true, diags
+		}
+	}
+
+	return false, diags
+}
+
 // ImportState results in Terraform managing the resource that was not previously managed.
 func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	util.ImportStatePassthroughID(ctx, req, resp)
@@ -874,15 +965,15 @@ func (r *clusterResource) ImportState(ctx context.Context, req resource.ImportSt
 // Unknown inputs are replaced with stand-ins that pass validateCreateParameters;
 // Create repeats the checks once those values are known. The stand-ins are not
 // sent to the API.
-func validatePlannedCreate(plan *clusterResourceModel, configProjectName types.String) *util.SummaryWithDetailError {
-	checked := deferUnknownCreateInputs(*plan, configProjectName)
+func validatePlannedCreate(plan *clusterResourceModel, configProjectName, configDeploymentType types.String) *util.SummaryWithDetailError {
+	checked := deferUnknownCreateInputs(*plan, configProjectName, configDeploymentType)
 
 	return validateCreateParameters(&checked)
 }
 
 // deferUnknownCreateInputs replaces unknown create inputs with values that pass
 // validation. Create checks the real values once they are known.
-func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName types.String) clusterResourceModel {
+func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName, configDeploymentType types.String) clusterResourceModel {
 	if configProjectName.IsNull() {
 		plan.ProjectName = types.StringNull()
 	} else if plan.ProjectName.IsUnknown() {
@@ -895,10 +986,11 @@ func deferUnknownCreateInputs(plan clusterResourceModel, configProjectName types
 	if plan.RegionName.IsUnknown() {
 		plan.RegionName = types.StringValue("us-east-1")
 	}
-	// ValueBool is false while opt-in is unknown. A known true paired with an
-	// unknown deployment type would otherwise look like a non-production mismatch.
-	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.IsUnknown() {
-		plan.OptInPreviewFeature = types.BoolValue(false)
+	// deployment_type is computed, so an omitted value is unknown in the plan. An
+	// omitted value means the API default PRODUCTION and is checked now; only a
+	// configured value that is not yet known is left to Create.
+	if configDeploymentType.IsNull() {
+		plan.DeploymentType = types.StringNull()
 	}
 
 	return plan
@@ -920,7 +1012,8 @@ func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetai
 		}
 	}
 
-	if plan.OptInPreviewFeature.ValueBool() && plan.DeploymentType.ValueString() != string(management.ClusterDeploymentTypeNONPRODUCTION) {
+	if deploymentType, known := effectiveDeploymentType(plan.DeploymentType); plan.OptInPreviewFeature.ValueBool() && known &&
+		deploymentType != string(management.ClusterDeploymentTypeNONPRODUCTION) {
 		return &util.SummaryWithDetailError{
 			Summary: "Wrong configuration for opt_in_preview_feature and deployment_type",
 			Detail:  "The enabled opt_in_preview_feature configuration is suitable only for the 'NON-PRODUCTION' deployment_type.",
@@ -941,7 +1034,7 @@ func validateCreateParameters(plan *clusterResourceModel) *util.SummaryWithDetai
 // validateModifyProjectName rejects a change to project_name. The Management API
 // does not move a cluster between projects.
 func validateModifyProjectName(plan, state *clusterResourceModel) *util.SummaryWithDetailError {
-	if plan.ProjectName.IsNull() {
+	if plan.ProjectName.IsNull() || plan.ProjectName.IsUnknown() {
 		return nil
 	}
 
@@ -988,18 +1081,28 @@ func validateModifyExpiresAt(plan, state *clusterResourceModel) *util.SummaryWit
 	}
 }
 
-// validateAutoSuspendConfig rejects suspend_after_seconds when suspend_type is DISABLED.
+// validateAutoSuspendConfig rejects suspend_after_seconds when suspend_type is DISABLED,
+// and requires it when suspend_type is IDLE or SCHEDULED.
 func validateAutoSuspendConfig(plan *clusterResourceModel) *util.SummaryWithDetailError {
 	// A value only known at apply time may still satisfy the rule.
 	if plan.AutoSuspend.SuspendType.IsUnknown() || plan.AutoSuspend.SuspendAfterSeconds.IsUnknown() {
 		return nil
 	}
 
-	if plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED))) &&
-		!plan.AutoSuspend.SuspendAfterSeconds.IsNull() {
+	disabled := plan.AutoSuspend.SuspendType.IsNull() || plan.AutoSuspend.SuspendType.Equal(types.StringValue(string(management.AutoSuspendSuspendTypeDISABLED)))
+	hasSeconds := !plan.AutoSuspend.SuspendAfterSeconds.IsNull()
+
+	switch {
+	case disabled && hasSeconds:
 		return &util.SummaryWithDetailError{
 			Summary: "Invalid auto_suspend configuration.",
 			Detail:  "If suspend_type is set to DISABLED, the suspend_after_seconds parameter is not allowed.",
+		}
+	case !disabled && !hasSeconds:
+		return &util.SummaryWithDetailError{
+			Summary: "Invalid auto_suspend configuration.",
+			Detail: fmt.Sprintf("If suspend_type is set to %s, suspend_after_seconds is required.",
+				plan.AutoSuspend.SuspendType.ValueString()),
 		}
 	}
 
@@ -1059,19 +1162,16 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 // toClusterResourceModel copies a Management API cluster into the resource model.
 // adminPassword is the last password read from the API. The cluster object
 // replaces it when that response includes adminPassword.
-func toClusterResourceModel(cluster management.Cluster, adminPassword string, configuredFirewallRanges []types.String, projectName, configuredExpiresAt types.String) (clusterResourceModel, diag.Diagnostics) {
+//
+// prior is the plan or state being refreshed. It supplies the configured firewall
+// ranges and expires_at spelling, and the deployment_type and kai values to keep
+// when the response omits them.
+func toClusterResourceModel(cluster management.Cluster, adminPassword string, prior clusterResourceModel, projectName types.String) (clusterResourceModel, diag.Diagnostics) {
 	size := types.StringNull()
-	scaleFactor := types.Float32Value(scaleX1)
-	cacheConfig := types.Float32Value(cacheMultiplierX1)
 	if cluster.SizeConfig != nil {
 		size = util.MaybeStringValue(cluster.SizeConfig.Size)
-		if cluster.SizeConfig.ScaleFactor != nil {
-			scaleFactor = types.Float32Value(*cluster.SizeConfig.ScaleFactor)
-		}
-		if cluster.SizeConfig.CacheConfig != nil {
-			cacheConfig = types.Float32Value(*cluster.SizeConfig.CacheConfig)
-		}
 	}
+	scaleFactor, cacheConfig := sizeConfigForState(cluster.SizeConfig)
 
 	updateWindow, diags := toUpdateWindowResourceModel(cluster.UpdateWindow)
 	model := clusterResourceModel{
@@ -1083,13 +1183,13 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 		ScaleFactor:         scaleFactor,
 		CacheConfig:         cacheConfig,
 		Suspended:           types.BoolValue(util.Deref(cluster.State) == management.ClusterStateSUSPENDED),
-		Kai:                 types.BoolValue(util.Deref(cluster.Kai)),
+		Kai:                 kaiForState(cluster.Kai, prior.Kai),
 		AdminPassword:       passwordFromAPI(cluster.AdminPassword, adminPassword),
-		FirewallRanges:      firewallRangesForState(configuredFirewallRanges, cluster),
-		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, configuredExpiresAt),
+		FirewallRanges:      firewallRangesForState(prior.FirewallRanges, cluster),
+		ExpiresAt:           util.ExpiresAtStateValue(cluster.ExpiresAt, prior.ExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
-		DeploymentType:      deploymentTypeForState(cluster.DeploymentType),
+		DeploymentType:      deploymentTypeForState(cluster.DeploymentType, prior.DeploymentType),
 		OptInPreviewFeature: types.BoolValue(util.Deref(cluster.OptInPreviewFeature)),
 		MultiAZ:             types.BoolValue(util.Deref(cluster.MultiAZ)),
 		OutboundAllowList:   util.MaybeStringValue(cluster.OutboundAllowList),
@@ -1101,6 +1201,24 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, co
 	}
 
 	return model, diags
+}
+
+// sizeConfigForState returns the scale factor and cache multiplier to store.
+// Omitted values are the schema default 1.
+func sizeConfigForState(sizeConfig *management.SizeConfig) (types.Float32, types.Float32) {
+	scaleFactor := types.Float32Value(scaleX1)
+	cacheConfig := types.Float32Value(cacheMultiplierX1)
+	if sizeConfig == nil {
+		return scaleFactor, cacheConfig
+	}
+	if sizeConfig.ScaleFactor != nil {
+		scaleFactor = types.Float32Value(*sizeConfig.ScaleFactor)
+	}
+	if sizeConfig.CacheConfig != nil {
+		cacheConfig = types.Float32Value(*sizeConfig.CacheConfig)
+	}
+
+	return scaleFactor, cacheConfig
 }
 
 // passwordFromAPI stores the admin password Management API returned.
@@ -1117,14 +1235,42 @@ func passwordFromAPI(apiPassword *string, knownPassword string) types.String {
 	return types.StringValue(knownPassword)
 }
 
-// deploymentTypeForState uses the schema default when the API omits the field.
-// A null value disagrees with the plan and keeps proposing updates.
-func deploymentTypeForState(deploymentType *management.ClusterDeploymentType) types.String {
-	if deploymentType == nil {
-		return types.StringValue(string(management.ClusterDeploymentTypePRODUCTION))
+// deploymentTypeForState stores the deployment type the API returned. When the
+// response omits it, the configured value is kept so apply matches the plan, and
+// otherwise the API default PRODUCTION is stored. A null value would stay unknown
+// in later plans, because UseStateForUnknown skips a null state.
+func deploymentTypeForState(deploymentType *management.ClusterDeploymentType, prior types.String) types.String {
+	if deploymentType != nil {
+		return types.StringValue(string(*deploymentType))
+	}
+	if util.IsConfiguredString(prior) {
+		return prior
 	}
 
-	return types.StringValue(string(*deploymentType))
+	return types.StringValue(string(management.ClusterDeploymentTypePRODUCTION))
+}
+
+// effectiveDeploymentType is the deployment type a create or update uses. An omitted
+// value means the API default PRODUCTION. ok is false while the value is unknown.
+func effectiveDeploymentType(deploymentType types.String) (string, bool) {
+	if deploymentType.IsUnknown() {
+		return "", false
+	}
+	if deploymentType.IsNull() {
+		return string(management.ClusterDeploymentTypePRODUCTION), true
+	}
+
+	return deploymentType.ValueString(), true
+}
+
+// kaiForState stores the kai flag the API returned, or keeps the known prior value
+// when the response omits it, so apply matches a plan that enabled kai.
+func kaiForState(kai *bool, prior types.Bool) types.Bool {
+	if kai == nil && !prior.IsNull() && !prior.IsUnknown() {
+		return prior
+	}
+
+	return types.BoolValue(util.Deref(kai))
 }
 
 // clusterStateAfterCreate copies the plan into a state value Terraform can store

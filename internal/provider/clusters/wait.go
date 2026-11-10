@@ -85,6 +85,15 @@ func waitErrorDetail(ctx context.Context, timeout time.Duration, stopped bool, e
 
 // wait polls the cluster until every condition holds or the timeout elapses.
 func wait(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError) {
+	cluster, err, _ := waitReportingTimeout(ctx, c, id, timeout, conditions...)
+
+	return cluster, err
+}
+
+// waitReportingTimeout is wait that also reports whether a failed wait ran out of
+// time, as opposed to being canceled or stopped on a failed, terminated, or
+// missing cluster.
+func waitReportingTimeout(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration, conditions ...waitCondition) (management.Cluster, *util.SummaryWithDetailError, bool) {
 	result := management.Cluster{}
 	notFound := newNotFoundTracker()
 	stopped := false
@@ -106,26 +115,10 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 			return clusterPollError(ctx, id, err)
 		}
 
-		if code := cluster.StatusCode(); code != http.StatusOK {
-			err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
-			if code != http.StatusNotFound {
-				notFound.found()
+		if rerr := clusterResponseError(id, cluster, notFound); rerr != nil {
+			stopped = !rerr.Retryable
 
-				return retry.RetryableError(err)
-			}
-
-			if notFound.notFound() {
-				stopped = true
-
-				return retry.NonRetryableError(fmt.Errorf("%w for %s; it may have been deleted outside Terraform", err, notFound.grace))
-			}
-
-			return retry.RetryableError(err)
-		}
-		notFound.found()
-
-		if cluster.JSON200 == nil {
-			return retry.RetryableError(errMissingClusterBody(id, cluster.HTTPResponse.Header.Get("Content-Type")))
+			return rerr
 		}
 
 		// FAILED and TERMINATED will not become ready. Stop instead of polling
@@ -149,10 +142,37 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 		return result, &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for cluster %s", id),
 			Detail:  waitErrorDetail(ctx, timeout, stopped, err, "Cluster did not reach the expected state"),
-		}
+		}, ctx.Err() == nil && !stopped
 	}
 
-	return result, nil
+	return result, nil, false
+}
+
+// clusterResponseError classifies a poll response other than 200 with a JSON
+// cluster. A 404 that lasts the not-found grace stops the wait; everything else
+// is retried.
+func clusterResponseError(id management.ClusterID, cluster *management.GetV2ClustersClusterIDResponse, notFound *notFoundTracker) *retry.RetryError {
+	code := cluster.StatusCode()
+	if code == http.StatusOK {
+		notFound.found()
+		if cluster.JSON200 == nil {
+			return retry.RetryableError(errMissingClusterBody(id, cluster.HTTPResponse.Header.Get("Content-Type")))
+		}
+
+		return nil
+	}
+
+	err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
+	if code != http.StatusNotFound {
+		notFound.found()
+
+		return retry.RetryableError(err)
+	}
+	if notFound.notFound() {
+		return retry.NonRetryableError(fmt.Errorf("%w for %s; it may have been deleted outside Terraform", err, notFound.grace))
+	}
+
+	return retry.RetryableError(err)
 }
 
 // isTerminatedCluster reports whether the cluster is terminated. Management API
@@ -236,18 +256,65 @@ func waitConditionTakesAtLeast(d time.Duration) func(management.Cluster) error {
 	}
 }
 
-// waitConditionAutoScale holds until the Management API reports the max scale factor.
-func waitConditionAutoScale(maxScaleFactor float32) waitCondition {
+// waitConditionAutoScale holds until the Management API reports the planned autoscale.
+// Sensitivity is checked only when autoscale is on: PATCH omits it for factor 1.
+func waitConditionAutoScale(want autoScaleResourceModel) waitCondition {
 	return func(c management.Cluster) error {
-		var got float32 = scaleX1
-		if c.AutoScale != nil && c.AutoScale.MaxScaleFactor != nil {
-			got = *c.AutoScale.MaxScaleFactor
+		got := toAutoScaleResourceModel(c)
+		if !got.MaxScaleFactor.Equal(want.MaxScaleFactor) {
+			return fmt.Errorf("cluster %s max scale factor is %v, but should be %v",
+				util.Deref(c.ClusterID), got.MaxScaleFactor.ValueFloat32(), want.MaxScaleFactor.ValueFloat32())
 		}
-		if got != maxScaleFactor {
-			return fmt.Errorf("cluster %s max scale factor is %v, but should be %v", util.Deref(c.ClusterID), got, maxScaleFactor)
+		if !want.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) && !got.Sensitivity.Equal(want.Sensitivity) {
+			return fmt.Errorf("cluster %s autoscale sensitivity is %s, but should be %s",
+				util.Deref(c.ClusterID), got.Sensitivity.ValueString(), want.Sensitivity.ValueString())
 		}
 
 		return nil
+	}
+}
+
+// waitConditionSizeConfig holds once the Management API reports the planned scale
+// factor and cache multiplier. Omitted values are 1, as in toClusterResourceModel.
+func waitConditionSizeConfig(scaleFactor, cacheConfig types.Float32) waitCondition {
+	return func(c management.Cluster) error {
+		gotScale, gotCache := sizeConfigForState(c.SizeConfig)
+		if !gotScale.Equal(scaleFactor) {
+			return fmt.Errorf("cluster %s scale factor is %v, but should be %v",
+				util.Deref(c.ClusterID), gotScale.ValueFloat32(), scaleFactor.ValueFloat32())
+		}
+		if !gotCache.Equal(cacheConfig) {
+			return fmt.Errorf("cluster %s cache config is %v, but should be %v",
+				util.Deref(c.ClusterID), gotCache.ValueFloat32(), cacheConfig.ValueFloat32())
+		}
+
+		return nil
+	}
+}
+
+// waitConditionAutoSuspend holds once the Management API reports the planned auto suspend settings.
+func waitConditionAutoSuspend(want autoSuspendResourceModel) waitCondition {
+	return func(c management.Cluster) error {
+		got := toAutoSuspendResourceModel(c)
+		if !got.SuspendType.Equal(want.SuspendType) || !got.SuspendAfterSeconds.Equal(want.SuspendAfterSeconds) {
+			return fmt.Errorf("cluster %s auto suspend is %s after %s seconds, but should be %s after %s seconds",
+				util.Deref(c.ClusterID), got.SuspendType, got.SuspendAfterSeconds, want.SuspendType, want.SuspendAfterSeconds)
+		}
+
+		return nil
+	}
+}
+
+// waitConditionDeploymentType holds once the Management API reports the planned
+// deployment type. A response that omits it holds, because state then keeps the plan.
+func waitConditionDeploymentType(want types.String) waitCondition {
+	return func(c management.Cluster) error {
+		if c.DeploymentType == nil || string(*c.DeploymentType) == want.ValueString() {
+			return nil
+		}
+
+		return fmt.Errorf("cluster %s deployment type is %s, but should be %s",
+			util.Deref(c.ClusterID), *c.DeploymentType, want.ValueString())
 	}
 }
 

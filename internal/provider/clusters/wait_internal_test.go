@@ -501,3 +501,38 @@ func TestApplyAutoScaleAfterCreate(t *testing.T) {
 		require.Nil(t, result.AutoScale)
 	})
 }
+
+// TestUpdateWaitConditions holds only once the API reports the planned values.
+func TestUpdateWaitConditions(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	cluster := management.Cluster{ClusterID: &clusterID}
+
+	// Omitted size config, autoscale, and auto suspend read as the schema defaults.
+	require.NoError(t, waitConditionSizeConfig(types.Float32Value(1), types.Float32Value(1))(cluster))
+	require.Error(t, waitConditionSizeConfig(types.Float32Value(2), types.Float32Value(1))(cluster))
+	require.Error(t, waitConditionSizeConfig(types.Float32Value(1), types.Float32Value(4))(cluster))
+
+	scaleOff := autoScaleResourceModel{MaxScaleFactor: types.Float32Value(1), Sensitivity: types.StringValue(string(management.NORMAL))}
+	scaleUp := autoScaleResourceModel{MaxScaleFactor: types.Float32Value(2), Sensitivity: types.StringValue(string(management.HIGH))}
+	require.NoError(t, waitConditionAutoScale(scaleOff)(cluster))
+	require.Error(t, waitConditionAutoScale(scaleUp)(cluster))
+	wrongSensitivity := cluster
+	wrongSensitivity.AutoScale = &management.AutoScale{MaxScaleFactor: util.Ptr[float32](2), Sensitivity: util.Ptr(management.LOW)}
+	require.Error(t, waitConditionAutoScale(scaleUp)(wrongSensitivity))
+	// Factor 1 does not send sensitivity, so a leftover value is not waited on.
+	leftover := cluster
+	leftover.AutoScale = &management.AutoScale{MaxScaleFactor: util.Ptr[float32](1), Sensitivity: util.Ptr(management.HIGH)}
+	require.NoError(t, waitConditionAutoScale(scaleOff)(leftover))
+
+	idle := autoSuspendResourceModel{SuspendType: types.StringValue(string(management.AutoSuspendSuspendTypeIDLE)), SuspendAfterSeconds: types.Int64Value(600)}
+	require.Error(t, waitConditionAutoSuspend(idle)(cluster))
+	landed := cluster
+	landed.AutoSuspend = &management.AutoSuspend{SuspendType: util.Ptr(management.AutoSuspendSuspendTypeIDLE), IdleAfterSeconds: util.Ptr(600)}
+	require.NoError(t, waitConditionAutoSuspend(idle)(landed))
+
+	nonProduction := types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+	require.NoError(t, waitConditionDeploymentType(nonProduction)(cluster), "an omitted type keeps the plan")
+	production := cluster
+	production.DeploymentType = util.Ptr(management.ClusterDeploymentTypePRODUCTION)
+	require.Error(t, waitConditionDeploymentType(nonProduction)(production))
+}

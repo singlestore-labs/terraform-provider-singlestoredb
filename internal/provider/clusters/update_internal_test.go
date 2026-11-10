@@ -75,7 +75,7 @@ func TestApplyClusterConfigurationIgnoresEquivalentExpiresAt(t *testing.T) {
 		return true
 	})
 
-	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan, "")
 	require.Nil(t, err)
 	require.Equal(t, plan.ExpiresAt.ValueString(), got.ExpiresAt.ValueString())
 	require.Nil(t, patched.ExpiresAt)
@@ -105,7 +105,7 @@ func TestApplyClusterConfiguration(t *testing.T) {
 		return true
 	})
 
-	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan, "")
 	require.Nil(t, err)
 	require.Equal(t, plan.DeploymentType.ValueString(), got.DeploymentType.ValueString())
 	require.Equal(t, plan.ExpiresAt.ValueString(), got.ExpiresAt.ValueString())
@@ -172,7 +172,7 @@ func TestApplyClusterConfigurationSizeChangeStopsWhenContextEnds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
-	_, err := applyClusterConfiguration(ctx, client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	_, err := applyClusterConfiguration(ctx, client, lifecycleClusterUUID, lifecycleCluster(t), state, plan, "")
 	require.NotNil(t, err)
 	require.Contains(t, err.Detail, "canceled")
 }
@@ -194,7 +194,7 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 
 		return false
 	})
-	_, err := applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	_, err := applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, plan, "")
 	require.NotNil(t, err)
 
 	badWindow, diags := types.ObjectValue(
@@ -204,7 +204,7 @@ func TestApplyClusterConfigurationErrors(t *testing.T) {
 	require.False(t, diags.HasError())
 	windowPlan := plan
 	windowPlan.UpdateWindow = badWindow
-	_, err = applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, windowPlan)
+	_, err = applyClusterConfiguration(t.Context(), patchFailed, lifecycleClusterUUID, lifecycleCluster(t), state, windowPlan, "")
 	require.NotNil(t, err)
 }
 
@@ -276,7 +276,7 @@ func TestUpdateKeepsStoredAdminPasswordWhenPlanIsUnknown(t *testing.T) {
 		return true
 	})
 
-	got, err := applyClusterConfiguration(t.Context(), client, lifecycleClusterUUID, lifecycleCluster(t), state, plan)
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, state, plan)
 	require.Nil(t, err)
 	require.Equal(t, "stored-secret", got.AdminPassword.ValueString())
 
@@ -438,4 +438,93 @@ func writeClusterAction(t *testing.T, w http.ResponseWriter, id *uuid.UUID) {
 
 func utilPtr[T any](v T) *T {
 	return &v
+}
+
+// TestUpdateWaitsForSettingsToLand keeps polling until GET reports the patched
+// autoscale and auto suspend, instead of storing the previous values.
+func TestUpdateWaitsForSettingsToLand(t *testing.T) {
+	state := readyClusterPlan()
+	plan := state
+	autoScale := *state.AutoScale
+	autoScale.MaxScaleFactor = types.Float32Value(scaleX2)
+	autoScale.Sensitivity = types.StringValue(string(management.HIGH))
+	plan.AutoScale = &autoScale
+	autoSuspend := *state.AutoSuspend
+	autoSuspend.SuspendType = types.StringValue(string(management.AutoSuspendSuspendTypeIDLE))
+	autoSuspend.SuspendAfterSeconds = types.Int64Value(600)
+	plan.AutoSuspend = &autoSuspend
+
+	stale := lifecycleCluster(t)
+	landed := lifecycleCluster(t)
+	landed.AutoScale = &management.AutoScale{MaxScaleFactor: utilPtr[float32](scaleX2), Sensitivity: utilPtr(management.HIGH)}
+	landed.AutoSuspend = &management.AutoSuspend{SuspendType: utilPtr(management.AutoSuspendSuspendTypeIDLE), IdleAfterSeconds: utilPtr(600)}
+
+	// The first GETs after PATCH still report the old settings.
+	const staleGets = 6
+	gets := 0
+	patched := false
+	client := clusterLifecycleClient(t, stale, management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
+		switch {
+		case r.Method == http.MethodPatch:
+			patched = true
+			writeClusterAction(t, w, stale.ClusterID)
+
+			return true
+		case r.Method == http.MethodGet && patched:
+			gets++
+			cluster := stale
+			if gets > staleGets {
+				cluster = landed
+			}
+			body, err := json.Marshal(cluster)
+			require.NoError(t, err)
+			_, err = w.Write(body)
+			require.NoError(t, err)
+
+			return true
+		}
+
+		return false
+	})
+
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, state, plan)
+	require.Nil(t, err)
+	require.Greater(t, gets, staleGets)
+	require.Equal(t, float32(scaleX2), got.AutoScale.MaxScaleFactor.ValueFloat32())
+	require.Equal(t, string(management.HIGH), got.AutoScale.Sensitivity.ValueString())
+	require.Equal(t, string(management.AutoSuspendSuspendTypeIDLE), got.AutoSuspend.SuspendType.ValueString())
+	require.Equal(t, int64(600), got.AutoSuspend.SuspendAfterSeconds.ValueInt64())
+}
+
+// TestReorderedFirewallRangesDoNotCallAPI stores the planned order without a PATCH.
+func TestReorderedFirewallRangesDoNotCallAPI(t *testing.T) {
+	state := readyClusterPlan()
+	state.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringValue("192.168.0.0/16")}
+	plan := state
+	plan.FirewallRanges = []types.String{types.StringValue("192.168.0.0/16"), types.StringValue("10.0.0.0/8")}
+
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), nil, state, plan)
+	require.Nil(t, err)
+	require.Equal(t, plan.FirewallRanges, got.FirewallRanges)
+}
+
+// TestWaitSettledHintsOnlyForPending adds the PENDING hint only when the wait
+// ran out of time; a failed cluster or a canceled wait does not get it.
+func TestWaitSettledHintsOnlyForPending(t *testing.T) {
+	failed := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStateFAILED, nil)
+	_, err := waitSettled(t.Context(), failed, lifecycleClusterUUID)
+	require.NotNil(t, err)
+	require.NotContains(t, err.Detail, "offline or impacted")
+
+	pending := clusterLifecycleClient(t, lifecycleCluster(t), management.ClusterStatePENDING, nil)
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	_, err = waitSettled(ctx, pending, lifecycleClusterUUID)
+	require.NotNil(t, err)
+	require.NotContains(t, err.Detail, "offline or impacted")
+
+	// Running out of the wait's own timeout is the case the hint is for.
+	_, err, timedOut := waitReportingTimeout(t.Context(), pending, lifecycleClusterUUID, 300*time.Millisecond, waitConditionSettled())
+	require.NotNil(t, err)
+	require.True(t, timedOut)
 }
