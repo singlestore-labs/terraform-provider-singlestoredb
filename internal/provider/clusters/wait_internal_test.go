@@ -85,6 +85,8 @@ func TestWaitClusterFailures(t *testing.T) {
 	require.NoError(t, err)
 	_, serr = wait(t.Context(), statusClient, clusterID, time.Millisecond, waitConditionState(management.ClusterStateACTIVE))
 	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "did not reach the expected state")
+	require.NotContains(t, serr.Detail, "authorization failure")
 
 	notFoundGets := 0
 	notFoundServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -108,6 +110,74 @@ func TestWaitClusterFailures(t *testing.T) {
 	_, serr = wait(t.Context(), down, clusterID, time.Second, waitConditionState(management.ClusterStateACTIVE))
 	require.NotNil(t, serr)
 	require.Contains(t, serr.Detail, "failed to get cluster")
+}
+
+// TestWaitStopsOnAuthFailure stops a create or update wait on HTTP 401 and 403
+// instead of polling until the timeout. A gateway response is still retried.
+func TestWaitStopsOnAuthFailure(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	active := management.ClusterStateACTIVE
+
+	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			gets := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				gets++
+				w.WriteHeader(code)
+			}))
+			t.Cleanup(server.Close)
+			client, err := management.NewClientWithResponses(server.URL)
+			require.NoError(t, err)
+
+			start := time.Now()
+			_, serr := wait(t.Context(), client, clusterID, time.Hour, waitConditionState(management.ClusterStateACTIVE))
+			require.NotNil(t, serr)
+			require.Contains(t, serr.Detail, "authorization failure")
+			require.Contains(t, serr.Detail, http.StatusText(code))
+			require.NotContains(t, serr.Detail, "did not reach the expected state")
+			require.Equal(t, 1, gets)
+			require.Less(t, time.Since(start), 10*time.Second)
+		})
+	}
+
+	gets := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		gets++
+		if gets == 1 {
+			w.WriteHeader(http.StatusBadGateway)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(mustJSON(t, management.Cluster{ClusterID: &clusterID, State: &active}))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	got, serr := wait(t.Context(), client, clusterID, time.Minute, func(management.Cluster) error { return nil })
+	require.Nil(t, serr)
+	require.Equal(t, management.ClusterStateACTIVE, util.Deref(got.State))
+	require.Equal(t, 2, gets)
+}
+
+// TestClusterStatusError stops on authentication and authorization failures and retries transient statuses.
+func TestClusterStatusError(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+
+	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		got := clusterStatusError(clusterID, code)
+		require.False(t, got.Retryable)
+		require.ErrorContains(t, got.Err, "authorization failure")
+		require.ErrorContains(t, got.Err, http.StatusText(code))
+	}
+	for _, code := range []int{http.StatusBadGateway, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		got := clusterStatusError(clusterID, code)
+		require.True(t, got.Retryable)
+		require.ErrorContains(t, got.Err, http.StatusText(code))
+		require.NotContains(t, got.Err.Error(), "authorization failure")
+	}
 }
 
 // TestWaitRetriesTransportErrors retries a transport error until the cluster can be read.
@@ -435,6 +505,47 @@ func TestWaitTerminated(t *testing.T) {
 	serr := waitTerminated(t.Context(), stuckClient, clusterID, time.Millisecond)
 	require.NotNil(t, serr)
 	require.Contains(t, serr.Detail, "did not terminate within 1ms")
+}
+
+// TestWaitTerminatedStopsOnAuthFailure reports an authorization failure instead of
+// waiting out the delete timeout. A transient status still ends as a termination timeout.
+func TestWaitTerminatedStopsOnAuthFailure(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+
+	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			gets := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				gets++
+				w.WriteHeader(code)
+			}))
+			t.Cleanup(server.Close)
+			client, err := management.NewClientWithResponses(server.URL)
+			require.NoError(t, err)
+
+			start := time.Now()
+			serr := waitTerminated(t.Context(), client, clusterID, time.Hour)
+			require.NotNil(t, serr)
+			require.Contains(t, serr.Detail, "The delete request was accepted")
+			require.Contains(t, serr.Detail, "authorization failure")
+			require.Contains(t, serr.Detail, http.StatusText(code))
+			require.NotContains(t, serr.Detail, "did not terminate")
+			require.Equal(t, 1, gets)
+			require.Less(t, time.Since(start), 10*time.Second)
+		})
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	t.Cleanup(server.Close)
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+	serr := waitTerminated(t.Context(), client, clusterID, time.Millisecond)
+	require.NotNil(t, serr)
+	require.Contains(t, serr.Detail, "did not terminate within 1ms")
+	require.Contains(t, serr.Detail, http.StatusText(http.StatusBadGateway))
+	require.NotContains(t, serr.Detail, "authorization failure")
 }
 
 // TestClusterReadStateDiagnostics keeps a cluster that is not terminated in state.

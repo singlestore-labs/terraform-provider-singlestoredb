@@ -69,7 +69,7 @@ output "admin_password" {
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
 - `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
-- `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. Must be false or omitted on create.
+- `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. If omitted and other settings change, the plan shows this value as known after apply, because `auto_suspend` can suspend the cluster once the update lands. Must be false or omitted on create.
 
 ### Read-Only
 

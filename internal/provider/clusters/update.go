@@ -3,6 +3,7 @@ package clusters
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
@@ -80,6 +81,29 @@ func hasGeneralConfigChanged(state, plan clusterResourceModel) bool {
 		updateWindowChanged(state.UpdateWindow, plan.UpdateWindow)
 }
 
+// generalConfigMayChange reports whether a setting other than suspended changes,
+// or is not known yet and may change once Terraform plans again during apply.
+func generalConfigMayChange(state, plan clusterResourceModel) bool {
+	if hasGeneralConfigChanged(state, plan) || !firewallRangesKnown(plan.FirewallRanges) {
+		return true
+	}
+
+	values := []attr.Value{plan.Size, plan.ScaleFactor, plan.CacheConfig, plan.ExpiresAt, plan.DeploymentType, plan.UpdateWindow}
+	if plan.AutoScale != nil {
+		values = append(values, plan.AutoScale.MaxScaleFactor, plan.AutoScale.Sensitivity)
+	}
+	if plan.AutoSuspend != nil {
+		values = append(values, plan.AutoSuspend.SuspendType, plan.AutoSuspend.SuspendAfterSeconds)
+	}
+	for _, v := range values {
+		if v.IsUnknown() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // sizeConfigChanged reports whether a known size, scale factor, or cache multiplier differs.
 func sizeConfigChanged(state, plan clusterResourceModel) bool {
 	return changedKnown(plan.Size, state.Size) ||
@@ -141,8 +165,9 @@ func updateWindowChanged(state, plan types.Object) bool {
 
 // applyClusterConfiguration patches the cluster. current is the settled cluster
 // read just before; project_name cannot change, so its project ID is reused
-// instead of resolving the name again. The cluster must be ACTIVE: the wait
-// below requires ACTIVE, and a suspended cluster is rejected by the caller.
+// instead of resolving the name again. A cluster that is already suspended is
+// rejected by the caller. When suspended is omitted, the wait also accepts a
+// later policy suspension once the requested settings land.
 func applyClusterConfiguration(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, current management.Cluster, state, plan clusterResourceModel, adminPassword string) (clusterResourceModel, *util.SummaryWithDetailError) {
 	clusterUpdateResponse, uerr := c.PatchV2ClustersClusterIDWithResponse(ctx, id, clusterPatchBody(current, state, plan))
 	if serr := util.StatusOK(clusterUpdateResponse, uerr); serr != nil {
@@ -206,9 +231,12 @@ func clusterPatchBody(current management.Cluster, state, plan clusterResourceMod
 // updateWaitConditions waits until the Management API reports every changed
 // setting. Update stores these settings from the API response, so returning
 // before they land would store the previous values and fail the apply.
+// An explicit suspended = false still waits for ACTIVE. An omitted value does
+// not: auto_suspend can suspend the cluster after the settings land, including
+// during the minimum wait for a size change, and the stored status follows the API.
 func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 	conditions := []waitCondition{
-		waitConditionState(management.ClusterStateACTIVE),
+		updateStateCondition(plan.Suspended),
 		waitConditionSize(plan.Size.ValueString()),
 	}
 	if sizeConfigChanged(state, plan) {
@@ -231,6 +259,18 @@ func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 	}
 
 	return conditions
+}
+
+// updateStateCondition waits for ACTIVE when suspended is configured. Only false
+// reaches a configuration update, because a suspended cluster is rejected. An
+// omitted value is null or unknown, so either settled state ends the wait once the
+// other conditions hold, and apply stores the state the Management API reports.
+func updateStateCondition(suspended types.Bool) waitCondition {
+	if !suspended.IsNull() && !suspended.IsUnknown() {
+		return waitConditionState(management.ClusterStateACTIVE)
+	}
+
+	return waitConditionState(management.ClusterStateACTIVE, management.ClusterStateSUSPENDED)
 }
 
 // resume starts a suspended cluster and waits until it is active.

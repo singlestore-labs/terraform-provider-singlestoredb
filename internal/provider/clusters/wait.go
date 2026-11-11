@@ -163,8 +163,8 @@ func wait(ctx context.Context, c management.ClientWithResponsesInterface, id man
 }
 
 // clusterResponseError classifies a poll response other than 200 with a JSON
-// cluster. A 404 that lasts the not-found grace stops the wait; everything else
-// is retried.
+// cluster. A 404 that lasts the not-found grace stops the wait. Authentication
+// and authorization failures stop immediately. Other statuses are retried.
 func clusterResponseError(id management.ClusterID, cluster *management.GetV2ClustersClusterIDResponse, notFound *notFoundTracker) *retry.RetryError {
 	code := cluster.StatusCode()
 	if code == http.StatusOK {
@@ -176,14 +176,28 @@ func clusterResponseError(id management.ClusterID, cluster *management.GetV2Clus
 		return nil
 	}
 
-	err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
 	if code != http.StatusNotFound {
 		notFound.found()
 
-		return retry.RetryableError(err)
+		return clusterStatusError(id, code)
 	}
+
+	err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
 	if notFound.notFound() {
 		return retry.NonRetryableError(fmt.Errorf("%w for %s; it may have been deleted outside Terraform", err, notFound.grace))
+	}
+
+	return retry.RetryableError(err)
+}
+
+// clusterStatusError classifies a poll status other than 200 and 404.
+// HTTP 401 and 403 stop the wait: an expired API key or revoked access will
+// not succeed on retry. Transient responses, such as a gateway error, are
+// retried until the wait timeout.
+func clusterStatusError(id management.ClusterID, code int) *retry.RetryError {
+	err := fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
+	if code == http.StatusUnauthorized || code == http.StatusForbidden {
+		return retry.NonRetryableError(fmt.Errorf("%w; authentication or authorization failure", err))
 	}
 
 	return retry.RetryableError(err)
@@ -375,9 +389,12 @@ func waitConditionSettled() waitCondition {
 
 // waitTerminated polls until the Management API reports the cluster as terminated
 // (TERMINATED state or a terminatedAt timestamp) or no longer returns it.
+// An authentication or authorization failure stops the wait and is reported as
+// that failure. Other unsuccessful statuses are retried until the timeout.
 func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterface, id management.ClusterID, timeout time.Duration) *util.SummaryWithDetailError {
 	// See wait for why a poll may outlive the wait timeout by pollGrace.
 	var lastCondition error
+	stopped := false
 	pollCtx, cancel := context.WithTimeout(ctx, timeout+pollGrace)
 	defer cancel()
 
@@ -391,9 +408,13 @@ func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterfa
 		case code == http.StatusNotFound:
 			return nil
 		case code != http.StatusOK:
-			lastCondition = fmt.Errorf("failed to get cluster %s: status code %s", id, http.StatusText(code))
+			rerr := clusterStatusError(id, code)
+			stopped = !rerr.Retryable
+			if rerr.Retryable {
+				lastCondition = rerr.Err
+			}
 
-			return retry.RetryableError(lastCondition)
+			return rerr
 		}
 
 		if cluster.JSON200 == nil {
@@ -413,7 +434,7 @@ func waitTerminated(ctx context.Context, c management.ClientWithResponsesInterfa
 	}); err != nil {
 		return &util.SummaryWithDetailError{
 			Summary: fmt.Sprintf("Failed to wait for cluster %s to terminate", id),
-			Detail:  "The delete request was accepted. " + waitErrorDetail(ctx, timeout, false, err, "The cluster did not terminate"),
+			Detail:  "The delete request was accepted. " + waitErrorDetail(ctx, timeout, stopped, err, "The cluster did not terminate"),
 		}
 	}
 

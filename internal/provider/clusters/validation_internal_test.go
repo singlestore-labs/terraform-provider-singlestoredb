@@ -608,6 +608,142 @@ func TestModifyPlanUnknownFirewallRanges(t *testing.T) {
 	require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 }
 
+// TestModifyPlanLeavesOmittedSuspensionUnknown lets an omitted suspended follow the
+// cluster when other settings may change, including a setting not known until
+// apply: Terraform's final plan cannot turn a known value into an unknown one. An
+// explicit value, and an omitted value when nothing else changes, stay as planned.
+// A suspended cluster still cannot be resized.
+func TestModifyPlanLeavesOmittedSuspensionUnknown(t *testing.T) {
+	ctx := t.Context()
+	schemaResp := &resource.SchemaResponse{}
+	(&clusterResource{}).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+
+	stored := validClusterPlan()
+	stored.ID = types.StringValue("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	stored.GroupID = types.StringValue("group")
+	stored.OutboundAllowList = types.StringValue("outbound")
+	stored.Endpoint = types.StringValue("endpoint")
+	stored.CreatedAt = types.StringValue("2026-01-01T00:00:00Z")
+	stored.MultiAZ = types.BoolValue(false)
+	stored.UpdateWindow = types.ObjectNull(updateWindowAttrTypes)
+	stored.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
+
+	resize := func(m *clusterResourceModel) { m.Size = types.StringValue("S-1") }
+	for name, tc := range map[string]struct {
+		stateSuspended  types.Bool
+		mutate          func(*clusterResourceModel)
+		mutateRaw       func(*tfsdk.Plan)
+		configSuspended types.Bool
+		wantUnknown     bool
+		wantErr         string
+	}{
+		"omitted while resizing": {
+			stateSuspended:  types.BoolValue(false),
+			mutate:          resize,
+			configSuspended: types.BoolNull(),
+			wantUnknown:     true,
+		},
+		"explicit false while resizing": {
+			stateSuspended:  types.BoolValue(false),
+			mutate:          resize,
+			configSuspended: types.BoolValue(false),
+		},
+		"omitted with no other change": {
+			stateSuspended:  types.BoolValue(false),
+			configSuspended: types.BoolNull(),
+		},
+		"resize while suspended": {
+			stateSuspended:  types.BoolValue(true),
+			mutate:          resize,
+			configSuspended: types.BoolNull(),
+			wantErr:         "suspended cluster",
+		},
+		"omitted with unknown size": {
+			stateSuspended:  types.BoolValue(false),
+			mutate:          func(m *clusterResourceModel) { m.Size = types.StringUnknown() },
+			configSuspended: types.BoolNull(),
+			wantUnknown:     true,
+		},
+		"omitted with unknown firewall range": {
+			stateSuspended: types.BoolValue(false),
+			mutate: func(m *clusterResourceModel) {
+				m.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}
+			},
+			configSuspended: types.BoolNull(),
+			wantUnknown:     true,
+		},
+		"omitted with unknown firewall_ranges list": {
+			stateSuspended: types.BoolValue(false),
+			mutateRaw: func(p *tfsdk.Plan) {
+				require.False(t, p.SetAttribute(ctx, path.Root("firewall_ranges"), types.ListUnknown(types.StringType)).HasError())
+			},
+			configSuspended: types.BoolNull(),
+			wantUnknown:     true,
+		},
+		"omitted with unknown auto_suspend block": {
+			stateSuspended: types.BoolValue(false),
+			mutateRaw: func(p *tfsdk.Plan) {
+				var block types.Object
+				require.False(t, p.GetAttribute(ctx, path.Root("auto_suspend"), &block).HasError())
+				require.False(t, p.SetAttribute(ctx, path.Root("auto_suspend"), types.ObjectUnknown(block.AttributeTypes(ctx))).HasError())
+			},
+			configSuspended: types.BoolNull(),
+			wantUnknown:     true,
+		},
+		"explicit false with unknown size": {
+			stateSuspended:  types.BoolValue(false),
+			mutate:          func(m *clusterResourceModel) { m.Size = types.StringUnknown() },
+			configSuspended: types.BoolValue(false),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			stateModel := stored
+			stateModel.Suspended = tc.stateSuspended
+			state := tfsdk.State{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+			require.False(t, state.Set(ctx, &stateModel).HasError())
+
+			// UseStateForUnknown has already copied the refreshed status into the plan.
+			planned := stateModel
+			if tc.mutate != nil {
+				tc.mutate(&planned)
+			}
+			plan := tfsdk.Plan{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+			require.False(t, plan.Set(ctx, &planned).HasError())
+			if tc.mutateRaw != nil {
+				tc.mutateRaw(&plan)
+			}
+
+			// Config has no Set. A plan holds the same tftypes value.
+			configValue := tfsdk.Plan{Schema: s, Raw: plan.Raw.Copy()}
+			require.False(t, configValue.SetAttribute(ctx, path.Root("suspended"), tc.configSuspended).HasError())
+			cfg := tfsdk.Config{Schema: s, Raw: configValue.Raw}
+
+			resp := &resource.ModifyPlanResponse{Plan: plan}
+			(&clusterResource{}).ModifyPlan(ctx, resource.ModifyPlanRequest{
+				Plan:   plan,
+				State:  state,
+				Config: cfg,
+			}, resp)
+			if tc.wantErr != "" {
+				require.True(t, resp.Diagnostics.HasError())
+				diag := resp.Diagnostics.Errors()[0]
+				require.Contains(t, diag.Summary()+"\n"+diag.Detail(), tc.wantErr)
+
+				return
+			}
+			require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+
+			var got types.Bool
+			require.False(t, resp.Plan.GetAttribute(ctx, path.Root("suspended"), &got).HasError())
+			require.Equal(t, tc.wantUnknown, got.IsUnknown())
+			if !tc.wantUnknown {
+				require.Equal(t, tc.stateSuspended, got)
+			}
+		})
+	}
+}
+
 // TestModifyPlanUpdateWithUnknownFirewallRange plans an update for an existing
 // cluster whose allowlist adds a range known only after apply, for example
 // concat(var.firewall_ranges, [aws_eip.this.public_ip]).

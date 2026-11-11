@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -519,6 +520,107 @@ func TestUnknownFirewallRangeIsNotStored(t *testing.T) {
 	got, err := applyClusterConfigOrToggleSuspension(t.Context(), nil, state, plan)
 	require.Nil(t, err)
 	require.Equal(t, state.FirewallRanges, got.FirewallRanges)
+}
+
+// TestOmittedSuspensionAllowsPolicySuspensionAfterSettingsLand accepts ACTIVE or
+// SUSPENDED once the requested settings match. An explicit false still requires
+// ACTIVE, and a suspended cluster whose size has not changed does not satisfy the wait.
+func TestOmittedSuspensionAllowsPolicySuspensionAfterSettingsLand(t *testing.T) {
+	suspended := lifecycleCluster(t)
+	suspended.State = utilPtr(management.ClusterStateSUSPENDED)
+	size := "S-1"
+	suspended.SizeConfig.Size = &size
+
+	// pollState feeds the same cluster to one condition for a full consistency
+	// window. The history lives on the condition, so it must be reused across polls.
+	pollState := func(cond waitCondition) error {
+		var err error
+		for range config.WorkspaceConsistencyThreshold {
+			err = cond(suspended)
+		}
+
+		return err
+	}
+
+	for name, suspendedValue := range map[string]types.Bool{"unknown": types.BoolUnknown(), "null": types.BoolNull()} {
+		t.Run("omitted "+name, func(t *testing.T) {
+			require.NoError(t, pollState(updateStateCondition(suspendedValue)))
+		})
+	}
+
+	t.Run("explicit false", func(t *testing.T) {
+		err := pollState(updateStateCondition(types.BoolValue(false)))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), string(management.ClusterStateSUSPENDED))
+	})
+
+	t.Run("size not landed", func(t *testing.T) {
+		staleSize := suspended
+		staleSize.SizeConfig = &management.SizeConfig{Size: utilPtr(readyClusterPlan().Size.ValueString())}
+		require.Error(t, waitConditionSize("S-1")(staleSize))
+	})
+
+	t.Run("resize still waits the minimum interval", func(t *testing.T) {
+		// A suspension during the minimum wait does not end the wait early; the
+		// wait ends once the interval elapses and every other condition holds.
+		state := readyClusterPlan()
+		plan := state
+		plan.Size = types.StringValue("S-1")
+		plan.Suspended = types.BoolUnknown()
+
+		// Poll the same conditions, as wait does, so the state history settles and
+		// only the minimum interval holds the wait.
+		conditions := updateWaitConditions(state, plan)
+		var err error
+		for range config.WorkspaceConsistencyThreshold {
+			for _, cond := range conditions {
+				if err = cond(suspended); err != nil {
+					break
+				}
+			}
+		}
+		require.ErrorContains(t, err, "should wait at least")
+	})
+}
+
+// TestConfigUpdateStoresPolicySuspensionWhenSuspendedOmitted stores the suspension
+// auto_suspend applies after a configuration update, instead of waiting for ACTIVE.
+func TestConfigUpdateStoresPolicySuspensionWhenSuspendedOmitted(t *testing.T) {
+	state := readyClusterPlan()
+	plan := state
+	plan.Suspended = types.BoolUnknown()
+	plan.DeploymentType = types.StringValue(string(management.ClusterDeploymentTypeNONPRODUCTION))
+
+	active := lifecycleCluster(t)
+	landed := lifecycleCluster(t)
+	landed.State = utilPtr(management.ClusterStateSUSPENDED)
+	landed.DeploymentType = utilPtr(management.ClusterDeploymentTypeNONPRODUCTION)
+
+	patched := false
+	client := clusterLifecycleClient(t, active, management.ClusterStateACTIVE, func(w http.ResponseWriter, r *http.Request) bool {
+		switch {
+		case r.Method == http.MethodPatch:
+			patched = true
+			writeClusterAction(t, w, active.ClusterID)
+
+			return true
+		case r.Method == http.MethodGet && patched:
+			body, err := json.Marshal(landed)
+			require.NoError(t, err)
+			_, err = w.Write(body)
+			require.NoError(t, err)
+
+			return true
+		}
+
+		return false
+	})
+
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), client, state, plan)
+	require.Nil(t, err)
+	require.True(t, patched)
+	require.True(t, got.Suspended.ValueBool())
+	require.Equal(t, plan.DeploymentType.ValueString(), got.DeploymentType.ValueString())
 }
 
 // TestPatchSkipsUnknownFirewallRange leaves firewall_ranges out of the PATCH and

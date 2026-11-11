@@ -183,9 +183,11 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"suspended": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. Must be false or omitted on create.",
+				MarkdownDescription: "The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. If omitted and other settings change, the plan shows this value as known after apply, because `auto_suspend` can suspend the cluster once the update lands. Must be false or omitted on create.",
 				PlanModifiers: []planmodifier.Bool{
-					// An omitted value is unknown; keep the refreshed status so plans show no diff.
+					// An omitted value is unknown; keep the refreshed status so a plan
+					// that changes nothing shows no diff. ModifyPlan leaves it unknown
+					// when other settings may change. See leaveOmittedSuspendedUnknown.
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -791,15 +793,22 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	// `firewall_ranges` taken from another resource. Skip the checks while one is
 	// unknown: Terraform plans again during apply with every value known, and
 	// these checks run then.
-	if unknown, diags := hasUnknownNestedBlock(ctx, req.Plan); diags.HasError() || unknown {
+	//
+	// An unknown block or list may still change a setting, so an update also leaves
+	// an omitted suspended unknown. See leaveOmittedSuspendedUnknown.
+	for _, check := range []func(context.Context, tfsdk.Plan) (bool, diag.Diagnostics){hasUnknownNestedBlock, hasUnknownFirewallRanges} {
+		unknown, diags := check(ctx, req.Plan)
 		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if unknown {
+			if !req.State.Raw.IsNull() {
+				leaveOmittedSuspendedUnknown(ctx, &resp.Plan, req.Config, &resp.Diagnostics)
+			}
 
-		return
-	}
-	if unknown, diags := hasUnknownFirewallRanges(ctx, req.Plan); diags.HasError() || unknown {
-		resp.Diagnostics.Append(diags...)
-
-		return
+			return
+		}
 	}
 
 	var state *clusterResourceModel
@@ -823,30 +832,15 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	modifyUpdatePlan(ctx, &resp.Plan, plan, state, &resp.Diagnostics)
+	modifyUpdatePlan(ctx, &resp.Plan, req.Config, plan, state, &resp.Diagnostics)
 }
 
 // modifyUpdatePlan rejects changes the Management API cannot apply to an existing
 // cluster. A value that is not known yet, for example a name built from a resource
 // being replaced, is checked when Terraform plans again during apply.
-func modifyUpdatePlan(ctx context.Context, respPlan *tfsdk.Plan, plan, state *clusterResourceModel, diags *diag.Diagnostics) {
-	for _, a := range []struct {
-		name        string
-		plan, state attr.Value
-	}{
-		{"name", plan.Name, state.Name},
-		{"cloud_provider", plan.CloudProvider, state.CloudProvider},
-		{"region_name", plan.RegionName, state.RegionName},
-		{"kai", plan.Kai, state.Kai},
-		{"multi_az", plan.MultiAZ, state.MultiAZ},
-		{"opt_in_preview_feature", plan.OptInPreviewFeature, state.OptInPreviewFeature},
-	} {
-		if changedKnown(a.plan, a.state) {
-			diags.AddAttributeError(path.Root(a.name), "Cannot update cluster "+a.name,
-				fmt.Sprintf("Changing %s after the cluster is created is not supported. Current value: %s, configured value: %s.", a.name, a.state, a.plan))
-
-			return
-		}
+func modifyUpdatePlan(ctx context.Context, respPlan *tfsdk.Plan, cfg tfsdk.Config, plan, state *clusterResourceModel, diags *diag.Diagnostics) {
+	if rejectImmutableChange(plan, state, diags) {
+		return
 	}
 
 	// UseStateForUnknown skips a null state, so an unconfigured project_name the API
@@ -886,6 +880,54 @@ func modifyUpdatePlan(ctx context.Context, respPlan *tfsdk.Plan, plan, state *cl
 
 		return
 	}
+
+	if generalConfigMayChange(*state, *plan) {
+		leaveOmittedSuspendedUnknown(ctx, respPlan, cfg, diags)
+	}
+}
+
+// leaveOmittedSuspendedUnknown plans an omitted suspended as known after apply.
+// UseStateForUnknown copied the refreshed status so a plan that changes nothing
+// shows no diff, and validation still sees that status. When other settings may
+// change, auto_suspend can suspend the cluster once they land, so the status is
+// not known until apply. An explicitly configured value stays as planned.
+//
+// Call this whenever a setting may change, including one that is not known yet:
+// Terraform plans again during apply, and that final plan cannot turn a value
+// planned as known into an unknown one.
+func leaveOmittedSuspendedUnknown(ctx context.Context, respPlan *tfsdk.Plan, cfg tfsdk.Config, diags *diag.Diagnostics) {
+	var configuredSuspended types.Bool
+	diags.Append(cfg.GetAttribute(ctx, path.Root("suspended"), &configuredSuspended)...)
+	// Null is an omitted value. An unknown config value is already unknown in the plan.
+	if diags.HasError() || !configuredSuspended.IsNull() {
+		return
+	}
+	diags.Append(respPlan.SetAttribute(ctx, path.Root("suspended"), types.BoolUnknown())...)
+}
+
+// rejectImmutableChange reports an error and returns true when a known setting
+// that cannot change after create differs from state.
+func rejectImmutableChange(plan, state *clusterResourceModel, diags *diag.Diagnostics) bool {
+	for _, a := range []struct {
+		name        string
+		plan, state attr.Value
+	}{
+		{"name", plan.Name, state.Name},
+		{"cloud_provider", plan.CloudProvider, state.CloudProvider},
+		{"region_name", plan.RegionName, state.RegionName},
+		{"kai", plan.Kai, state.Kai},
+		{"multi_az", plan.MultiAZ, state.MultiAZ},
+		{"opt_in_preview_feature", plan.OptInPreviewFeature, state.OptInPreviewFeature},
+	} {
+		if changedKnown(a.plan, a.state) {
+			diags.AddAttributeError(path.Root(a.name), "Cannot update cluster "+a.name,
+				fmt.Sprintf("Changing %s after the cluster is created is not supported. Current value: %s, configured value: %s.", a.name, a.state, a.plan))
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // modifyCreatePlan runs the create checks at plan time.
