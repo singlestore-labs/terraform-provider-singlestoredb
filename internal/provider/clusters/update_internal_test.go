@@ -521,6 +521,25 @@ func TestUnknownFirewallRangeIsNotStored(t *testing.T) {
 	require.Equal(t, state.FirewallRanges, got.FirewallRanges)
 }
 
+// TestPatchSkipsUnknownFirewallRange leaves firewall_ranges out of the PATCH and
+// the wait conditions while a range is unknown, so a size change sent alongside it
+// does not send "" for that range or wait for "" to show up in the allowlist.
+func TestPatchSkipsUnknownFirewallRange(t *testing.T) {
+	state := readyClusterPlan()
+	state.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
+	plan := state
+	plan.Size = types.StringValue("S-1")
+	plan.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}
+
+	body := clusterPatchBody(management.Cluster{}, state, plan)
+	require.Nil(t, body.FirewallRanges)
+	require.NotNil(t, body.SizeConfig)
+
+	known := plan
+	known.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringValue("172.16.0.0/12")}
+	require.Len(t, updateWaitConditions(state, known), len(updateWaitConditions(state, plan))+1)
+}
+
 // TestWaitSettledHintsOnlyForPending adds the PENDING hint when the wait runs
 // out of time on a PENDING cluster; a failed cluster does not get it.
 func TestWaitSettledHintsOnlyForPending(t *testing.T) {

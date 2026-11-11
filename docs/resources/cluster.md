@@ -19,11 +19,17 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
+variable "firewall_ranges" {
+  description = "CIDR ranges allowed to connect to the cluster."
+  type        = list(string)
+  default     = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
+}
+
 resource "singlestoredb_cluster" "this" {
   name            = "cluster-1"
   project_name    = "Standard Project"
   size            = "S-00"
-  firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
+  firewall_ranges = var.firewall_ranges
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"

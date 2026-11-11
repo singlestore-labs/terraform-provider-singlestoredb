@@ -607,3 +607,56 @@ func TestModifyPlanUnknownFirewallRanges(t *testing.T) {
 	}, resp)
 	require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 }
+
+// TestModifyPlanUpdateWithUnknownFirewallRange plans an update for an existing
+// cluster whose allowlist adds a range known only after apply, for example
+// concat(var.firewall_ranges, [aws_eip.this.public_ip]).
+func TestModifyPlanUpdateWithUnknownFirewallRange(t *testing.T) {
+	ctx := t.Context()
+	r := &clusterResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+
+	stored := validClusterPlan()
+	stored.ID = types.StringValue("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	stored.GroupID = types.StringValue("group")
+	stored.OutboundAllowList = types.StringValue("outbound")
+	stored.Endpoint = types.StringValue("endpoint")
+	stored.CreatedAt = types.StringValue("2026-01-01T00:00:00Z")
+	stored.MultiAZ = types.BoolValue(false)
+	stored.UpdateWindow = types.ObjectNull(updateWindowAttrTypes)
+	stored.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
+	state := tfsdk.State{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+	require.False(t, state.Set(ctx, &stored).HasError())
+
+	planned := stored
+	planned.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}
+	plan := tfsdk.Plan{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+	require.False(t, plan.Set(ctx, &planned).HasError())
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{
+		Plan:   plan,
+		State:  state,
+		Config: tfsdk.Config{Schema: s, Raw: plan.Raw},
+	}, resp)
+	require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+}
+
+// TestEndpointForState keeps the stored endpoint when a response omits it, so an
+// update that planned the endpoint from state stores the same value.
+func TestEndpointForState(t *testing.T) {
+	for name, tc := range map[string]struct {
+		api   *string
+		prior types.String
+		want  types.String
+	}{
+		"api value":             {api: util.Ptr("new.example"), prior: types.StringValue("old.example"), want: types.StringValue("new.example")},
+		"omitted keeps prior":   {prior: types.StringValue("old.example"), want: types.StringValue("old.example")},
+		"omitted unknown prior": {prior: types.StringUnknown(), want: types.StringNull()},
+		"omitted null prior":    {prior: types.StringNull(), want: types.StringNull()},
+	} {
+		require.Equal(t, tc.want, endpointForState(tc.api, tc.prior), name)
+	}
+}

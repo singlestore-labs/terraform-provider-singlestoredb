@@ -172,7 +172,7 @@ func clusterPatchBody(current management.Cluster, state, plan clusterResourceMod
 		}
 	}
 
-	if !util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
+	if firewallRangesChanged(state.FirewallRanges, plan.FirewallRanges) {
 		firewallRanges := util.StringFirewallRanges(plan.FirewallRanges)
 		patchBody.FirewallRanges = &firewallRanges
 	}
@@ -217,7 +217,7 @@ func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 			waitConditionTakesAtLeast(config.WorkspaceScaleTakesAtLeast),
 		)
 	}
-	if !util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) {
+	if firewallRangesChanged(state.FirewallRanges, plan.FirewallRanges) {
 		conditions = append(conditions, waitConditionFirewallRanges(plan.FirewallRanges))
 	}
 	if !plan.DeploymentType.Equal(state.DeploymentType) && util.IsConfiguredString(plan.DeploymentType) {

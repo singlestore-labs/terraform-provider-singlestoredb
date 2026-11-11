@@ -266,6 +266,9 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"endpoint": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The endpoint used to connect to the cluster.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_at": schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -1176,7 +1179,7 @@ func toClusterResourceModel(cluster management.Cluster, adminPassword string, pr
 		OptInPreviewFeature: types.BoolValue(util.Deref(cluster.OptInPreviewFeature)),
 		MultiAZ:             types.BoolValue(util.Deref(cluster.MultiAZ)),
 		OutboundAllowList:   util.MaybeStringValue(cluster.OutboundAllowList),
-		Endpoint:            util.MaybeStringValue(cluster.Endpoint),
+		Endpoint:            endpointForState(cluster.Endpoint, prior.Endpoint),
 		CreatedAt:           util.MaybeTimeValue(cluster.CreatedAt),
 		AutoScale:           toAutoScaleResourceModel(cluster),
 		AutoSuspend:         toAutoSuspendResourceModel(cluster),
@@ -1242,6 +1245,17 @@ func effectiveDeploymentType(deploymentType types.String) (string, bool) {
 	}
 
 	return deploymentType.ValueString(), true
+}
+
+// endpointForState stores the endpoint the API returned, or keeps the known prior
+// value when the response omits it. The endpoint does not change, and update plans
+// keep it from state, so apply has to store the same value.
+func endpointForState(endpoint *string, prior types.String) types.String {
+	if endpoint == nil && !prior.IsNull() && !prior.IsUnknown() {
+		return prior
+	}
+
+	return util.MaybeStringValue(endpoint)
 }
 
 // kaiForState stores the kai flag the API returned, or keeps the known prior value
