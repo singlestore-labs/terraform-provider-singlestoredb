@@ -623,14 +623,18 @@ func (r *clusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 // A transitional state keeps the previous suspended value so refresh does not
 // plan a suspend or resume.
 func (r *clusterResource) setRefreshedClusterState(ctx context.Context, resp *resource.ReadResponse, state clusterResourceModel, cluster management.Cluster, stateValue management.ClusterState) {
-	projectName := state.ProjectName
-	if !util.IsConfiguredString(projectName) {
-		resolved, rerr := resolveProjectNameByID(ctx, r.ClientWithResponsesInterface, cluster.ProjectID)
-		if rerr != nil {
-			resp.Diagnostics.AddError(rerr.Summary, rerr.Detail)
+	// The cluster payload carries the project ID. Resolve the name on every refresh
+	// so a project renamed in place does not stay cached, which would make
+	// validateModifyProjectName reject the current name.
+	resolved, rerr := resolveProjectNameByID(ctx, r.ClientWithResponsesInterface, cluster.ProjectID)
+	if rerr != nil {
+		resp.Diagnostics.AddError(rerr.Summary, rerr.Detail)
 
-			return
-		}
+		return
+	}
+	projectName := state.ProjectName
+	// A project missing from the list is not a rename. Keep the name already stored.
+	if util.IsConfiguredString(resolved) {
 		projectName = resolved
 	}
 
@@ -779,11 +783,17 @@ func (r *clusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return // Destroy.
 	}
 
-	// auto_scale and auto_suspend decode into structs, which cannot hold an unknown
-	// object, for example `auto_suspend = local.x` that depends on another resource.
-	// Skip the checks while either block is unknown: Terraform plans again during
-	// apply with every value known, and these checks run then.
+	// auto_scale and auto_suspend decode into structs, and firewall_ranges decodes
+	// into a slice. None of those can hold an unknown collection, for example
+	// `firewall_ranges` taken from another resource. Skip the checks while one is
+	// unknown: Terraform plans again during apply with every value known, and
+	// these checks run then.
 	if unknown, diags := hasUnknownNestedBlock(ctx, req.Plan); diags.HasError() || unknown {
+		resp.Diagnostics.Append(diags...)
+
+		return
+	}
+	if unknown, diags := hasUnknownFirewallRanges(ctx, req.Plan); diags.HasError() || unknown {
 		resp.Diagnostics.Append(diags...)
 
 		return
@@ -915,6 +925,18 @@ func hasUnknownNestedBlock(ctx context.Context, plan tfsdk.Plan) (bool, diag.Dia
 	}
 
 	return false, diags
+}
+
+// hasUnknownFirewallRanges reports whether firewall_ranges is an unknown list.
+// The model stores it as a Go slice, which cannot represent an unknown collection.
+func hasUnknownFirewallRanges(ctx context.Context, plan tfsdk.Plan) (bool, diag.Diagnostics) {
+	var ranges types.List
+	diags := plan.GetAttribute(ctx, path.Root("firewall_ranges"), &ranges)
+	if diags.HasError() {
+		return false, diags
+	}
+
+	return ranges.IsUnknown(), diags
 }
 
 // ImportState results in Terraform managing the resource that was not previously managed.
@@ -1098,8 +1120,10 @@ func validateSuspendedAndConfigChanges(state, plan *clusterResourceModel) *util.
 		return err
 	}
 
-	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
-	isSuspended := plan.Suspended.ValueBool()
+	// An unknown value is not a confirmed change. ModifyPlan runs again during
+	// apply, once every value is known, and this check runs then.
+	suspendedChanged := changedKnown(plan.Suspended, state.Suspended)
+	isSuspended := !plan.Suspended.IsUnknown() && plan.Suspended.ValueBool()
 	otherConfigChanged := hasGeneralConfigChanged(*state, *plan)
 
 	if otherConfigChanged && suspendedChanged {
@@ -1383,6 +1407,12 @@ func toAutoScaleResourceModel(cluster management.Cluster) *autoScaleResourceMode
 	}
 	if cluster.AutoScale.MaxScaleFactor != nil {
 		model.MaxScaleFactor = types.Float32Value(*cluster.AutoScale.MaxScaleFactor)
+	}
+	// Factor 1, including an omitted factor, disables autoscale. PATCH omits
+	// sensitivity, and the API can keep returning the previous HIGH or LOW.
+	// State has to stay NORMAL so it matches the plan and validation.
+	if model.MaxScaleFactor.Equal(types.Float32Value(scaleX1)) {
+		return model
 	}
 	if cluster.AutoScale.Sensitivity != nil {
 		model.Sensitivity = types.StringValue(string(*cluster.AutoScale.Sensitivity))

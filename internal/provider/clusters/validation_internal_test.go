@@ -1,6 +1,7 @@
 package clusters
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -162,6 +164,29 @@ func TestValidateModify(t *testing.T) {
 			plan:  func(p *clusterResourceModel) { p.AutoSuspend.SuspendAfterSeconds = types.Int64Value(10) },
 			check: flip(validateSuspendedAndConfigChanges), want: "Invalid auto_suspend configuration.",
 		},
+		// Unknown values are checked again during apply, once they are known.
+		"suspend with unknown size": {
+			plan: func(p *clusterResourceModel) {
+				p.Suspended = types.BoolValue(true)
+				p.Size = types.StringUnknown()
+			},
+			check: flip(validateSuspendedAndConfigChanges),
+		},
+		"resize with unknown suspended": {
+			plan: func(p *clusterResourceModel) {
+				p.Suspended = types.BoolUnknown()
+				p.Size = types.StringValue("S-1")
+			},
+			check: flip(validateSuspendedAndConfigChanges),
+		},
+		"unknown size while suspended": {
+			state: func(s *clusterResourceModel) { s.Suspended = types.BoolValue(true) },
+			plan: func(p *clusterResourceModel) {
+				p.Suspended = types.BoolValue(true)
+				p.Size = types.StringUnknown()
+			},
+			check: flip(validateSuspendedAndConfigChanges),
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			noop := func(*clusterResourceModel) {}
@@ -199,11 +224,15 @@ func TestHasGeneralConfigChanged(t *testing.T) {
 			plan:  func(p *clusterResourceModel) { p.ExpiresAt = types.StringValue("2223-01-01T00:00:00Z") },
 			want:  true,
 		},
-		"admin password only":   {plan: func(p *clusterResourceModel) { p.AdminPassword = types.StringValue("another-generated-pw") }},
-		"firewall ranges":       {plan: func(p *clusterResourceModel) { p.FirewallRanges = ab[:1] }, want: true},
-		"reordered ranges":      {state: func(s *clusterResourceModel) { s.FirewallRanges = ab }, plan: func(p *clusterResourceModel) { p.FirewallRanges = ba }},
+		"admin password only": {plan: func(p *clusterResourceModel) { p.AdminPassword = types.StringValue("another-generated-pw") }},
+		"firewall ranges":     {plan: func(p *clusterResourceModel) { p.FirewallRanges = ab[:1] }, want: true},
+		"reordered ranges":    {state: func(s *clusterResourceModel) { s.FirewallRanges = ab }, plan: func(p *clusterResourceModel) { p.FirewallRanges = ba }},
+		"unknown firewall range": {plan: func(p *clusterResourceModel) {
+			p.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}
+		}},
 		"unknown update window": {state: func(s *clusterResourceModel) { s.UpdateWindow = types.ObjectUnknown(updateWindowAttrTypes) }},
 		"size":                  {plan: func(p *clusterResourceModel) { p.Size = types.StringValue("S-1") }, want: true},
+		"unknown size":          {plan: func(p *clusterResourceModel) { p.Size = types.StringUnknown() }},
 		"auto suspend":          {plan: func(p *clusterResourceModel) { p.AutoSuspend.SuspendType = types.StringValue("IDLE") }, want: true},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -295,8 +324,10 @@ func TestStateConverters(t *testing.T) {
 		wantFactor      float32
 		wantSensitivity management.AutoScaleSensitivity
 	}{
-		"factor only":      {in: &management.AutoScale{MaxScaleFactor: util.Ptr[float32](1)}, wantFactor: scaleX1, wantSensitivity: management.NORMAL},
-		"sensitivity only": {in: &management.AutoScale{Sensitivity: util.Ptr(management.LOW)}, wantFactor: scaleX1, wantSensitivity: management.LOW},
+		"factor only":         {in: &management.AutoScale{MaxScaleFactor: util.Ptr[float32](1)}, wantFactor: scaleX1, wantSensitivity: management.NORMAL},
+		"sensitivity only":    {in: &management.AutoScale{Sensitivity: util.Ptr(management.LOW)}, wantFactor: scaleX1, wantSensitivity: management.NORMAL},
+		"disabled after high": {in: &management.AutoScale{MaxScaleFactor: util.Ptr[float32](1), Sensitivity: util.Ptr(management.HIGH)}, wantFactor: scaleX1, wantSensitivity: management.NORMAL},
+		"scaled":              {in: &management.AutoScale{MaxScaleFactor: util.Ptr[float32](2), Sensitivity: util.Ptr(management.LOW)}, wantFactor: scaleX2, wantSensitivity: management.LOW},
 	} {
 		got := toAutoScaleResourceModel(management.Cluster{AutoScale: tc.in})
 		require.Equal(t, tc.wantFactor, got.MaxScaleFactor.ValueFloat32(), name)
@@ -356,6 +387,74 @@ func TestResolveProjectNameByID(t *testing.T) {
 
 	_, err = resolveProjectNameByID(t.Context(), projectClient(t, http.StatusInternalServerError, nil), projectID)
 	require.NotNil(t, err)
+}
+
+// TestRefreshProjectNameFollowsRename reads the current project name on every
+// refresh, and keeps the stored name when the project list omits that ID.
+func TestRefreshProjectNameFollowsRename(t *testing.T) {
+	ctx := t.Context()
+	projectID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+	clusterID := uuid.MustParse("283d4b0d-b0d6-485a-bc2d-a763c523c68a")
+	r := &clusterResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+
+	state := validClusterPlan()
+	state.ID = types.StringValue(clusterID.String())
+	state.ProjectName = types.StringValue("Old Name")
+	cluster := management.Cluster{
+		Name:      "cluster",
+		ClusterID: &clusterID,
+		ProjectID: projectID,
+		State:     util.Ptr(management.ClusterStateACTIVE),
+	}
+
+	t.Run("renamed project", func(t *testing.T) {
+		r.ClientWithResponsesInterface = projectClient(t, http.StatusOK, []management.Project{{
+			Name: "Renamed Project", ProjectID: projectID,
+		}})
+		resp := newReadResponse(t, ctx, schemaResp.Schema)
+		r.setRefreshedClusterState(ctx, resp, state, cluster, management.ClusterStateACTIVE)
+		require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+		require.Equal(t, "Renamed Project", refreshedProjectName(t, ctx, resp))
+	})
+
+	t.Run("missing project keeps the stored name", func(t *testing.T) {
+		r.ClientWithResponsesInterface = projectClient(t, http.StatusOK, []management.Project{})
+		resp := newReadResponse(t, ctx, schemaResp.Schema)
+		r.setRefreshedClusterState(ctx, resp, state, cluster, management.ClusterStateACTIVE)
+		require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+		require.Equal(t, "Old Name", refreshedProjectName(t, ctx, resp))
+	})
+
+	t.Run("projects api error", func(t *testing.T) {
+		r.ClientWithResponsesInterface = projectClient(t, http.StatusInternalServerError, nil)
+		resp := newReadResponse(t, ctx, schemaResp.Schema)
+		r.setRefreshedClusterState(ctx, resp, state, cluster, management.ClusterStateACTIVE)
+		require.True(t, resp.Diagnostics.HasError())
+	})
+}
+
+// newReadResponse is an empty state ready for setRefreshedClusterState to fill.
+func newReadResponse(t *testing.T, ctx context.Context, s schema.Schema) *resource.ReadResponse {
+	t.Helper()
+
+	return &resource.ReadResponse{
+		State: tfsdk.State{
+			Schema: s,
+			Raw:    tftypes.NewValue(s.Type().TerraformType(ctx), nil),
+		},
+	}
+}
+
+// refreshedProjectName reads project_name back from a refresh response.
+func refreshedProjectName(t *testing.T, ctx context.Context, resp *resource.ReadResponse) string {
+	t.Helper()
+
+	var got clusterResourceModel
+	require.False(t, resp.State.Get(ctx, &got).HasError())
+
+	return got.ProjectName.ValueString()
 }
 
 // projectClient returns a Management API client that serves the given projects.
@@ -460,6 +559,43 @@ func TestModifyPlanUnknownNestedBlock(t *testing.T) {
 	require.True(t, unknown)
 
 	// Decoding this plan into the model fails, which is why ModifyPlan checks first.
+	var decoded clusterResourceModel
+	require.True(t, plan.Get(ctx, &decoded).HasError())
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{
+		Plan:   plan,
+		State:  tfsdk.State{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)},
+		Config: tfsdk.Config{Schema: s, Raw: plan.Raw},
+	}, resp)
+	require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+}
+
+// TestModifyPlanUnknownFirewallRanges skips plan checks while the allowlist is an
+// unknown list instead of failing to decode it into a Go slice.
+func TestModifyPlanUnknownFirewallRanges(t *testing.T) {
+	ctx := t.Context()
+	r := &clusterResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+
+	plan := tfsdk.Plan{Schema: s, Raw: tftypes.NewValue(s.Type().TerraformType(ctx), nil)}
+	model := validClusterPlan()
+	model.ID = types.StringUnknown()
+	model.GroupID = types.StringUnknown()
+	model.OutboundAllowList = types.StringUnknown()
+	model.Endpoint = types.StringUnknown()
+	model.CreatedAt = types.StringUnknown()
+	model.MultiAZ = types.BoolValue(false)
+	model.UpdateWindow = types.ObjectUnknown(updateWindowAttrTypes)
+	require.False(t, plan.Set(ctx, &model).HasError())
+	require.False(t, plan.SetAttribute(ctx, path.Root("firewall_ranges"), types.ListUnknown(types.StringType)).HasError())
+
+	unknown, diags := hasUnknownFirewallRanges(ctx, plan)
+	require.False(t, diags.HasError())
+	require.True(t, unknown)
+
 	var decoded clusterResourceModel
 	require.True(t, plan.Get(ctx, &decoded).HasError())
 

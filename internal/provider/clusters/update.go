@@ -15,13 +15,16 @@ func applyClusterConfigOrToggleSuspension(ctx context.Context, c management.Clie
 	// ModifyPlan already rejects changing suspended together with other configuration.
 	// Prefer suspend/resume routing when suspended toggles so computed-only plan noise
 	// (e.g. unknown update_window) cannot divert the call to PATCH.
-	suspendedChanged := !plan.Suspended.Equal(state.Suspended)
+	// An unknown suspended value is not a toggle yet.
+	suspendedChanged := changedKnown(plan.Suspended, state.Suspended)
 	if !suspendedChanged && !hasGeneralConfigChanged(state, plan) {
 		// Adopt the configured spelling so an equivalent timestamp does not stay a diff.
 		state.ExpiresAt = expiresAtToStore(state.ExpiresAt, plan.ExpiresAt)
 		// A reordered allowlist is the same set, so nothing is sent, but the stored
-		// list has to match the planned order.
-		state.FirewallRanges = plan.FirewallRanges
+		// list has to match the planned order. An unknown range cannot be stored.
+		if firewallRangesKnown(plan.FirewallRanges) {
+			state.FirewallRanges = plan.FirewallRanges
+		}
 
 		return state, nil
 	}
@@ -65,33 +68,66 @@ func waitSettled(ctx context.Context, c management.ClientWithResponsesInterface,
 }
 
 // hasGeneralConfigChanged reports whether any cluster setting other than suspended differs.
+// A value that is not known yet is not a difference. ModifyPlan checks it again during
+// apply, once every value is known.
 func hasGeneralConfigChanged(state, plan clusterResourceModel) bool {
 	return sizeConfigChanged(state, plan) ||
-		!util.SameFirewallRanges(state.FirewallRanges, plan.FirewallRanges) ||
-		!util.SameTimestamp(plan.ExpiresAt, state.ExpiresAt) ||
-		!plan.DeploymentType.Equal(state.DeploymentType) ||
+		firewallRangesChanged(state.FirewallRanges, plan.FirewallRanges) ||
+		expiresAtChanged(plan.ExpiresAt, state.ExpiresAt) ||
+		changedKnown(plan.DeploymentType, state.DeploymentType) ||
 		autoScaleChanged(state, plan) ||
 		autoSuspendChanged(state, plan) ||
 		updateWindowChanged(state.UpdateWindow, plan.UpdateWindow)
 }
 
-// sizeConfigChanged reports whether size, scale factor, or cache multiplier differs.
+// sizeConfigChanged reports whether a known size, scale factor, or cache multiplier differs.
 func sizeConfigChanged(state, plan clusterResourceModel) bool {
-	return !plan.Size.Equal(state.Size) ||
-		!plan.ScaleFactor.Equal(state.ScaleFactor) ||
-		!plan.CacheConfig.Equal(state.CacheConfig)
+	return changedKnown(plan.Size, state.Size) ||
+		changedKnown(plan.ScaleFactor, state.ScaleFactor) ||
+		changedKnown(plan.CacheConfig, state.CacheConfig)
 }
 
-// autoScaleChanged reports whether the autoscale factor or sensitivity differs.
+// firewallRangesKnown reports whether every range is known.
+func firewallRangesKnown(ranges []types.String) bool {
+	for _, firewallRange := range ranges {
+		if firewallRange.IsUnknown() {
+			return false
+		}
+	}
+
+	return true
+}
+
+// firewallRangesChanged reports whether the allowlists differ. A list that still
+// contains an unknown range is not a confirmed change.
+func firewallRangesChanged(state, plan []types.String) bool {
+	if !firewallRangesKnown(state) || !firewallRangesKnown(plan) {
+		return false
+	}
+
+	return !util.SameFirewallRanges(state, plan)
+}
+
+// expiresAtChanged reports whether the expiration differs. An unknown timestamp
+// is not a confirmed change.
+func expiresAtChanged(plan, state types.String) bool {
+	if plan.IsUnknown() || state.IsUnknown() {
+		return false
+	}
+
+	return !util.SameTimestamp(plan, state)
+}
+
+// autoScaleChanged reports whether the known autoscale factor or sensitivity differs.
 func autoScaleChanged(state, plan clusterResourceModel) bool {
-	return !plan.AutoScale.MaxScaleFactor.Equal(state.AutoScale.MaxScaleFactor) ||
-		!plan.AutoScale.Sensitivity.Equal(state.AutoScale.Sensitivity)
+	return changedKnown(plan.AutoScale.MaxScaleFactor, state.AutoScale.MaxScaleFactor) ||
+		changedKnown(plan.AutoScale.Sensitivity, state.AutoScale.Sensitivity)
 }
 
-// autoSuspendChanged reports whether the auto suspend type or delay differs.
+// autoSuspendChanged reports whether the known auto suspend type or delay differs.
 func autoSuspendChanged(state, plan clusterResourceModel) bool {
-	return !plan.AutoSuspend.SuspendType.Equal(state.AutoSuspend.SuspendType) ||
-		!plan.AutoSuspend.SuspendAfterSeconds.Equal(state.AutoSuspend.SuspendAfterSeconds)
+	return changedKnown(plan.AutoSuspend.SuspendType, state.AutoSuspend.SuspendType) ||
+		changedKnown(plan.AutoSuspend.SuspendAfterSeconds, state.AutoSuspend.SuspendAfterSeconds)
 }
 
 // updateWindowChanged reports whether the maintenance window in the plan differs from state.

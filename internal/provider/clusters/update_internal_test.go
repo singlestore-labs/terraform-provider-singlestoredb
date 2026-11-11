@@ -508,6 +508,19 @@ func TestReorderedFirewallRangesDoNotCallAPI(t *testing.T) {
 	require.Equal(t, plan.FirewallRanges, got.FirewallRanges)
 }
 
+// TestUnknownFirewallRangeIsNotStored leaves the stored allowlist in place while
+// a planned range is still unknown.
+func TestUnknownFirewallRangeIsNotStored(t *testing.T) {
+	state := readyClusterPlan()
+	state.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8")}
+	plan := state
+	plan.FirewallRanges = []types.String{types.StringValue("10.0.0.0/8"), types.StringUnknown()}
+
+	got, err := applyClusterConfigOrToggleSuspension(t.Context(), nil, state, plan)
+	require.Nil(t, err)
+	require.Equal(t, state.FirewallRanges, got.FirewallRanges)
+}
+
 // TestWaitSettledHintsOnlyForPending adds the PENDING hint when the wait runs
 // out of time on a PENDING cluster; a failed cluster does not get it.
 func TestWaitSettledHintsOnlyForPending(t *testing.T) {
