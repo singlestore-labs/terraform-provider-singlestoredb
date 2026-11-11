@@ -263,8 +263,9 @@ func updateWaitConditions(state, plan clusterResourceModel) []waitCondition {
 
 // updateStateCondition waits for ACTIVE when suspended is configured. Only false
 // reaches a configuration update, because a suspended cluster is rejected. An
-// omitted value is null or unknown, so either settled state ends the wait once the
-// other conditions hold, and apply stores the state the Management API reports.
+// omitted value is null or unknown, so either settled state ends the wait once that
+// same state holds for the consistency window and the other conditions hold.
+// Apply stores the state the Management API reports.
 func updateStateCondition(suspended types.Bool) waitCondition {
 	if !suspended.IsNull() && !suspended.IsUnknown() {
 		return waitConditionState(management.ClusterStateACTIVE)

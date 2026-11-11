@@ -234,6 +234,8 @@ func terminalClusterError(cluster *management.Cluster) error {
 }
 
 // waitConditionState holds once the cluster reports one of states for several consecutive polls.
+// The last polls must all be that same state. A mix of the accepted states, such as
+// ACTIVE followed by SUSPENDED, is still a transition and does not end the wait.
 func waitConditionState(states ...management.ClusterState) func(management.Cluster) error {
 	clusterStateHistory := make([]management.ClusterState, 0, config.WorkspaceConsistencyThreshold)
 
@@ -245,7 +247,9 @@ func waitConditionState(states ...management.ClusterState) func(management.Clust
 			return fmt.Errorf("cluster %s state is %s, but should be %s", util.Deref(c.ClusterID), state, util.Join(states, ", "))
 		}
 
-		if !util.CheckLastN(clusterStateHistory, config.WorkspaceConsistencyThreshold, states...) {
+		// Pass only the current state. Passing every accepted state would treat
+		// a mix, such as four ACTIVE polls and one SUSPENDED poll, as stable.
+		if !util.CheckLastN(clusterStateHistory, config.WorkspaceConsistencyThreshold, state) {
 			return fmt.Errorf("cluster %s state is %s but the Management API did not return the same state for %d consecutive polls yet",
 				util.Deref(c.ClusterID), state, config.WorkspaceConsistencyThreshold,
 			)

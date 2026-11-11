@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/config"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +38,29 @@ func TestWaitConditions(t *testing.T) {
 
 	require.NoError(t, waitConditionTakesAtLeast(-time.Second)(cluster))
 	require.Error(t, waitConditionTakesAtLeast(time.Hour)(cluster))
+}
+
+// TestWaitConditionStateRequiresTheSameState rejects a mix of accepted states.
+// Five ACTIVE polls fill the consistency window, and one later SUSPENDED poll
+// must not end the wait while the cluster is still changing state.
+func TestWaitConditionStateRequiresTheSameState(t *testing.T) {
+	clusterID := uuid.MustParse("3ca3d359-021d-45ed-86cb-38b8d14ac507")
+	active := management.ClusterStateACTIVE
+	suspended := management.ClusterStateSUSPENDED
+	cond := waitConditionState(active, suspended)
+	cluster := management.Cluster{ClusterID: &clusterID, State: &active}
+
+	for range config.WorkspaceConsistencyThreshold - 1 {
+		require.Error(t, cond(cluster))
+	}
+	require.NoError(t, cond(cluster))
+
+	cluster.State = &suspended
+	for range config.WorkspaceConsistencyThreshold - 1 {
+		err := cond(cluster)
+		require.ErrorContains(t, err, "same state")
+	}
+	require.NoError(t, cond(cluster))
 }
 
 func TestWaitClusterFailures(t *testing.T) {
