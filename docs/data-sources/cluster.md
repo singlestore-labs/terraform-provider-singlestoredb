@@ -55,7 +55,7 @@ output "this_cluster" {
 - `region_name` (String) The region code of the cluster.
 - `scale_factor` (Number) The scale factor of the cluster.
 - `size` (String) The size of the cluster, specified in workspace size notation (S-00, S-0, S-1, S-2).
-- `state` (String) The state of the cluster. Possible values are ACTIVE, FAILED, PENDING, SUSPENDED, TERMINATED, UNKNOWN.
+- `state` (String) The state of the cluster. `PENDING` also covers a cluster that is offline or impacted. A cluster deleted before it became ready is reported as `TERMINATED`. Possible values are ACTIVE, FAILED, PENDING, SUSPENDED, TERMINATED, UNKNOWN.
 - `suspended` (Boolean) Whether the cluster is suspended.
 - `update_window` (Attributes) The scheduled update window for the cluster. (see [below for nested schema](#nestedatt--update_window))
 
@@ -73,7 +73,7 @@ Read-Only:
 
 Read-Only:
 
-- `suspend_after_seconds` (Number) When to suspend the cluster, according to the suspend type chosen.
+- `suspend_after_seconds` (Number) When to suspend the cluster, in whole seconds, according to the suspend type. Null when `suspend_type` is `DISABLED`.
 - `suspend_type` (String) The auto suspend mode for the cluster.
 
 

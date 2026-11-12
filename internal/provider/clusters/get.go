@@ -102,6 +102,15 @@ func (d *clustersDataSourceGet) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
+	if cluster.JSON200 == nil {
+		resp.Diagnostics.AddError(
+			"Cluster read failed",
+			fmt.Sprintf("Management API returned no cluster for %s. %s", id, config.ContactSupportErrorDetail),
+		)
+
+		return
+	}
+
 	result := toClusterDataSourceModel(*cluster.JSON200)
 	diags = resp.State.Set(ctx, &result)
 	resp.Diagnostics.Append(diags...)
@@ -116,33 +125,33 @@ func (d *clustersDataSourceGet) Configure(_ context.Context, req datasource.Conf
 	d.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
 }
 
+// toClusterDataSourceModel maps a Management API cluster onto the data source.
+// Omitted values are reported the way singlestoredb_cluster stores them, so the
+// data source and the resource agree on the same cluster.
 func toClusterDataSourceModel(cluster management.Cluster) clusterDataSourceModel {
 	size := types.StringNull()
-	scaleFactor := types.Float32Null()
-	cacheConfig := types.Float32Null()
 	if cluster.SizeConfig != nil {
 		size = util.MaybeStringValue(cluster.SizeConfig.Size)
-		scaleFactor = types.Float32PointerValue(cluster.SizeConfig.ScaleFactor)
-		cacheConfig = types.Float32PointerValue(cluster.SizeConfig.CacheConfig)
 	}
+	scaleFactor, cacheConfig := sizeConfigForState(cluster.SizeConfig)
 
 	return clusterDataSourceModel{
 		ID:                  util.MaybeUUIDStringValue(cluster.ClusterID),
 		Name:                types.StringValue(cluster.Name),
 		GroupID:             util.MaybeUUIDStringValue(cluster.GroupID),
-		State:               util.ClusterStateStringValue(util.Deref(cluster.State)),
+		State:               clusterStateForDataSource(cluster),
 		Size:                size,
 		ScaleFactor:         scaleFactor,
 		CacheConfig:         cacheConfig,
 		Suspended:           types.BoolValue(util.Deref(cluster.State) == management.ClusterStateSUSPENDED),
 		Kai:                 util.MaybeBoolValue(cluster.Kai),
-		FirewallRanges:      util.FirewallRanges(util.Ptr(effectiveFirewallRanges(cluster))),
+		FirewallRanges:      util.FirewallRanges(util.Ptr(util.EffectiveFirewallRanges(cluster.AllowAllTraffic, cluster.FirewallRanges))),
 		ExpiresAt:           util.MaybeExpiresAtStringValue(cluster.ExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
 		RegionName:          util.MaybeStringValue(cluster.Region),
-		DeploymentType:      util.StringValueOrNull(cluster.DeploymentType),
-		OptInPreviewFeature: util.MaybeBoolValue(cluster.OptInPreviewFeature),
-		MultiAZ:             util.MaybeBoolValue(cluster.MultiAZ),
+		DeploymentType:      deploymentTypeForState(cluster.DeploymentType, types.StringNull()),
+		OptInPreviewFeature: types.BoolValue(util.Deref(cluster.OptInPreviewFeature)),
+		MultiAZ:             types.BoolValue(util.Deref(cluster.MultiAZ)),
 		OutboundAllowList:   util.MaybeStringValue(cluster.OutboundAllowList),
 		Endpoint:            util.MaybeStringValue(cluster.Endpoint),
 		CreatedAt:           util.MaybeTimeValue(cluster.CreatedAt),
@@ -150,6 +159,17 @@ func toClusterDataSourceModel(cluster management.Cluster) clusterDataSourceModel
 		AutoSuspend:         toAutoSuspendResourceModel(cluster),
 		UpdateWindow:        toUpdateWindowDataSourceModel(cluster.UpdateWindow),
 	}
+}
+
+// clusterStateForDataSource reports TERMINATED for a cluster with terminatedAt set.
+// Management API reports a cluster deleted before its endpoint became ready as
+// FAILED or PENDING, which would otherwise read as a live cluster.
+func clusterStateForDataSource(cluster management.Cluster) types.String {
+	if isTerminatedCluster(cluster) {
+		return types.StringValue(string(management.ClusterStateTERMINATED))
+	}
+
+	return util.StringValueOrNull(cluster.State)
 }
 
 func toUpdateWindowDataSourceModel(uw *management.UpdateWindow) *updateWindowDataSourceModel {
@@ -181,7 +201,7 @@ func newClusterDataSourceSchemaAttributes(conf clusterDataSourceSchemaConfig) ma
 		},
 		"state": schema.StringAttribute{
 			Computed: true,
-			MarkdownDescription: fmt.Sprintf("The state of the cluster. Possible values are %s.", util.Join([]management.ClusterState{
+			MarkdownDescription: fmt.Sprintf("The state of the cluster. `PENDING` also covers a cluster that is offline or impacted. A cluster deleted before it became ready is reported as `TERMINATED`. Possible values are %s.", util.Join([]management.ClusterState{
 				management.ClusterStateACTIVE,
 				management.ClusterStateFAILED,
 				management.ClusterStatePENDING,
@@ -269,9 +289,9 @@ func newClusterDataSourceSchemaAttributes(conf clusterDataSourceSchemaConfig) ma
 			Computed:            true,
 			MarkdownDescription: "Auto suspend settings for the cluster.",
 			Attributes: map[string]schema.Attribute{
-				"suspend_after_seconds": schema.Float32Attribute{
+				"suspend_after_seconds": schema.Int64Attribute{
 					Computed:            true,
-					MarkdownDescription: "When to suspend the cluster, according to the suspend type chosen.",
+					MarkdownDescription: "When to suspend the cluster, in whole seconds, according to the suspend type. Null when `suspend_type` is `DISABLED`.",
 				},
 				"suspend_type": schema.StringAttribute{
 					Computed:            true,

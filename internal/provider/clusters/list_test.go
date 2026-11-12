@@ -115,3 +115,27 @@ func TestReadClustersError(t *testing.T) {
 		},
 	})
 }
+
+func TestReadClustersIncludeTerminated(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "true", r.URL.Query().Get("includeTerminated"))
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Cluster{}))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersListDataSource).
+					WithClusterListDataSource("all")("include_terminated", cty.True).
+					String(),
+				Check: resource.TestCheckResourceAttr("data.singlestoredb_clusters.all", "clusters.#", "0"),
+			},
+		},
+	})
+}
