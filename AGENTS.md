@@ -30,16 +30,16 @@ export PATH="$HOME/go/bin:$PATH"
 | Task | Command |
 |------|---------|
 | Install provider binary | `make install` |
-| Unit tests (mocked API) | `GOTOOLCHAIN=go1.26.0 make unit` |
+| Unit tests (mocked API) | `GOTOOLCHAIN=go1.26.11 make unit` |
 | Integration tests (live cloud) | `make integration` — requires `TEST_SINGLESTOREDB_API_KEY`; provisions real resources |
-| Lint | `GOTOOLCHAIN=go1.26.0 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4` then `golangci-lint run --fast ./...` |
+| Lint | `GOTOOLCHAIN=go1.26.11 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4` then `golangci-lint run --fast ./...` |
 | Format | `make format` |
 | Git hooks | `make install-hooks` |
 
 ### Gotchas
 
 1. **`PATH` must include `~/go/bin`** — `go install` places `terraform-provider-singlestoredb` and dev tools there; `make lint` invokes `golangci-lint` by name.
-2. **`GOTOOLCHAIN=go1.26.0`** — avoids `go: no such tool "covdata"` when `make unit` merges coverage across packages, and ensures `golangci-lint` is built with Go ≥ 1.26 (required by `go.mod`).
-3. **`make tools` before lint** — if `golangci-lint` was built with an older Go, reinstall it with `GOTOOLCHAIN=go1.26.0 go install ...` before running lint (see `Makefile` `tools` target).
+2. **`GOTOOLCHAIN=go1.26.11`** — avoids `go: no such tool "covdata"` when `make unit` merges coverage across packages, and ensures `golangci-lint` is built with Go ≥ 1.26 (required by `go.mod`).
+3. **`make tools` before lint** — if `golangci-lint` was built with an older Go, reinstall it with `GOTOOLCHAIN=go1.26.11 go install ...` before running lint (see `Makefile` `tools` target).
 4. **Authentication** — runtime uses `SINGLESTOREDB_API_KEY`; integration tests use `TEST_SINGLESTOREDB_API_KEY`. A read-only hello-world check: `terraform plan` in `examples/data-sources/singlestoredb_regions/`.
 5. **No long-running server** — the “application” is the provider plugin invoked by Terraform or the Go test harness; there is no `dev` server to keep running.
