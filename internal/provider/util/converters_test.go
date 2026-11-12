@@ -366,3 +366,59 @@ func TestValidateUserEmailDiff_InvalidEmailIgnoredWhenInB(t *testing.T) {
 	require.False(t, diags.HasError())
 	require.Equal(t, []string{testEmail1}, got)
 }
+
+func TestNormalizeTimestampString(t *testing.T) {
+	require.Equal(t, "not-a-time", util.NormalizeTimestampString("not-a-time"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00Z"))
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.NormalizeTimestampString("2222-01-01T00:00:00.123Z"))
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.NormalizeTimestampString("2222-01-01 00:00:00.123 +0000 UTC"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01 00:00:00 +0000 UTC"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01T00:00:00"))
+	require.Equal(t, "2222-01-01T00:00:00Z", util.NormalizeTimestampString("2222-01-01"))
+	require.True(t, util.MaybeExpiresAtStringValue(nil).IsNull())
+
+	fractional := "2222-01-01T00:00:00.123Z"
+	require.Equal(t, fractional, util.MaybeExpiresAtStringValue(&fractional).ValueString())
+}
+
+func TestSameTimestamp(t *testing.T) {
+	normalized := types.StringValue("2222-01-01T00:00:00.123Z")
+	configured := types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.True(t, util.SameTimestamp(normalized, configured))
+	require.True(t, util.SameTimestamp(types.StringValue("2222-01-01T00:00:00Z"), types.StringValue("2222-01-01T00:00:00.000Z")))
+	require.True(t, util.SameTimestamp(types.StringNull(), types.StringNull()))
+	require.True(t, util.SameTimestamp(types.StringUnknown(), types.StringUnknown()))
+	require.True(t, util.SameTimestamp(types.StringValue("not-a-time"), types.StringValue("not-a-time")))
+
+	require.False(t, util.SameTimestamp(normalized, types.StringValue("2223-01-01T00:00:00Z")))
+	require.False(t, util.SameTimestamp(normalized, types.StringNull()))
+	require.False(t, util.SameTimestamp(normalized, types.StringUnknown()))
+	require.False(t, util.SameTimestamp(types.StringValue("not-a-time"), types.StringValue("also-not")))
+}
+
+func TestExpiresAtStateValueKeepsConfiguredSpelling(t *testing.T) {
+	api := "2222-01-01 00:00:00.123 +0000 UTC"
+	configured := types.StringValue("2222-01-01T00:00:00.123000Z")
+	require.Equal(t, configured, util.ExpiresAtStateValue(&api, configured))
+
+	other := "2223-01-01T00:00:00Z"
+	require.Equal(t, other, util.ExpiresAtStateValue(&other, configured).ValueString())
+	require.True(t, util.ExpiresAtStateValue(nil, configured).IsNull())
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringNull()).ValueString())
+	require.Equal(t, "2222-01-01T00:00:00.123Z", util.ExpiresAtStateValue(&api, types.StringUnknown()).ValueString())
+}
+
+func TestClusterEnumConverters(t *testing.T) {
+	require.Nil(t, util.AutoSuspendSuspendTypeString(types.StringValue("nope")))
+	require.Equal(t, management.AutoSuspendSuspendTypeIDLE, *util.AutoSuspendSuspendTypeString(types.StringValue("idle")))
+	require.Equal(t, management.AutoSuspendSuspendTypeDISABLED, *util.AutoSuspendSuspendTypeString(types.StringValue("DISABLED")))
+	require.Equal(t, management.AutoSuspendSuspendTypeSCHEDULED, *util.AutoSuspendSuspendTypeString(types.StringValue("scheduled")))
+
+	require.Nil(t, util.ClusterDeploymentTypeString(types.StringValue("nope")))
+	require.Equal(t, management.ClusterDeploymentTypePRODUCTION, *util.ClusterDeploymentTypeString(types.StringValue("PRODUCTION")))
+	require.Equal(t, management.ClusterDeploymentTypeNONPRODUCTION, *util.ClusterDeploymentTypeString(types.StringValue("non-production")))
+
+	require.Nil(t, util.MaybeFloat32(types.Float32Null()))
+	require.Nil(t, util.MaybeFloat32(types.Float32Unknown()))
+	require.Equal(t, float32(2), *util.MaybeFloat32(types.Float32Value(2)))
+}

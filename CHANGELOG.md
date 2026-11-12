@@ -6,6 +6,20 @@
 
 - `singlestoredb_regions` is deprecated and is removed in v1.0.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead, and set `cloud_provider` and `region_name` on `singlestoredb_workspace_group` instead of `region_id`.
 
+### Added
+
+- `singlestoredb_cluster` resource. Use the cluster resource for new deployments.
+
+
+### Changed
+
+- `singlestoredb_cluster.admin_password` is read-only. Management API generates the password and returns it only on create. Terraform stores that value, and refresh keeps it. Setting a password is unavailable and may be added in a later release.
+- `singlestoredb_cluster` requires `cloud_provider` and `region_name`. `expires_at` can be set only on create; equivalent RFC3339 spellings of the current expiration are not a change. `update_window` is read-only until `POST` and `PATCH /v2/clusters` apply those fields.
+- Omitting `singlestoredb_cluster.suspended` leaves the current status unchanged, so a cluster suspended by `auto_suspend` is not resumed. On create it must be `false` or omitted. `singlestoredb_workspace.suspended` defaults to `false`, so an omitted value resumes a workspace that `auto_suspend` suspended. Neither resource can change `suspended` and other configuration in the same apply, or change other configuration while suspended.
+- `singlestoredb_cluster` destroy and refresh treat a cluster with `terminatedAt` set as terminated. Management API reports a cluster deleted before its endpoint became ready as `FAILED` or `PENDING`, so destroy previously waited an hour and then failed.
+- `singlestoredb_cluster` explains that `PENDING` can also mean the cluster is offline or impacted. Management API reports those states as `PENDING`, so updates wait until the cluster is `ACTIVE` or `SUSPENDED`; destroy does not wait.
+- `singlestoredb_cluster.auto_suspend.suspend_after_seconds` is an integer number of seconds. The Management API stores idle and scheduled delays as integers.
+
 ### Fixed
 
 - Management API errors mention an invalid API key only for HTTP 401. HTTP 403 responses mention credits only when the body indicates a billing or plan problem, and explain that the account is not authorized when the body reports that access is denied (for example, "Access to organization is not authorized").

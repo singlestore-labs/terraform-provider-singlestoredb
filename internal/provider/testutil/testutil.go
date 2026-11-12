@@ -68,6 +68,8 @@ func UnitTest(t *testing.T, conf UnitTestConfig, c resource.TestCase) {
 	resource.UnitTest(t, c)
 }
 
+// IntegrationTest runs a test against the live Management API and gives every
+// workspace group and cluster a short expiration.
 func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCase) {
 	t.Helper()
 
@@ -91,10 +93,9 @@ func IntegrationTest(t *testing.T, conf IntegrationTestConfig, c resource.TestCa
 		if conf.WorkspaceGroupName != "" {
 			cfg = cfg.WithWorkspaceGroupResource(conf.WorkspaceGroupName)("expires_at", cty.StringVal(expiresAt))
 		}
-		// Every workspace group gets a short expiration, including tests that do
-		// not set WorkspaceGroupName. Workspaces named workspace-1 are renamed to
-		// terraform-cluster so a failed run cannot leave a deployment with the
-		// example name.
+		// Every workspace group and cluster gets a short expiration, including tests
+		// that do not set WorkspaceGroupName. Clusters are named terraform-cluster
+		// so a failed run cannot leave a deployment named workspace-1.
 		c.Steps[i].Config = cfg.WithIntegrationSafeguards(expiresAt).String()
 	}
 

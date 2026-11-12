@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -233,7 +231,7 @@ func (r *workspaceGroupResource) Create(ctx context.Context, req resource.Create
 	projectNameIsSet := util.IsConfiguredString(plan.ProjectName)
 	var projectID *uuid.UUID
 	if projectNameIsSet {
-		resolvedProjectID, err := resolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString())
+		resolvedProjectID, err := util.ResolveProjectIDByName(ctx, r.ClientWithResponsesInterface, plan.ProjectName.ValueString(), "workspace group")
 		if err != nil {
 			resp.Diagnostics.AddError(err.Summary, err.Detail)
 
@@ -627,13 +625,13 @@ func (r *workspaceGroupResource) ImportState(ctx context.Context, req resource.I
 //
 // configuredFirewallRanges is the allowlist Terraform holds for the resource, either
 // from the plan or from the prior state. It decides how the reported ranges are
-// spelled, see firewallRangesForState.
+// spelled, see util.FirewallRangesForState.
 func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adminPassword string, regionIDIsSet bool, configuredFirewallRanges []types.String) workspaceGroupResourceModel {
 	result := workspaceGroupResourceModel{
 		ID:                       util.UUIDStringValue(workspaceGroup.WorkspaceGroupID),
 		Name:                     types.StringValue(workspaceGroup.Name),
 		ProjectName:              util.StringValueOrNull(workspaceGroup.ProjectName),
-		FirewallRanges:           firewallRangesForState(configuredFirewallRanges, workspaceGroup),
+		FirewallRanges:           util.FirewallRangesForState(configuredFirewallRanges, workspaceGroup.AllowAllTraffic, workspaceGroup.FirewallRanges),
 		CreatedAt:                types.StringValue(workspaceGroup.CreatedAt),
 		ExpiresAt:                util.MaybeStringValue(workspaceGroup.ExpiresAt),
 		AdminPassword:            types.StringValue(adminPassword),
@@ -651,52 +649,6 @@ func toWorkspaceGroupResourceModel(workspaceGroup management.WorkspaceGroup, adm
 	}
 
 	return result
-}
-
-func resolveProjectIDByName(ctx context.Context, c management.ClientWithResponsesInterface, projectName string) (*uuid.UUID, *util.SummaryWithDetailError) {
-	projectsResponse, err := c.GetV2ProjectsWithResponse(ctx)
-	if serr := util.StatusOK(projectsResponse, err); serr != nil {
-		return nil, serr
-	}
-
-	var sameNameProjectIDs []uuid.UUID
-	availableProjectNamesSet := make(map[string]struct{})
-	for _, project := range util.Deref(projectsResponse.JSON200) {
-		if project.Name == projectName {
-			sameNameProjectIDs = append(sameNameProjectIDs, project.ProjectID)
-		}
-
-		availableProjectNamesSet[project.Name] = struct{}{}
-	}
-
-	availableProjectNames := make([]string, 0, len(availableProjectNamesSet))
-	for name := range availableProjectNamesSet {
-		availableProjectNames = append(availableProjectNames, fmt.Sprintf("'%s'", name))
-	}
-
-	if len(sameNameProjectIDs) == 0 {
-		availableProjectsDetail := ""
-		if len(availableProjectNames) > 0 {
-			sort.Strings(availableProjectNames)
-			availableProjectsDetail = fmt.Sprintf("Available projects: %s.", strings.Join(availableProjectNames, ", "))
-		}
-
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Project not found",
-			Detail:  fmt.Sprintf("No project with the name '%s' was found. Set project_name to a valid project name. %s", projectName, availableProjectsDetail),
-		}
-	}
-
-	if len(sameNameProjectIDs) > 1 {
-		return nil, &util.SummaryWithDetailError{
-			Summary: "Multiple projects found",
-			Detail:  fmt.Sprintf("Multiple projects named '%s' were found. Please rename projects to use a unique project name for workspace group assignment.", projectName),
-		}
-	}
-
-	projectID := sameNameProjectIDs[0]
-
-	return &projectID, nil
 }
 
 func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringValue {
@@ -774,13 +726,13 @@ func isFatalWorkspaceGroupState(state management.WorkspaceGroupState) bool {
 // create or update the API still reports the previous ranges.
 func waitConditionFirewallRanges(firewallRanges []types.String) waitCondition {
 	return func(w management.WorkspaceGroup) error {
-		if firewallRangesConverged(firewallRanges, w) {
+		if util.FirewallRangesConverged(firewallRanges, w.AllowAllTraffic, w.FirewallRanges) {
 			return nil
 		}
 
 		return fmt.Errorf("workspace group %s firewall ranges are [%s] but should be [%s]",
 			w.WorkspaceGroupID,
-			util.Join(effectiveFirewallRanges(w), ", "),
+			util.Join(util.EffectiveFirewallRanges(w.AllowAllTraffic, w.FirewallRanges), ", "),
 			util.Join(util.StringFirewallRanges(firewallRanges), ", "),
 		)
 	}

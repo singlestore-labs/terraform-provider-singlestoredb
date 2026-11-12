@@ -107,6 +107,83 @@ func WorkspaceGroupStateStringValue(wgs management.WorkspaceGroupState) types.St
 	return types.StringValue(string(wgs))
 }
 
+// MaybeExpiresAtStringValue maps an API expiresAt value onto Terraform state.
+// /v2/clusters often returns Go's default time.String() format; normalize to RFC3339.
+func MaybeExpiresAtStringValue(s *string) types.String {
+	if s == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(NormalizeTimestampString(*s))
+}
+
+// SameTimestamp reports whether two Terraform timestamps are the same instant.
+// Null matches null, and equivalent RFC3339 spellings match. Unknown values match
+// only each other. Values that do not parse match only when the strings are equal.
+func SameTimestamp(a, b types.String) bool {
+	if a.Equal(b) {
+		return true
+	}
+	if !IsConfiguredString(a) || !IsConfiguredString(b) {
+		return false
+	}
+
+	aTime, aErr := parseFlexibleTimestamp(a.ValueString())
+	bTime, bErr := parseFlexibleTimestamp(b.ValueString())
+	if aErr != nil || bErr != nil {
+		return false
+	}
+
+	return aTime.Equal(bTime)
+}
+
+// ExpiresAtStateValue maps an API expiresAt onto Terraform state. When configured is
+// the same instant, its spelling is kept so create and update stay consistent with the plan.
+func ExpiresAtStateValue(apiValue *string, configured types.String) types.String {
+	normalized := MaybeExpiresAtStringValue(apiValue)
+	if apiValue == nil || !IsConfiguredString(configured) {
+		return normalized
+	}
+
+	apiTime, apiErr := parseFlexibleTimestamp(*apiValue)
+	configuredTime, configuredErr := parseFlexibleTimestamp(configured.ValueString())
+	if apiErr != nil || configuredErr != nil || !apiTime.Equal(configuredTime) {
+		return normalized
+	}
+
+	return configured
+}
+
+// NormalizeTimestampString parses common Management API timestamp spellings and
+// returns RFC3339 with fractional seconds preserved. Unrecognized values are returned unchanged.
+func NormalizeTimestampString(value string) string {
+	t, err := parseFlexibleTimestamp(value)
+	if err != nil {
+		return value
+	}
+
+	return t.Format(time.RFC3339Nano)
+}
+
+// parseFlexibleTimestamp parses the timestamp spellings the Management API returns.
+func parseFlexibleTimestamp(value string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02T15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.UTC(), nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unrecognized timestamp %q", value)
+}
+
 func WorkspaceStateString(wgs types.String) *management.WorkspaceState {
 	for _, s := range []management.WorkspaceState{
 		management.WorkspaceStateACTIVE,
@@ -146,6 +223,35 @@ func PrivateConnectionTypeString(wgs types.String) (management.PrivateConnection
 	}
 
 	return "", fmt.Errorf("invalid private connection type '%s'", wgs)
+}
+
+// AutoSuspendSuspendTypeString maps a Terraform suspend type onto the Management API enum.
+func AutoSuspendSuspendTypeString(wgs types.String) *management.AutoSuspendSuspendType {
+	for _, s := range []management.AutoSuspendSuspendType{
+		management.AutoSuspendSuspendTypeIDLE,
+		management.AutoSuspendSuspendTypeDISABLED,
+		management.AutoSuspendSuspendTypeSCHEDULED,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+// ClusterDeploymentTypeString maps a Terraform deployment type onto the Management API enum.
+func ClusterDeploymentTypeString(wgs types.String) *management.ClusterDeploymentType {
+	for _, s := range []management.ClusterDeploymentType{
+		management.ClusterDeploymentTypePRODUCTION,
+		management.ClusterDeploymentTypeNONPRODUCTION,
+	} {
+		if strings.EqualFold(wgs.ValueString(), string(s)) {
+			return &s
+		}
+	}
+
+	return nil
 }
 
 func MaybeFloat32(f types.Float32) *float32 {
