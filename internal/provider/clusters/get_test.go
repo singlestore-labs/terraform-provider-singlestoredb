@@ -124,3 +124,76 @@ func TestInvalidClusterInputUUID(t *testing.T) {
 		},
 	})
 }
+
+func TestReadsClusterTerminatedBeforeReadyAndDefaults(t *testing.T) {
+	clusterID := uuid.MustParse("f2a1a960-8591-4156-bb26-f53f0f8e35ce")
+	state := management.ClusterStateFAILED
+	terminatedAt := time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC)
+	allowAll := true
+
+	cluster := management.Cluster{
+		ClusterID:       &clusterID,
+		Name:            "foo",
+		ProjectID:       uuid.New(),
+		State:           &state,
+		TerminatedAt:    &terminatedAt,
+		AllowAllTraffic: &allowAll,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON(cluster))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersGetDataSource).
+					WithClusterGetDataSource("this")(config.IDAttribute, cty.StringVal(clusterID.String())).
+					String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "state", string(management.ClusterStateTERMINATED)),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "suspended", "false"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "firewall_ranges.#", "1"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "firewall_ranges.0", "0.0.0.0/0"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "scale_factor", "1"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "cache_config", "1"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "deployment_type", string(management.ClusterDeploymentTypePRODUCTION)),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "multi_az", "false"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_scale.max_scale_factor", "1"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_type", string(management.AutoSuspendSuspendTypeDISABLED)),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_after_seconds"),
+					resource.TestCheckNoResourceAttr("data.singlestoredb_cluster.this", "update_window"),
+				),
+			},
+		},
+	})
+}
+
+func TestReadsClusterWithoutJSONBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Add("Content-Type", "text/plain")
+		_, err := w.Write([]byte("ok"))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersGetDataSource).
+					WithClusterGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					String(),
+				ExpectError: regexp.MustCompile("Management API returned no cluster"),
+			},
+		},
+	})
+}
