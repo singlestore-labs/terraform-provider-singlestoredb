@@ -64,7 +64,7 @@ export PATH="$HOME/go/bin:$PATH"
 **State consistency**
 - After apply, every known planned value equals the stored value. Normalize API echoes (timestamp formats, dropped defaults, casing).
 - Computed values the API omits (e.g. generated passwords) come from prior state. Generated credentials are `Sensitive`; docs note import cannot recover them.
-- A failed follow-up call is never stored as success: return an error or keep the planned value so the next apply retries.
+- A failed follow-up call is never stored as success: return an error and set that attribute back to its prior state value (`resp.State` starts as the plan and is saved even on error), so the next plan shows a diff and retries.
 - Attribute types match the API (integer seconds → `Int64`).
 
 **Read / drift / import**
