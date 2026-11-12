@@ -165,6 +165,7 @@ func TestReadsClusterTerminatedBeforeReadyAndDefaults(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "cache_config", "1"),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "deployment_type", string(management.ClusterDeploymentTypePRODUCTION)),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "multi_az", "false"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "kai", "false"),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_scale.max_scale_factor", "1"),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_type", string(management.AutoSuspendSuspendTypeDISABLED)),
 					resource.TestCheckNoResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_after_seconds"),

@@ -144,7 +144,7 @@ func toClusterDataSourceModel(cluster management.Cluster) clusterDataSourceModel
 		ScaleFactor:         scaleFactor,
 		CacheConfig:         cacheConfig,
 		Suspended:           types.BoolValue(util.Deref(cluster.State) == management.ClusterStateSUSPENDED),
-		Kai:                 util.MaybeBoolValue(cluster.Kai),
+		Kai:                 types.BoolValue(util.Deref(cluster.Kai)),
 		FirewallRanges:      util.FirewallRanges(util.Ptr(util.EffectiveFirewallRanges(cluster.AllowAllTraffic, cluster.FirewallRanges))),
 		ExpiresAt:           util.MaybeExpiresAtStringValue(cluster.ExpiresAt),
 		CloudProvider:       normalizeCloudProvider(cluster.Provider),
