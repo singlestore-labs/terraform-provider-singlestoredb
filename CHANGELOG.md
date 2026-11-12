@@ -5,10 +5,12 @@
 ### Deprecated
 
 - `singlestoredb_regions` is deprecated and is removed in v1.0.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead, and set `cloud_provider` and `region_name` on `singlestoredb_workspace_group` instead of `region_id`.
+- `singlestoredb_private_connection` and its data sources are deprecated and are removed in v1.0.0, the first release on or after April 30, 2027. Use `singlestoredb_private_connection_v2` and `singlestoredb_private_connections_v2`, which call the v2 private connections API.
 
 ### Added
 
 - `singlestoredb_cluster` resource. Use the cluster resource for new deployments.
+- `singlestoredb_private_connection_v2` resource and the `singlestoredb_private_connection_v2` and `singlestoredb_private_connections_v2` data sources. A private connection targets a cluster through the v2 Management API. `cluster_id`, `type`, `service_name`, `kai_endpoint_id`, and the ports replace the connection. `allow_list` and `supported_cross_regions` can be updated.
 
 
 ### Changed

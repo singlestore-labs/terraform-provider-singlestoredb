@@ -12,6 +12,7 @@ import (
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/flow"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/invitations"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnections"
+	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/privateconnectionsv2"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/roles"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/sql"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/teams"
@@ -66,6 +67,10 @@ func (uc UpdatableConfig) WithWorkspaceGroupResource(workspaceGroupName string) 
 
 func (uc UpdatableConfig) WithPrivateConnectionResource(privateConnectionName string) AttributeSetter {
 	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(privateconnections.ResourceName), privateConnectionName})
+}
+
+func (uc UpdatableConfig) WithPrivateConnectionV2Resource(privateConnectionName string) AttributeSetter {
+	return withAttribute(uc, config.ResourceTypeName, []string{resourceTypeName(privateconnectionsv2.ResourceName), privateConnectionName})
 }
 
 func (uc UpdatableConfig) WithUserResource(userName string) AttributeSetter {

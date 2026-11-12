@@ -3,12 +3,12 @@
 page_title: "singlestoredb_private_connection Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Retrieve a specific private connection using its ID with this data source.
+  Deprecated. Use the singlestoredb_private_connection_v2 data source instead. This data source calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Retrieve a specific private connection using its ID with this data source.
 ---
 
 # singlestoredb_private_connection (Data Source)
 
-Retrieve a specific private connection using its ID with this data source.
+Deprecated. Use the `singlestoredb_private_connection_v2` data source instead. This data source calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Retrieve a specific private connection using its ID with this data source.
 
 ## Example Usage
 
@@ -19,6 +19,7 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
+# Deprecated. Use singlestoredb_private_connection_v2 instead. Removed in v1.0.0, the first release on or after April 30, 2027.
 data "singlestoredb_private_connection" "this" {
   id = "44b5e1a5-a761-4ee0-8240-fb6381541600" # Replace with the actual ID of the private connection.
 }

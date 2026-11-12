@@ -52,6 +52,13 @@ const (
 	// RegionsDataSourceDeprecationMessage is shown when singlestoredb_regions is used.
 	// v1.0.0, the first release on or after April 30, 2027, removes the data source.
 	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027."
+	// PrivateConnectionResourceDeprecationMessage is shown when singlestoredb_private_connection is used.
+	// v1.0.0, the first release on or after April 30, 2027, removes the resource.
+	PrivateConnectionResourceDeprecationMessage = "Use the singlestoredb_private_connection_v2 resource instead. This resource calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027."
+	// PrivateConnectionDataSourceDeprecationMessage is shown when the singlestoredb_private_connection data source is used.
+	PrivateConnectionDataSourceDeprecationMessage = "Use the singlestoredb_private_connection_v2 data source instead. This data source calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027."
+	// PrivateConnectionsDataSourceDeprecationMessage is shown when singlestoredb_private_connections is used.
+	PrivateConnectionsDataSourceDeprecationMessage = "Use the singlestoredb_private_connections_v2 data source instead. This data source calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

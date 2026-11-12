@@ -71,7 +71,8 @@ func (r *privateConnectionResource) Metadata(_ context.Context, req resource.Met
 // Schema defines the schema for the resource.
 func (r *privateConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB workspace private connections with this resource.",
+		DeprecationMessage:  config.PrivateConnectionResourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Use the `singlestoredb_private_connection_v2` resource instead. This resource calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Manage SingleStoreDB workspace private connections with this resource.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

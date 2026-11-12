@@ -123,6 +123,12 @@ Read the password from state or from the sensitive output in the example above.
 - `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. Import records the current expiration in state but does not add it to your configuration. When the imported cluster has an expiration, copy that timestamp from state (for example, from `terraform state show singlestoredb_cluster.this`) into `expires_at`. When it has no expiration, leave `expires_at` unset. The plan fails if the configuration sets a different time or removes an existing expiration.
 - `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
 
+## Private connections
+
+`singlestoredb_private_connection_v2` manages a private connection on a cluster through the v2 Management API. Set `cluster_id` to the cluster. `allow_list` and `supported_cross_regions` can be updated. Changing the cluster, type, service name, Kai endpoint, or ports replaces the connection.
+
+`singlestoredb_private_connection` still manages a workspace-group connection through the v1 API. It is deprecated and is removed in v1.0.0, the first release on or after April 30, 2027.
+
 ## Documentation
 
 For more detailed information about `terraform-provider-singlestoredb`, including advanced usage and configuration options, check out our [official documentation](./docs/index.md).
