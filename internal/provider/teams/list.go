@@ -65,7 +65,7 @@ func (d *teamsDataSourceList) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	teams, err := d.GetV1TeamsWithResponse(ctx, &management.GetV1TeamsParams{})
+	teams, err := d.GetV2TeamsWithResponse(ctx, &management.GetV2TeamsParams{})
 	if serr := util.StatusOK(teams, err); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,

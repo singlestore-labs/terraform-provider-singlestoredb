@@ -23,3 +23,17 @@ linters:
     - perfsprint
     - exportloopref
     - dupl
+
+issues:
+  exclude-rules:
+    - path: internal/provider/flow/get.go
+      linters:
+        - godox
+      text: deprecate workspace_id
+    # Kept until POST and PATCH /v2/clusters apply updateWindow and expiresAt, POST
+    # uses the same autoscale factors as PATCH, and GET reports offline and impacted clusters.
+    # godox puts only the start of the comment in the issue text.
+    - path: internal/provider/clusters/
+      linters:
+        - godox
+      text: "TODO: (make update_window Optional|allow expires_at|reached once|send autoScale on create|fail fast when)"

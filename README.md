@@ -48,7 +48,7 @@ The `required_providers` block specifies that your configuration will be using t
 
 ## Example Usage
 
-The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a workspace:
+The provider offers a variety of data sources and resources for managing SingleStoreDB. Here's a sample usage that demonstrates creating and managing a cluster:
 
 ```hcl
 provider "singlestoredb" {
@@ -57,41 +57,46 @@ provider "singlestoredb" {
   // You can generate this key from the SingleStore Portal at https://portal.singlestore.com/organizations/org-id/api-keys.
 }
 
-resource "singlestoredb_workspace_group" "example" {
-  name            = "group"
-  firewall_ranges = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
+variable "firewall_ranges" {
+  description = "CIDR ranges allowed to connect to the cluster."
+  type        = list(string)
+  default     = ["0.0.0.0/0"] // Ensure restrictive ranges for production environments.
+}
+
+resource "singlestoredb_cluster" "this" {
+  name            = "cluster-1"
+  project_name    = "Standard Project"
+  size            = "S-00"
+  firewall_ranges = var.firewall_ranges
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  admin_password  = "mockPassword193!"
-}
-
-resource "singlestoredb_workspace" "this" {
-  name               = "workspace-1"
-  workspace_group_id = singlestoredb_workspace_group.example.id
-  size               = "S-00"
-  suspended          = false
+  suspended       = false
 }
 
 output "endpoint" {
-  value = singlestoredb_workspace.this.endpoint
+  value = singlestoredb_cluster.this.endpoint
 }
 
 output "admin_password" {
-  value     = singlestoredb_workspace_group.example.admin_password
+  value     = singlestoredb_cluster.this.admin_password
   sensitive = true
+}
+
+output "group_id" {
+  value = singlestoredb_cluster.this.group_id
 }
 ```
 
 To try this example, follow these steps:
 
-1. **Create the workspace:**
+1. **Create the cluster:**
 
    ```shell
    terraform apply
    ```
 
-2. **Connect to the new workspace:**
+2. **Connect to the new cluster:**
 
    ```shell
    export endpoint=$(terraform output -raw endpoint)
@@ -99,11 +104,24 @@ To try this example, follow these steps:
    mysql -u admin -h $endpoint -P 3306 --default-auth=mysql_native_password --password=$admin_password -e 'select 1'
    ```
 
-3. **Terminate the workspace:**
+3. **Terminate the cluster:**
 
    ```shell
    terraform destroy
    ```
+
+### Cluster admin password
+
+Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` is read-only. The API returns the generated password only on create. Terraform stores that value, and refresh keeps it when later responses omit the password.
+
+Read the password from state or from the sensitive output in the example above.
+
+## Known limitations
+
+`singlestoredb_cluster` follows `/v2/clusters`, so the API limitations are carried over to the provider. These may be relaxed in the future releases.
+
+- `expires_at` is applied only on create. `PATCH /v2/clusters` ignores `expiresAt`, so a later change is rejected. Import records the current expiration in state but does not add it to your configuration. When the imported cluster has an expiration, copy that timestamp from state (for example, from `terraform state show singlestoredb_cluster.this`) into `expires_at`. When it has no expiration, leave `expires_at` unset. The plan fails if the configuration sets a different time or removes an existing expiration.
+- `update_window` is read-only. `POST` and `PATCH /v2/clusters` ignore `updateWindow`. Terraform reports the window the API assigned. Configuring it fails the plan.
 
 ## Documentation
 

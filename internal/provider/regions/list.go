@@ -48,7 +48,8 @@ func (d *regionsDataSourceList) Metadata(_ context.Context, req datasource.Metad
 // Schema defines the schema for the data source.
 func (d *regionsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.",
+		DeprecationMessage:  config.RegionsDataSourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Use the `singlestoredb_regions_v2` data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027. This data source provides a list of regions that the user can access and that support workspaces. It includes the region ID and provider for each region.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,
