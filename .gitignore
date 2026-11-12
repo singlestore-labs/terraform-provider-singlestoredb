@@ -6,3 +6,4 @@ terraform-provider-singlestoredb
 .env
 **/.vscode/
 .planning/
+*.local/
