@@ -65,6 +65,7 @@ export PATH="$HOME/go/bin:$PATH"
 - After apply, every known planned value equals the stored value. Normalize API echoes (timestamp formats, dropped defaults, casing).
 - Computed values the API omits (e.g. generated passwords) come from prior state. Generated credentials are `Sensitive`; docs note import cannot recover them.
 - A failed follow-up call is never stored as success: return an error and set that attribute back to its prior state value (`resp.State` starts as the plan and is saved even on error), so the next plan shows a diff and retries.
+- In Create, if a follow-up call fails after the API returns a resource ID, set that ID on `resp.State` before returning the error. Create leaves `resp.State` null until it is set, and Terraform saves that state even on error, so a retry tracks the existing resource instead of creating a duplicate.
 - Attribute types match the API (integer seconds → `Int64`).
 
 **Read / drift / import**
