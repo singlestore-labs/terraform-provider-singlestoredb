@@ -936,6 +936,23 @@ func TestClusterResourceIntegration(t *testing.T) {
 					clusterAdminCanConnect("singlestoredb_cluster.this"),
 				),
 			},
+			{
+				// Read the cluster back through the data sources while it still exists.
+				Config: examples.ClustersResource + `
+data "singlestoredb_cluster" "read" {
+  id = singlestoredb_cluster.this.id
+}
+
+data "singlestoredb_clusters" "all" {}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair("data.singlestoredb_cluster.read", config.IDAttribute, "singlestoredb_cluster.this", config.IDAttribute),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.read", "name", config.TestClusterName),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.read", "size", config.TestInitialWorkspaceSize),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.read", "suspended", "false"),
+					resource.TestCheckResourceAttrSet("data.singlestoredb_clusters.all", "clusters.0.id"),
+				),
+			},
 		},
 	})
 }
