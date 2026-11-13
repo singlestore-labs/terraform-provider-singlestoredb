@@ -43,3 +43,45 @@ export PATH="$HOME/go/bin:$PATH"
 3. **`make tools` before lint** — if `golangci-lint` was built with an older Go, reinstall it with `GOTOOLCHAIN=go1.26.11 go install ...` before running lint (see `Makefile` `tools` target).
 4. **Authentication** — runtime uses `SINGLESTOREDB_API_KEY`; integration tests use `TEST_SINGLESTOREDB_API_KEY`. A read-only hello-world check: `terraform plan` in `examples/data-sources/singlestoredb_regions/`.
 5. **No long-running server** — the “application” is the provider plugin invoked by Terraform or the Go test harness; there is no `dev` server to keep running.
+
+## Adding or changing a resource
+
+### Workflow
+
+1. **Probe the Management API first.** Exercise create, read, each update, and delete (including delete while provisioning) by hand. Note quirks: omitted fields, ambiguous states, POST vs PATCH differences.
+2. **Write a short spec and get it reviewed before coding.** Cover endpoints and quirks; schema (type, Required/Optional/Computed, default, RequiresReplace, Sensitive, unknown at plan); create/update order of operations; wait behavior; read/drift; import; tests. Settle schema decisions there, not in follow-up commits.
+3. **Follow an existing resource.** `internal/provider/workspacegroups/resource.go` (~800 lines) is the reference for structure and size; split anything larger before opening the PR. Comments say why, not what.
+4. **Keep PRs focused.** Shared refactors go in their own PR first. CI, coverage, and workflow changes never go in a feature PR.
+5. **Review locally against the checklist below, then push.** When review finds a bug, search for the same pattern elsewhere, fix every site, add a test, and push the fixes together.
+6. **Commit in reviewable steps** (schema → create/read/delete → update → wait → docs). Subjects say what changed, not "cleanup" or "nits".
+
+### Checklist
+
+**Plan time**
+- Any attribute can be unknown, including whole collections. Unknown is neither "changed" nor "empty": handle it in `ModifyPlan`/`ValidateConfig`, never send it to the API, and re-check at apply time anything that was unknown at plan.
+- Known-invalid configuration fails in `ModifyPlan`, not at apply.
+
+**State consistency**
+- After apply, every known planned value equals the stored value. Normalize API echoes (timestamp formats, dropped defaults, casing).
+- Computed values the API omits (e.g. generated passwords) come from prior state. Generated credentials are `Sensitive`; docs note import cannot recover them.
+- A failed follow-up call is never stored as success: return an error. On Update, `resp.State` starts as the prior state and Terraform saves it even on error, so write a new value only after that call succeeds. The next plan's Read refreshes API-backed attributes (`firewall_ranges`, `name`, and others) from the API; once the API has the planned value, the plan shows no diff and Update does not run again. Finish the follow-up in that apply. When it can remain incomplete after Read converges, document how it is completed.
+- In Create, `resp.State` stays null until it is set. Leaving it null after the API returns a resource ID drops the resource from state, and the next apply can create a duplicate; import it to adopt the existing one. Setting the ID and returning the error records the resource, and Terraform taints it, so the next apply deletes and recreates it. Workspace group Delete sends `Force: true` and removes the group even when it contains workspaces. Untaint the resource before that apply. Update then runs only for attributes that still differ after Read.
+- Attribute types match the API (integer seconds → `Int64`).
+
+**Read / drift / import**
+- Resources deleted or terminated outside Terraform are removed from state, including terminal states signalled by fields other than `state`.
+- Read tolerates 404 for the same grace period as the post-create wait.
+- Values that can change outside Terraform are refreshed on every read.
+- Import fills everything Read can; anything else is documented.
+
+**Waiting**
+- Terminal states stop with a remediation message; 401/403 stop immediately; 404 gets a time-based grace; other errors (5xx, network, non-JSON 200) retry.
+- "Stable" means consecutive readings in the same state.
+- Wait on every condition the operation changed; ignore settings that change on their own.
+- Polls are bounded by the timeout; timeout errors include the last observed state.
+- The wait decision table is unit-tested.
+
+**Hygiene**
+- No local artifacts committed.
+- Regenerate docs with `TF_CLI_CONFIG_FILE=/dev/null make generate`; update `CHANGELOG.md` and `README.md`.
+- Tests cover behavior and edge cases, not coverage padding.
