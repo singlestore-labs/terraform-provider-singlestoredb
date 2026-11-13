@@ -99,6 +99,41 @@ resource "singlestoredb_cluster" "this" {
 
 	untouched := testutil.UpdatableConfig(`data "singlestoredb_regions" "all" {}`)
 	require.Equal(t, untouched.String(), untouched.WithIntegrationSafeguards(expiresAt).String())
+
+	// The integration job uploads coverage only for tests matched by -run Integration.
+	assertClusterGetDataSourceOverride(t)
+	assertClusterListDataSourceOverride(t)
+}
+
+func TestWithClusterGetDataSource(t *testing.T) {
+	assertClusterGetDataSourceOverride(t)
+}
+
+func TestWithClusterListDataSource(t *testing.T) {
+	assertClusterListDataSourceOverride(t)
+}
+
+func assertClusterGetDataSourceOverride(t *testing.T) {
+	t.Helper()
+
+	uc := testutil.UpdatableConfig(`data "singlestoredb_cluster" "this" {
+	}`)
+	require.NotContains(t, uc, config.IDAttribute)
+	id := uuid.New().String()
+	uc = uc.WithClusterGetDataSource("this")(config.IDAttribute, cty.StringVal(id))
+	require.Contains(t, uc, config.IDAttribute)
+	require.Contains(t, uc, id)
+}
+
+func assertClusterListDataSourceOverride(t *testing.T) {
+	t.Helper()
+
+	uc := testutil.UpdatableConfig(`data "singlestoredb_clusters" "all" {
+	}`)
+	require.NotContains(t, uc, "include_terminated")
+	uc = uc.WithClusterListDataSource("all")("include_terminated", cty.True)
+	require.Contains(t, uc, "include_terminated")
+	require.Contains(t, uc, "true")
 }
 
 func TestWithAPIKey(t *testing.T) {

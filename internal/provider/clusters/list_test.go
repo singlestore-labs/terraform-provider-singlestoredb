@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"testing"
 	"time"
@@ -135,6 +136,21 @@ func TestReadClustersIncludeTerminated(t *testing.T) {
 					WithClusterListDataSource("all")("include_terminated", cty.True).
 					String(),
 				Check: resource.TestCheckResourceAttr("data.singlestoredb_clusters.all", "clusters.#", "0"),
+			},
+		},
+	})
+}
+
+func TestReadsClustersIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersListDataSource).
+					WithClusterListDataSource("all")("include_terminated", cty.True).
+					String(),
+				Check: resource.TestCheckResourceAttr("data.singlestoredb_clusters.all", config.IDAttribute, config.TestIDValue),
 			},
 		},
 	})
