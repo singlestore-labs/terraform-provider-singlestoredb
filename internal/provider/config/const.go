@@ -29,6 +29,9 @@ const (
 	// wait for the Management API to reflect the change, which for firewall ranges
 	// happens asynchronously.
 	WorkspaceGroupUpdateTimeout = 10 * time.Minute
+	// WorkspaceGroupPatchRetryTimeout limits how long a workspace group update
+	// keeps retrying a PATCH that fails with server errors.
+	WorkspaceGroupPatchRetryTimeout = 5 * time.Minute
 	// WorkspaceReadTimeout limits the workspace creation time.
 	WorkspaceReadTimeout = 10 * time.Minute
 	// WorkspaceCreationTimeout limits the workspace creation time.

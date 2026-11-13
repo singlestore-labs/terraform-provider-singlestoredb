@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/singlestore-labs/singlestore-go/management"
 	"github.com/singlestore-labs/terraform-provider-singlestoredb/internal/provider/util"
@@ -60,9 +60,16 @@ func toPrivateConnectionModel(ctx context.Context, conn management.ClusterPrivat
 // fillOmitted keeps identifiers the v2 API can leave out of a response.
 // allow_list, status, and supported_cross_regions are taken from the response
 // on every read because they can change outside Terraform.
-func fillOmitted(result *privateConnectionModel, prior privateConnectionModel) {
-	if result.ClusterID.IsNull() {
+// It also keeps the prior spelling of a value the API returns in another form:
+// a cluster ID in other letter case, or the same regions in another order or as
+// an empty list instead of an omitted one. Terraform requires a configured value
+// to come back unchanged.
+func fillOmitted(ctx context.Context, result *privateConnectionModel, prior privateConnectionModel) {
+	if result.ClusterID.IsNull() || sameUUID(result.ClusterID, prior.ClusterID) {
 		result.ClusterID = nullIfUnknownString(prior.ClusterID)
+	}
+	if sameRegionList(ctx, result.SupportedCrossRegions, prior.SupportedCrossRegions) {
+		result.SupportedCrossRegions = prior.SupportedCrossRegions
 	}
 	if result.KaiEndpointID.IsNull() {
 		result.KaiEndpointID = nullIfUnknownString(prior.KaiEndpointID)
@@ -142,26 +149,26 @@ func regionsList(ctx context.Context, values *[]string) types.List {
 	return list
 }
 
-// normalizeRegions sorts a configured list and stores an empty list as null.
-func normalizeRegions(ctx context.Context, list types.List) (types.List, diag.Diagnostics) {
-	if list.IsNull() || list.IsUnknown() {
-		return list, nil
+func sameUUID(left, right types.String) bool {
+	if left.IsNull() || left.IsUnknown() || right.IsNull() || right.IsUnknown() {
+		return false
+	}
+	l, lerr := uuid.Parse(left.ValueString())
+	r, rerr := uuid.Parse(right.ValueString())
+
+	return lerr == nil && rerr == nil && l == r
+}
+
+// sameRegionList reports whether two known lists hold the same regions in any
+// order. A null list and an empty list are the same.
+func sameRegionList(ctx context.Context, left, right types.List) bool {
+	l, lunknown := regionStrings(ctx, left)
+	r, runknown := regionStrings(ctx, right)
+	if lunknown || runknown {
+		return false
 	}
 
-	var regions []string
-	diags := list.ElementsAs(ctx, &regions, false)
-	if diags.HasError() {
-		return list, diags
-	}
-	if len(regions) == 0 {
-		return types.ListNull(types.StringType), nil
-	}
-
-	sort.Strings(regions)
-	normalized, listDiags := types.ListValueFrom(ctx, types.StringType, regions)
-	diags.Append(listDiags...)
-
-	return normalized, diags
+	return sameRegions(&l, r)
 }
 
 // regionStrings returns the configured regions. unknown is true when the list

@@ -68,12 +68,17 @@ func (t *notFoundTracker) found() {
 }
 
 // readConnection polls until the connection is returned or 404s last for the grace.
-// notFound is true when the grace elapsed on 404, which means the connection is gone.
+// notFound is true when the polls ended on an uninterrupted run of 404s, which
+// means the connection is gone. A transport error, another status, or caller
+// cancellation after a 404 is reported as an error instead, so Read does not
+// drop a connection that may still exist.
 // Authentication failures stop immediately. Other errors are retried for the grace.
 func readConnection(ctx context.Context, c management.ClientWithResponsesInterface, id management.ConnectionID) (*management.ClusterPrivateConnection, bool, *util.SummaryWithDetailError) {
 	tracker := newNotFoundTracker()
 	var found *management.ClusterPrivateConnection
-	lastCode := 0
+	// notFoundStreak is true while every poll since the last other outcome got 404.
+	// A transport error or another status ends the streak.
+	notFoundStreak := false
 
 	pollCtx, cancel := context.WithTimeout(ctx, notFoundGrace+pollGrace)
 	defer cancel()
@@ -81,18 +86,21 @@ func readConnection(ctx context.Context, c management.ClientWithResponsesInterfa
 	err := retry.RetryContext(ctx, notFoundGrace, func() *retry.RetryError {
 		resp, err := c.GetV2PrivateConnectionsConnectionIDWithResponse(pollCtx, id, &management.GetV2PrivateConnectionsConnectionIDParams{})
 		if err != nil {
+			notFoundStreak = false
+
 			return pollTransportError(ctx, pollCtx, id, err, nil)
 		}
 
-		lastCode = resp.StatusCode()
-		decision := classifyGet(id, lastCode, resp.JSON200, responseContentType(resp.HTTPResponse), tracker, readExisting)
+		notFoundStreak = resp.StatusCode() == http.StatusNotFound
+		decision := classifyGet(id, resp.StatusCode(), resp.JSON200, responseContentType(resp.HTTPResponse), tracker, readExisting)
 		if decision.ready != nil {
 			found = decision.ready
 		}
 
 		return decision.retry
 	})
-	if err != nil && lastCode == http.StatusNotFound {
+	// A canceled caller is an error even after 404s: the streak did not finish.
+	if err != nil && notFoundStreak && ctx.Err() == nil {
 		return nil, true, nil
 	}
 	if err != nil {

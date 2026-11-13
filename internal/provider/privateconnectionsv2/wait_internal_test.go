@@ -209,3 +209,53 @@ func mustConnectionJSON(t *testing.T, conn management.ClusterPrivateConnection) 
 
 	return body
 }
+
+func TestReadReportsNotFoundAfterUninterrupted404s(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	prev := notFoundGrace
+	notFoundGrace = 2 * time.Second
+	t.Cleanup(func() { notFoundGrace = prev })
+
+	conn, notFound, serr := readConnection(t.Context(), client, uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"))
+	require.Nil(t, serr)
+	require.True(t, notFound)
+	require.Nil(t, conn)
+}
+
+func TestReadReportsErrorWhenTransportErrorFollows404(t *testing.T) {
+	// A 404 followed by connection failures must not drop the connection from state.
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok)
+		conn, _, err := hj.Hijack()
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := management.NewClientWithResponses(server.URL)
+	require.NoError(t, err)
+
+	prev := notFoundGrace
+	notFoundGrace = 2 * time.Second
+	t.Cleanup(func() { notFoundGrace = prev })
+
+	_, notFound, serr := readConnection(t.Context(), client, uuid.MustParse("458d14e6-fcc4-4985-a2a6-f1f1f15cef2f"))
+	require.False(t, notFound)
+	require.NotNil(t, serr)
+	require.GreaterOrEqual(t, calls, 2)
+}

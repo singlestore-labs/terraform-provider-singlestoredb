@@ -216,7 +216,7 @@ func (r *privateConnectionResource) Create(ctx context.Context, req resource.Cre
 	}
 
 	result := toPrivateConnectionModel(ctx, conn)
-	fillOmitted(&result, plan)
+	fillOmitted(ctx, &result, plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &result)...)
 }
 
@@ -254,7 +254,7 @@ func (r *privateConnectionResource) Read(ctx context.Context, req resource.ReadR
 	}
 
 	result := toPrivateConnectionModel(ctx, *conn)
-	fillOmitted(&result, state)
+	fillOmitted(ctx, &result, state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &result)...)
 }
 
@@ -295,7 +295,7 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 
 	body, changed := updateRequest(ctx, state, plan)
 	if !changed {
-		r.refresh(ctx, resp, state, id)
+		r.applyUnchanged(ctx, resp, state, id)
 
 		return
 	}
@@ -316,7 +316,7 @@ func (r *privateConnectionResource) Update(ctx context.Context, req resource.Upd
 	}
 
 	result := toPrivateConnectionModel(ctx, conn)
-	fillOmitted(&result, plan)
+	fillOmitted(ctx, &result, plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &result)...)
 }
 
@@ -365,13 +365,6 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 		return
 	}
 
-	normalized, diags := normalizeRegions(ctx, plan.SupportedCrossRegions)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.SupportedCrossRegions = normalized
-
 	var config privateConnectionModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -392,7 +385,24 @@ func (r *privateConnectionResource) ModifyPlan(ctx context.Context, req resource
 		return
 	}
 
+	// Read warns that a PENDING connection is waited for on the next apply.
+	// Marking status unknown plans an update, and Update then waits.
+	if !req.State.Raw.IsNull() {
+		var state privateConnectionModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if isPending(state) {
+			plan.Status = types.StringUnknown()
+		}
+	}
+
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
+func isPending(model privateConnectionModel) bool {
+	return model.Status.ValueString() == string(management.ClusterPrivateConnectionStatusPENDING)
 }
 
 func (r *privateConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -405,6 +415,33 @@ func (r *privateConnectionResource) ImportState(ctx context.Context, req resourc
 func (r *privateConnectionResource) keepPriorState(ctx context.Context, resp *resource.UpdateResponse, state privateConnectionModel, summary, detail string) {
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	resp.Diagnostics.AddError(summary, detail)
+}
+
+// applyUnchanged handles an update with no argument change.
+// ModifyPlan plans an update for a PENDING connection so this apply waits for it.
+func (r *privateConnectionResource) applyUnchanged(ctx context.Context, resp *resource.UpdateResponse, state privateConnectionModel, id uuid.UUID) {
+	if isPending(state) {
+		r.waitActive(ctx, resp, state, id)
+
+		return
+	}
+
+	r.refresh(ctx, resp, state, id)
+}
+
+// waitActive waits for a PENDING connection that has no configuration change.
+func (r *privateConnectionResource) waitActive(ctx context.Context, resp *resource.UpdateResponse, state privateConnectionModel, id uuid.UUID) {
+	conn, werr := wait(ctx, r.ClientWithResponsesInterface, id, config.PrivateConnectionCreationTimeout, waitUntilActive,
+		waitConditionStatus(management.ClusterPrivateConnectionStatusACTIVE))
+	if werr != nil {
+		r.keepPriorState(ctx, resp, state, werr.Summary, werr.Detail)
+
+		return
+	}
+
+	result := toPrivateConnectionModel(ctx, conn)
+	fillOmitted(ctx, &result, state)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &result)...)
 }
 
 func (r *privateConnectionResource) refresh(ctx context.Context, resp *resource.UpdateResponse, state privateConnectionModel, id uuid.UUID) {
@@ -420,7 +457,7 @@ func (r *privateConnectionResource) refresh(ctx context.Context, resp *resource.
 	}
 
 	result := toPrivateConnectionModel(ctx, *conn)
-	fillOmitted(&result, state)
+	fillOmitted(ctx, &result, state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &result)...)
 }
 

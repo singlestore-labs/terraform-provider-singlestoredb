@@ -2,6 +2,7 @@ package privateconnectionsv2
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -80,11 +81,19 @@ func (d *privateConnectionsDataSourceList) Read(ctx context.Context, req datasou
 
 		return
 	}
+	if privateConnections.JSON200 == nil {
+		resp.Diagnostics.AddError(
+			"Private connections list returned an unreadable response",
+			fmt.Sprintf("GET /v2/clusters/%s/privateConnections returned status code OK without a JSON list of private connections.", id),
+		)
+
+		return
+	}
 
 	result := privateConnectionsListModel{
 		ID:        types.StringValue(config.TestIDValue),
 		ClusterID: data.ClusterID,
-		PrivateConnections: util.Map(util.Deref(privateConnections.JSON200), func(conn management.ClusterPrivateConnection) privateConnectionModel {
+		PrivateConnections: util.Map(*privateConnections.JSON200, func(conn management.ClusterPrivateConnection) privateConnectionModel {
 			return toPrivateConnectionModel(ctx, conn)
 		}),
 	}

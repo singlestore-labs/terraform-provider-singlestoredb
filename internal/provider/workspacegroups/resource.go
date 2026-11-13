@@ -385,17 +385,15 @@ func (r *workspaceGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	id := uuid.MustParse(plan.ID.ValueString())
-	workspaceGroupUpdateResponse, err := r.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id,
-		management.WorkspaceGroupUpdate{
-			AdminPassword:  workspaceGroupPatchAdminPassword(plan, state),
-			ExpiresAt:      util.MaybeString(plan.ExpiresAt),
-			Name:           util.MaybeString(plan.Name),
-			FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
-			DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
-			UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
-		},
-	)
-	if serr := util.StatusOK(workspaceGroupUpdateResponse, err); serr != nil {
+	update := management.WorkspaceGroupUpdate{
+		AdminPassword:  workspaceGroupPatchAdminPassword(plan, state),
+		ExpiresAt:      util.MaybeString(plan.ExpiresAt),
+		Name:           util.MaybeString(plan.Name),
+		FirewallRanges: util.Ptr(util.StringFirewallRanges(plan.FirewallRanges)),
+		DeploymentType: util.WorkspaceGroupUpdateDeploymentTypeString(plan.DeploymentType),
+		UpdateWindow:   toManagementUpdateWindow(ctx, plan.UpdateWindow),
+	}
+	if serr := patchWorkspaceGroup(ctx, r.ClientWithResponsesInterface, id, update); serr != nil {
 		resp.Diagnostics.AddError(
 			serr.Summary,
 			serr.Detail,
@@ -662,6 +660,28 @@ func normalizeCloudProvider(provider management.CloudProvider) basetypes.StringV
 
 // waitCondition return nil if it is satisfied.
 type waitCondition func(management.WorkspaceGroup) error
+
+// patchWorkspaceGroup sends the update and retries it while the HTTP client
+// gives up on server errors. Shortly after a workspace group becomes active, the
+// Management API can keep answering PATCH with 500 "error updating cluster
+// details" for longer than the client's own retries last. The request body is
+// the full desired state, so repeating it is safe. A non-200 status that the
+// client does not retry, such as a 4xx, fails at once.
+func patchWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, update management.WorkspaceGroupUpdate) *util.SummaryWithDetailError {
+	var result *util.SummaryWithDetailError
+
+	_ = retry.RetryContext(ctx, config.WorkspaceGroupPatchRetryTimeout, func() *retry.RetryError {
+		resp, err := c.PatchV1WorkspaceGroupsWorkspaceGroupIDWithResponse(ctx, id, update)
+		result = util.StatusOK(resp, err)
+		if err != nil && ctx.Err() == nil {
+			return retry.RetryableError(err)
+		}
+
+		return nil
+	})
+
+	return result
+}
 
 func verifyStatusAndGetWorkspaceGroup(ctx context.Context, c management.ClientWithResponsesInterface, id management.WorkspaceGroupID, timeout time.Duration, conditions ...waitCondition) (management.WorkspaceGroup, *util.SummaryWithDetailError) {
 	result := management.WorkspaceGroup{}
