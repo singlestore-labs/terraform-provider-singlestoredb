@@ -18,6 +18,7 @@ resource "singlestoredb_workspace" "workspace" {
   size               = "S-00"
 }
 
+# Deprecated. Use singlestoredb_private_connection_v2 instead. Removed in v1.0.0, the first release on or after April 30, 2027.
 resource "singlestoredb_private_connection" "this" {
   allow_list         = "651246146166"
   type               = "INBOUND"

@@ -37,7 +37,8 @@ func (d *privateConnectionDataSourceGet) Metadata(_ context.Context, req datasou
 // Schema defines the schema for the data source.
 func (d *privateConnectionDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Retrieve a specific private connection using its ID with this data source.",
+		DeprecationMessage:  config.PrivateConnectionDataSourceDeprecationMessage,
+		MarkdownDescription: "Deprecated. Use the `singlestoredb_private_connection_v2` data source instead. This data source calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Retrieve a specific private connection using its ID with this data source.",
 		Attributes:          newPrivateConnectionDataSourceSchemaAttributes(),
 	}
 }

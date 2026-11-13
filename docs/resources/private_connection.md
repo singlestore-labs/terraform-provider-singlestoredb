@@ -3,12 +3,12 @@
 page_title: "singlestoredb_private_connection Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage SingleStoreDB workspace private connections with this resource.
+  Deprecated. Use the singlestoredb_private_connection_v2 resource instead. This resource calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Manage SingleStoreDB workspace private connections with this resource.
 ---
 
 # singlestoredb_private_connection (Resource)
 
-Manage SingleStoreDB workspace private connections with this resource.
+Deprecated. Use the `singlestoredb_private_connection_v2` resource instead. This resource calls the v1 private connections API and is removed in v1.0.0, the first release on or after April 30, 2027. Manage SingleStoreDB workspace private connections with this resource.
 
 ## Example Usage
 
@@ -33,6 +33,7 @@ resource "singlestoredb_workspace" "workspace" {
   size               = "S-00"
 }
 
+# Deprecated. Use singlestoredb_private_connection_v2 instead. Removed in v1.0.0, the first release on or after April 30, 2027.
 resource "singlestoredb_private_connection" "this" {
   allow_list         = "651246146166"
   type               = "INBOUND"
