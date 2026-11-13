@@ -117,6 +117,25 @@ func TestReadClustersError(t *testing.T) {
 	})
 }
 
+func TestReadClustersEmptyBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	testutil.UnitTest(t, testutil.UnitTestConfig{
+		APIServiceURL: server.URL,
+		APIKey:        testutil.UnusedAPIKey,
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      examples.ClustersListDataSource,
+				ExpectError: regexp.MustCompile("Management API returned no clusters list"),
+			},
+		},
+	})
+}
+
 func TestReadClustersIncludeTerminated(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "true", r.URL.Query().Get("includeTerminated"))

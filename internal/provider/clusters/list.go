@@ -95,11 +95,20 @@ func (d *clustersDataSourceList) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
+	if clusters.JSON200 == nil {
+		resp.Diagnostics.AddError(
+			"Clusters read failed",
+			"Management API returned no clusters list. "+config.ContactSupportErrorDetail,
+		)
+
+		return
+	}
+
 	result := clustersListDataSourceModel{
 		ID:                types.StringValue(config.TestIDValue),
 		ProjectID:         data.ProjectID,
 		IncludeTerminated: data.IncludeTerminated,
-		Clusters:          util.Map(util.Deref(clusters.JSON200), toClusterDataSourceModel),
+		Clusters:          util.Map(*clusters.JSON200, toClusterDataSourceModel),
 	}
 
 	diags = resp.State.Set(ctx, &result)
