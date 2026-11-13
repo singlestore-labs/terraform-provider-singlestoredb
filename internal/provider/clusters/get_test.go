@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ func TestReadsClusterByID(t *testing.T) {
 	endpoint := testEndpoint
 	idleAfter := 1200
 	suspendType := management.AutoSuspendSuspendTypeSCHEDULED
+	updateWindow := &management.UpdateWindow{Hour: 6, Day: 2}
 
 	cluster := management.Cluster{
 		ClusterID:  &clusterID,
@@ -47,6 +49,7 @@ func TestReadsClusterByID(t *testing.T) {
 			SuspendType:           &suspendType,
 			ScheduledAfterSeconds: &idleAfter,
 		},
+		UpdateWindow: updateWindow,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +79,8 @@ func TestReadsClusterByID(t *testing.T) {
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "endpoint", endpoint),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_type", "SCHEDULED"),
 					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "auto_suspend.suspend_after_seconds", "1200"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "update_window.hour", "6"),
+					resource.TestCheckResourceAttr("data.singlestoredb_cluster.this", "update_window.day", "2"),
 				),
 			},
 		},
@@ -194,6 +199,21 @@ func TestReadsClusterWithoutJSONBody(t *testing.T) {
 					WithClusterGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
 					String(),
 				ExpectError: regexp.MustCompile("Management API returned no cluster"),
+			},
+		},
+	})
+}
+
+func TestGetClusterNotFoundIntegration(t *testing.T) {
+	testutil.IntegrationTest(t, testutil.IntegrationTestConfig{
+		APIKey: os.Getenv(config.EnvTestAPIKey),
+	}, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: testutil.UpdatableConfig(examples.ClustersGetDataSource).
+					WithClusterGetDataSource("this")(config.IDAttribute, cty.StringVal(uuid.New().String())).
+					String(),
+				ExpectError: regexp.MustCompile(http.StatusText(http.StatusNotFound)),
 			},
 		},
 	})
