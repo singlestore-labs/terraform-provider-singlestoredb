@@ -64,8 +64,8 @@ export PATH="$HOME/go/bin:$PATH"
 **State consistency**
 - After apply, every known planned value equals the stored value. Normalize API echoes (timestamp formats, dropped defaults, casing).
 - Computed values the API omits (e.g. generated passwords) come from prior state. Generated credentials are `Sensitive`; docs note import cannot recover them.
-- A failed follow-up call is never stored as success: return an error and set that attribute back to its prior state value (`resp.State` starts as the plan and is saved even on error), so the next plan shows a diff and retries.
-- In Create, if a follow-up call fails after the API returns a resource ID, set that ID on `resp.State` before returning the error. Create leaves `resp.State` null until it is set, and Terraform saves that state even on error, so a retry tracks the existing resource instead of creating a duplicate.
+- A failed follow-up call is never stored as success: return an error. On Update, `resp.State` starts as the prior state and Terraform saves it even on error. Write a new value only after that call succeeds; if the new value was already written, set the attribute back to its prior value so the next plan shows a diff and retries.
+- In Create, `resp.State` stays null until it is set. Leaving it null after the API returns a resource ID drops the resource from state, and the next apply can create a duplicate; import it to adopt the existing one. Setting the ID and returning the error records the resource, and Terraform taints it, so the next apply deletes and recreates it. Workspace group Delete sends `Force: true` and removes the group even when it contains workspaces. Untaint the resource before that apply so Update can finish the failed follow-up.
 - Attribute types match the API (integer seconds → `Int64`).
 
 **Read / drift / import**
