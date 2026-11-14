@@ -167,7 +167,7 @@ func TestReadsClustersIntegration(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testutil.UpdatableConfig(examples.ClustersListDataSource).
-					WithClusterListDataSource("all")("include_terminated", cty.True).
+					WithClusterListDataSource("all")("include_terminated", cty.False).
 					String(),
 				Check: resource.TestCheckResourceAttr("data.singlestoredb_clusters.all", config.IDAttribute, config.TestIDValue),
 			},
