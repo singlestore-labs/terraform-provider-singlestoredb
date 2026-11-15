@@ -26,6 +26,8 @@ terraform state show singlestoredb_workspace.this
 terraform state show singlestoredb_workspace_group.example
 ```
 
+Check the deployment name before you change state. A cluster `name` must be 1 to 32 characters, the provider rejects a rename, and the workspace group resource does not limit its name. Read the name the cluster will have with a `singlestoredb_cluster` data source whose `id` is the workspace id, or from `GET /v2/clusters/{id}`. If the name is longer than 32 characters, no cluster configuration can match it. Keep the workspace resources in that case.
+
 Save these values outside the terminal scrollback:
 
 - The workspace `id`. This is the import id.
@@ -36,7 +38,7 @@ A suspended workspace can be imported as a suspended cluster. Omit `suspended`, 
 
 ## Rewrite the configuration
 
-Remove `singlestoredb_workspace` and `singlestoredb_workspace_group`. Add `singlestoredb_cluster` with the same deployment. Point every reference that used the workspace id or endpoint at the cluster. Point references to the group password at the saved password, not at the cluster. Do not apply yet. Applying after the old resources are gone from configuration and still present in state destroys them.
+Remove `singlestoredb_workspace` and `singlestoredb_workspace_group`. Add `singlestoredb_cluster` with the same deployment. Point every reference that used the workspace id or endpoint at the cluster, and every reference to the workspace group id at `singlestoredb_cluster.this.group_id`. Point references to the group password at the saved password, not at the cluster. Do not apply yet. Applying after the old resources are gone from configuration and still present in state destroys them.
 
 A workspace group named `group` with one workspace looks like this before the move:
 
@@ -154,7 +156,7 @@ These attributes have no cluster argument:
 
 `created_at`, `endpoint`, `group_id`, and `outbound_allow_list` are read from the API after import.
 
-Firewall ranges are compared as a set. The API may return them in a different order, and unrestricted access (`0.0.0.0/0`) may come back as an allow-all flag. A configuration whose ranges are the same set produces no diff.
+Firewall ranges are compared as a set. The API may return them in a different order, and unrestricted access (`0.0.0.0/0`) may come back as an allow-all flag. Import has no configuration to keep the order from, so it stores the order the API returns. The first plan after import can show an in-place update of `firewall_ranges` when only the order differs. Applying it sends nothing to the API and stores your order. List the ranges in the order `terraform state show` prints to avoid that update.
 
 The provider rejects a plan that changes any of these: `name`, `project_name`, `cloud_provider`, `region_name`, `kai`, `multi_az`, `opt_in_preview_feature`, `expires_at`. It also rejects configuring `update_window`, and changing `deployment_type` away from `NON-PRODUCTION` while `opt_in_preview_feature` is true. Fix the configuration so those values match the imported state. The provider does not schedule a replacement for them.
 
@@ -185,9 +187,9 @@ Import reads the deployment. It leaves `admin_password` empty, because Managemen
 
 ## Read the plan before you apply
 
-When the configuration matches the deployment, `terraform plan` shows no changes.
+When the configuration matches the deployment, `terraform plan` shows no changes, apart from a possible reordering of `firewall_ranges` described above.
 
-A plan that destroys `singlestoredb_workspace`, `singlestoredb_workspace_group`, or `singlestoredb_cluster` deletes that deployment and its data. Stop there. The usual cause is an apply while the old resources are still in state, or a cluster resource that was never imported. Fix the configuration, or restore the backup from [Before you edit configuration](#before-you-edit-configuration), and plan again.
+A plan that destroys `singlestoredb_workspace`, `singlestoredb_workspace_group`, or `singlestoredb_cluster` deletes that deployment and its data. Stop there. The usual cause is an apply while the old resources are still in state, or a cluster resource that was never imported. Fix the configuration and plan again, or roll back as described in [Put the old resources back](#put-the-old-resources-back).
 
 A plan error such as `Cannot update cluster name` means an attribute in the list above does not match imported state. The error prints the current value. Put that value in configuration. Applying is blocked until the plan succeeds.
 
@@ -215,6 +217,8 @@ terraform import singlestoredb_cluster.two <workspace-two-id>
 
 After each import, copy that cluster's `name` from `terraform state show`. The clusters API supplies the name, which is usually the workspace group name.
 
+`firewall_ranges`, `expires_at`, `deployment_type`, `project_name`, `cloud_provider`, `region_name`, `multi_az`, and `opt_in_preview_feature` belong to the shared workspace group. Set them to the same values in every cluster that shares a `group_id`, and change them in all of those clusters in the same apply. An update to one cluster sends its `firewall_ranges` and `deployment_type` to the shared group. When the clusters disagree, each apply overwrites the other's firewall ranges, which can block access.
+
 ## Data sources
 
 | Existing data source | Replacement |
@@ -224,7 +228,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 | `singlestoredb_workspace_group` | `singlestoredb_cluster`. Group fields (`firewall_ranges`, `region_name`, `expires_at`, `multi_az`, and the rest of the map above) are attributes of the cluster. |
 | `singlestoredb_workspace_groups` | `singlestoredb_clusters`. This lists clusters, not groups. |
 
-On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at` and `allow_all_traffic` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.
+On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at`, `allow_all_traffic`, `project_name`, and `region_id` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.
 
 The workspace data sources still read the v1 API in v0.2.0, and `terraform plan` prints a deprecation warning. New configuration uses the cluster data sources.
 
@@ -248,7 +252,7 @@ resource "singlestoredb_flow" "this" {
 
 ### Private connection
 
-`singlestoredb_private_connection` is unchanged. Keep `workspace_id` or `workspace_group_id`. The cluster `id` is the workspace id, so a connection that used `singlestoredb_workspace.this.id` can use `singlestoredb_cluster.this.id` in `workspace_id`.
+`singlestoredb_private_connection` is unchanged. Keep `workspace_id` or `workspace_group_id`, and keep their values: the provider rejects a change. The cluster `id` is the workspace id, so a connection that used `singlestoredb_workspace.this.id` can use `singlestoredb_cluster.this.id` in `workspace_id`. A connection that used `singlestoredb_workspace_group.example.id` can use `singlestoredb_cluster.this.group_id` in `workspace_group_id`.
 
 ```hcl
 resource "singlestoredb_private_connection" "this" {
@@ -277,17 +281,25 @@ resource "singlestoredb_sql_execute" "this" {
 
 ## Put the old resources back
 
-`terraform state rm` and a failed import leave the deployment in the cloud and out of state. Restore the previous configuration from version control, then import the old addresses. Use the ids you saved. Put `admin_password` back on the workspace group yourself.
+`terraform state rm` and a failed import leave the deployment in the cloud and out of state. Restore the previous configuration from version control first. Then either push the saved state back, or import the old addresses.
+
+`terraform state rm` and `terraform import` raise the state serial, so Terraform refuses the older backup without `-force`. Push it only when nothing else changed state since the backup:
+
+```shell
+terraform state push -force pre-cluster-migration.tfstate
+```
+
+To import instead, first drop the cluster from state if its import already succeeded. `terraform state rm` leaves the deployment running.
+
+```shell
+terraform state rm singlestoredb_cluster.this
+```
+
+Then import the old addresses with the ids you saved. Put `admin_password` back on the workspace group yourself.
 
 ```shell
 terraform import singlestoredb_workspace_group.example <workspace-group-id>
 terraform import singlestoredb_workspace.this <workspace-id>
 ```
 
-When the cluster import already succeeded, drop the cluster from state before importing the old addresses. `terraform state rm` leaves the deployment running.
-
-```shell
-terraform state rm singlestoredb_cluster.this
-```
-
-Apply the restored configuration only after those imports. The plan should show no destroy of the cluster. A destroy deletes the deployment.
+Apply the restored configuration only after the state push or the imports. The plan should show no destroy of the cluster. A destroy deletes the deployment.
