@@ -6,6 +6,8 @@ The cluster `id` is the workspace id. The cluster `group_id` is the workspace gr
 
 This adopts the deployment that is already running. It does not create a second cluster, and `terraform state rm` does not delete it.
 
+These steps need a workspace to import. A workspace group with no workspace has no cluster to import, and removing it from state leaves it unmanaged. Keep managing an empty group with `singlestoredb_workspace_group` until v1.0.0, or destroy it with that resource if you no longer need it. Do not remove it from state.
+
 ## Schedule
 
 `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning. The data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` do the same.
@@ -14,12 +16,12 @@ These resources and data sources are removed in v1.0.0, the first release on or 
 
 ## Before you edit configuration
 
-Run this while the workspace resources are still in state. Replace the addresses with yours.
+Run this while the workspace resources are still in state. Replace the addresses with yours. Terraform overwrites `terraform.tfstate.backup` on every state change, so keep this copy under a different name.
 
 ```shell
-touch terraform.tfstate.backup
-chmod 600 terraform.tfstate.backup
-terraform state pull > terraform.tfstate.backup
+touch pre-cluster-migration.tfstate
+chmod 600 pre-cluster-migration.tfstate
+terraform state pull > pre-cluster-migration.tfstate
 terraform state show singlestoredb_workspace.this
 terraform state show singlestoredb_workspace_group.example
 ```
@@ -28,13 +30,13 @@ Save these values outside the terminal scrollback:
 
 - The workspace `id`. This is the import id.
 - The workspace group `id`. After import it is `group_id` on the cluster. You do not set it.
-- `admin_password` from the workspace group, for use outside Terraform. `terraform state show` redacts sensitive values, so retrieve it from the protected raw-state backup above or an existing sensitive output. `terraform state rm` drops it from state. Keep the password and backup out of shared logs. After import, `singlestoredb_cluster.admin_password` is the password Management API returns.
+- `admin_password` from the workspace group. `terraform state show` redacts sensitive values, so retrieve it from the protected raw-state backup above or an existing sensitive output. `terraform state rm` drops it from state, and import cannot recover it: Management API returns the cluster password only on create. Keep the password and backup out of shared logs. See [Admin password](#admin-password).
 
-A suspended workspace can be imported as a suspended cluster. Set `suspended = true` when the deployment is suspended. The provider rejects changing `suspended` in the same apply as any other configuration. Resume with the workspace resource first when the migration also changes other configuration, then set `suspended = true` on the cluster in a later apply if the deployment should be suspended again.
+A suspended workspace can be imported as a suspended cluster. Omit `suspended`, or set it to the current status, and the import keeps that status. The provider rejects changing `suspended` in the same apply as any other configuration, and rejects other changes while the cluster is suspended. Resume with the workspace resource first when the migration also changes other configuration, then set `suspended = true` on the cluster in a later apply if the deployment should be suspended again.
 
 ## Rewrite the configuration
 
-Remove `singlestoredb_workspace` and `singlestoredb_workspace_group`. Add `singlestoredb_cluster` with the same deployment. Point every reference that used the workspace id, endpoint, or group password at the cluster. Do not apply yet. Applying after the old resources are gone from configuration and still present in state destroys them.
+Remove `singlestoredb_workspace` and `singlestoredb_workspace_group`. Add `singlestoredb_cluster` with the same deployment. Point every reference that used the workspace id or endpoint at the cluster. Point references to the group password at the saved password, not at the cluster. Do not apply yet. Applying after the old resources are gone from configuration and still present in state destroys them.
 
 A workspace group named `group` with one workspace looks like this before the move:
 
@@ -77,7 +79,11 @@ resource "singlestoredb_cluster" "this" {
   expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
-  suspended       = false
+}
+
+variable "admin_password" {
+  type      = string
+  sensitive = true
 }
 
 output "endpoint" {
@@ -85,7 +91,7 @@ output "endpoint" {
 }
 
 output "admin_password" {
-  value     = singlestoredb_cluster.this.admin_password
+  value     = var.admin_password
   sensitive = true
 }
 
@@ -94,7 +100,7 @@ output "group_id" {
 }
 ```
 
-`firewall_ranges` is required. `name` must be 1 to 32 characters. Set `cloud_provider` and `region_name` together, or omit both and the imported state keeps them.
+`name`, `size`, `firewall_ranges`, `cloud_provider`, and `region_name` are required. `name` must be 1 to 32 characters. Import does not supply configuration, so copy `cloud_provider` and `region_name` from the workspace group. `project_name`, `deployment_type`, and `suspended` can be omitted; the imported state keeps them.
 
 Copy every live value you previously set. Several attributes default when omitted, and an omitted value that differs from the deployment is a real update:
 
@@ -102,16 +108,14 @@ Copy every live value you previously set. Several attributes default when omitte
 | --- | --- |
 | `scale_factor` | `1` |
 | `cache_config` | `1` |
-| `suspended` | `false` |
 | `kai` | `false` |
-| `deployment_type` | `PRODUCTION` |
 | `opt_in_preview_feature` | `false` |
 | `multi_az` | `false` |
 | `auto_scale.max_scale_factor` | `1` |
 | `auto_scale.sensitivity` | `NORMAL` |
 | `auto_suspend.suspend_type` | `DISABLED` |
 
-`kai`, `multi_az`, and `opt_in_preview_feature` cannot be changed after import. If the live value is `true` and the configuration leaves the default `false`, the plan fails until the configuration matches state. `expires_at` cannot be removed: when the workspace group has one, set the same RFC3339 timestamp on the cluster.
+`kai`, `multi_az`, and `opt_in_preview_feature` cannot be changed after import. If the live value is `true` and the configuration leaves the default `false`, the plan fails until the configuration matches state. `expires_at` cannot be changed or removed after import: when the workspace group has one, set the same RFC3339 timestamp on the cluster. When it has none, leave `expires_at` unset.
 
 ## Attribute map
 
@@ -128,7 +132,7 @@ Copy every live value you previously set. Several attributes default when omitte
 | `singlestoredb_workspace.auto_scale` | `auto_scale` |
 | `singlestoredb_workspace.auto_suspend` | `auto_suspend` |
 | `singlestoredb_workspace.endpoint` | `endpoint` (computed) |
-| `singlestoredb_workspace_group.admin_password` | `admin_password` (computed; Terraform reads it from the API) |
+| `singlestoredb_workspace_group.admin_password` | none; keep the saved password outside the cluster resource (see [Admin password](#admin-password)) |
 | `singlestoredb_workspace_group.firewall_ranges` | `firewall_ranges` |
 | `singlestoredb_workspace_group.expires_at` | `expires_at` |
 | `singlestoredb_workspace_group.project_name` | `project_name` |
@@ -137,7 +141,7 @@ Copy every live value you previously set. Several attributes default when omitte
 | `singlestoredb_workspace_group.deployment_type` | `deployment_type` |
 | `singlestoredb_workspace_group.opt_in_preview_feature` | `opt_in_preview_feature` |
 | `singlestoredb_workspace_group.high_availability_two_zones` | `multi_az` |
-| `singlestoredb_workspace_group.update_window` | `update_window` |
+| `singlestoredb_workspace_group.update_window` | `update_window` (computed; read-only) |
 | `singlestoredb_workspace_group.outbound_allow_list` | `outbound_allow_list` (computed) |
 
 These attributes have no cluster argument:
@@ -152,9 +156,9 @@ These attributes have no cluster argument:
 
 Firewall ranges are compared as a set. The API may return them in a different order, and unrestricted access (`0.0.0.0/0`) may come back as an allow-all flag. A configuration whose ranges are the same set produces no diff.
 
-The provider rejects a plan that changes any of these: `name`, `project_name`, `cloud_provider`, `region_name`, `kai`, `multi_az`, `opt_in_preview_feature`. It also rejects removing `expires_at`, and changing `deployment_type` away from `NON-PRODUCTION` while `opt_in_preview_feature` is true. Fix the configuration so those values match the imported state. The provider does not schedule a replacement for them.
+The provider rejects a plan that changes any of these: `name`, `project_name`, `cloud_provider`, `region_name`, `kai`, `multi_az`, `opt_in_preview_feature`, `expires_at`. It also rejects configuring `update_window`, and changing `deployment_type` away from `NON-PRODUCTION` while `opt_in_preview_feature` is true. Fix the configuration so those values match the imported state. The provider does not schedule a replacement for them.
 
-`size`, `scale_factor`, `cache_config`, `firewall_ranges`, `expires_at` (a new timestamp), `deployment_type`, `auto_scale`, `auto_suspend`, `update_window`, and `suspended` update in place. Resume the cluster before any of those updates. Change `suspended` in an apply by itself. `admin_password` is read from the API and has no configuration argument.
+`size`, `scale_factor`, `cache_config`, `firewall_ranges`, `deployment_type`, `auto_scale`, `auto_suspend`, and `suspended` update in place. Resume the cluster before any of those updates. Change `suspended` in an apply by itself. `admin_password` has no configuration argument. The cluster resource cannot extend `expires_at`, because `PATCH /v2/clusters` ignores it. If the expiration changes outside Terraform, set the new timestamp from `terraform state show` in configuration.
 
 ## Move state
 
@@ -177,7 +181,7 @@ import {
 
 Then run `terraform plan`. After the import has been applied, delete the `import` block.
 
-Import reads the deployment. `admin_password` is the password Management API returns for the cluster.
+Import reads the deployment. It leaves `admin_password` empty, because Management API returns the password only on create.
 
 ## Read the plan before you apply
 
@@ -191,9 +195,9 @@ A plan error such as `Cannot update cluster name` means an attribute in the list
 
 ## Admin password
 
-Management API generates the cluster admin password and ignores a password sent in the request. `admin_password` on `singlestoredb_cluster` is read-only. Terraform stores the password the API returns. Setting `admin_password` in the cluster configuration is unavailable. Choosing a password may be added in a later release.
+Management API generates the cluster admin password, ignores a password sent in the request, and returns it only on create. `admin_password` on `singlestoredb_cluster` is read-only. Setting it in the cluster configuration is unavailable. Choosing a password may be added in a later release.
 
-Leave the argument off the cluster resource. After import, read the password from `singlestoredb_cluster.this.admin_password` or from a sensitive output. Keep the copy saved in [Before you edit configuration](#before-you-edit-configuration) until that read succeeds.
+An imported cluster has no `admin_password` in state, and refresh does not fill it. The SQL password does not change during the migration: it is still the workspace group password saved in [Before you edit configuration](#before-you-edit-configuration). Pass it in through a sensitive variable or a secret store, and use that value wherever configuration used `singlestoredb_workspace_group.example.admin_password`. Do not point those references at `singlestoredb_cluster.this.admin_password`.
 
 `singlestoredb_workspace_group` still accepts `admin_password`. That behavior stays until the resource is removed. The [README](README.md#cluster-admin-password) describes the cluster attribute.
 
@@ -216,7 +220,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 | Existing data source | Replacement |
 | --- | --- |
 | `singlestoredb_workspace` | `singlestoredb_cluster`, looked up by `id` (the workspace id). The cluster data source has no `name` argument. |
-| `singlestoredb_workspaces` | `singlestoredb_clusters`. The filter is an optional `project_id`. There is no `workspace_group_id` filter. Each entry's `group_id` is the old workspace group id, and `id` is the old workspace id. |
+| `singlestoredb_workspaces` | `singlestoredb_clusters`. The filters are an optional `project_id` and `include_terminated`. There is no `workspace_group_id` filter. Each entry's `group_id` is the old workspace group id, and `id` is the old workspace id. |
 | `singlestoredb_workspace_group` | `singlestoredb_cluster`. Group fields (`firewall_ranges`, `region_name`, `expires_at`, `multi_az`, and the rest of the map above) are attributes of the cluster. |
 | `singlestoredb_workspace_groups` | `singlestoredb_clusters`. This lists clusters, not groups. |
 
@@ -256,13 +260,13 @@ resource "singlestoredb_private_connection" "this" {
 
 ### SQL
 
-`singlestoredb_sql_execute` and `singlestoredb_sql_query` take the SQL host and the admin password. Point them at the cluster:
+`singlestoredb_sql_execute` and `singlestoredb_sql_query` take the SQL host and the admin password. Point the host at the cluster and the password at the saved value:
 
 ```hcl
 resource "singlestoredb_sql_execute" "this" {
   endpoint = singlestoredb_cluster.this.endpoint
   username = "admin"
-  password = singlestoredb_cluster.this.admin_password
+  password = var.admin_password
 
   execute = "CREATE DATABASE IF NOT EXISTS ?"
   # ...

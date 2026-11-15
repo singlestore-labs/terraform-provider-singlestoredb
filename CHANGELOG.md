@@ -5,6 +5,8 @@
 ### Deprecated
 
 - `singlestoredb_regions` is deprecated and is removed in v1.0.0, the first release on or after April 30, 2027. Use the `singlestoredb_regions_v2` data source instead, and set `cloud_provider` and `region_name` on `singlestoredb_workspace_group` instead of `region_id`.
+- `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The resources are removed in v1.0.0, the first release on or after April 30, 2027. The move onto `singlestoredb_cluster` is documented in `MIGRATING.md`.
+- `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` data sources are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The data sources are removed in v1.0.0, the first release on or after April 30, 2027. Use `singlestoredb_cluster` and `singlestoredb_clusters`. The move is documented in `MIGRATING.md`.
 
 ### Added
 
@@ -19,11 +21,6 @@
 - `singlestoredb_cluster` destroy and refresh treat a cluster with `terminatedAt` set as terminated. Management API reports a cluster deleted before its endpoint became ready as `FAILED` or `PENDING`, so destroy previously waited an hour and then failed.
 - `singlestoredb_cluster` explains that `PENDING` can also mean the cluster is offline or impacted. Management API reports those states as `PENDING`, so updates wait until the cluster is `ACTIVE` or `SUSPENDED`; destroy does not wait.
 - `singlestoredb_cluster.auto_suspend.suspend_after_seconds` is an integer number of seconds. The Management API stores idle and scheduled delays as integers.
-
-### Changed
-
-- `singlestoredb_workspace` and `singlestoredb_workspace_group` are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The resources are removed in v1.0.0, the first release on or after April 30, 2027. The move onto `singlestoredb_cluster` is documented in `MIGRATING.md`.
-- `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` data sources are deprecated. They keep their current behavior in v0.2.0. Plans print a deprecation warning. The data sources are removed in v1.0.0, the first release on or after April 30, 2027. Use `singlestoredb_cluster` and `singlestoredb_clusters`. The move is documented in `MIGRATING.md`.
 
 ### Fixed
 
