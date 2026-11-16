@@ -226,7 +226,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 | `singlestoredb_workspace` | `singlestoredb_cluster`, looked up by `id` (the workspace id). The cluster data source has no `name` argument. |
 | `singlestoredb_workspaces` | `singlestoredb_clusters`. The filters are an optional `project_id` and `include_terminated`. There is no `workspace_group_id` filter. Each entry's `group_id` is the old workspace group id, and `id` is the old workspace id. |
 | `singlestoredb_workspace_group` | `singlestoredb_cluster`. Group fields (`firewall_ranges`, `region_name`, `expires_at`, `multi_az`, and the rest of the map above) are attributes of the cluster. |
-| `singlestoredb_workspace_groups` | `singlestoredb_clusters`. This lists clusters, not groups. |
+| `singlestoredb_workspace_groups` | `singlestoredb_clusters`. This lists clusters, not groups. A workspace group with no workspaces has no cluster entry, so it does not appear. A group with several workspaces appears once per workspace, and the entries share a `group_id`. Do not use the list as a group inventory or count its entries as groups. |
 
 On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at`, `allow_all_traffic`, `project_name`, and `region_id` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.
 
