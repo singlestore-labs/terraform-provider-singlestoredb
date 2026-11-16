@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Deprecated. Manage SingleStoreDB workspaces. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v1.0.0, the first release on or after April 30, 2027. Move an existing deployment by replacing both resource blocks with a matching singlestoredb_cluster block, removing both resources from state, and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. Run terraform plan afterward to confirm that nothing is created or destroyed. See MIGRATING.md in the provider repository.
+  Deprecated: use singlestoredb_cluster instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md. Manage SingleStoreDB workspaces.
 ---
 
 # singlestoredb_workspace (Resource)
 
-Deprecated. Manage SingleStoreDB workspaces. Use singlestoredb_cluster for new deployments. This resource keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace and singlestoredb_workspace_group are removed in v1.0.0, the first release on or after April 30, 2027. Move an existing deployment by replacing both resource blocks with a matching singlestoredb_cluster block, removing both resources from state, and importing the workspace id: terraform state rm, then terraform import singlestoredb_cluster.NAME WORKSPACE_ID. Run terraform plan afterward to confirm that nothing is created or destroyed. See MIGRATING.md in the provider repository.
+**Deprecated:** use `singlestoredb_cluster` instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md). Manage SingleStoreDB workspaces.
 
 ## Example Usage
 

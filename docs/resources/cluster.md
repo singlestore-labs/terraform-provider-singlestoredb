@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing singlestoredb_workspace and singlestoredb_workspace_group, remove both from state and import the workspace id as this resource.
+  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, import its id; see the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource.
+Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import its id; see the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md).
 
 ## Example Usage
 
@@ -67,7 +67,7 @@ output "admin_password" {
 - `kai` (Boolean) Whether SingleStore Kai (MongoDB compatibility) is enabled for the cluster.
 - `multi_az` (Boolean) Enables deployment across multiple availability zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
-- `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
+- `project_name` (String) The name of the project to which the cluster is assigned. Required when creating a cluster. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
 - `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. If omitted and other settings change, the plan shows this value as known after apply, because `auto_suspend` can suspend the cluster once the update lands. Must be false or omitted on create.
 

@@ -47,7 +47,7 @@ func (d *workspaceGroupsDataSourceList) Metadata(_ context.Context, req datasour
 func (d *workspaceGroupsDataSourceList) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		DeprecationMessage:  config.WorkspaceDataSourceDeprecationMessage,
-		MarkdownDescription: "Deprecated. This data source provides a list of workspace groups that the user has access to. " + config.WorkspaceDataSourceDeprecationMessage,
+		MarkdownDescription: config.WorkspaceDataSourceDeprecationMarkdown + " This data source provides a list of workspace groups that the user has access to.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				Computed: true,

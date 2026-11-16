@@ -128,7 +128,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource.",
+		MarkdownDescription: "Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import its id; see the [migration guide](" + config.MigratingGuideURL + ").",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -147,7 +147,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"project_name": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.",
+				MarkdownDescription: "The name of the project to which the cluster is assigned. Required when creating a cluster. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},

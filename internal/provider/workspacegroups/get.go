@@ -69,7 +69,7 @@ func (d *workspaceGroupsDataSourceGet) Metadata(_ context.Context, req datasourc
 func (d *workspaceGroupsDataSourceGet) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		DeprecationMessage:  config.WorkspaceDataSourceDeprecationMessage,
-		MarkdownDescription: "Deprecated. Retrieve a specific workspace group using its name or ID with this data source. " + config.WorkspaceDataSourceDeprecationMessage,
+		MarkdownDescription: config.WorkspaceDataSourceDeprecationMarkdown + " Retrieve a specific workspace group using its name or ID with this data source.",
 		Attributes: newWorkspaceGroupDataSourceSchemaAttributes(workspaceGroupDataSourceSchemaConfig{
 			optionalWorkspaceGroupID:   true,
 			optionalName:               true,

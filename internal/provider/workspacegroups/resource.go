@@ -79,7 +79,7 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		DeprecationMessage:  config.WorkspaceResourceDeprecationMessage,
-		MarkdownDescription: "Deprecated. Manage SingleStoreDB workspace groups. " + config.WorkspaceResourceDeprecationMessage,
+		MarkdownDescription: config.WorkspaceResourceDeprecationMarkdown + " Manage SingleStoreDB workspace groups.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

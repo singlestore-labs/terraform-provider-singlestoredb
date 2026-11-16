@@ -12,7 +12,7 @@ These steps need a workspace to import. A workspace group with no workspace has 
 
 `singlestoredb_workspace` and `singlestoredb_workspace_group` keep their current behavior in v0.2.0. `terraform plan` prints a deprecation warning. The data sources `singlestoredb_workspace`, `singlestoredb_workspaces`, `singlestoredb_workspace_group`, and `singlestoredb_workspace_groups` do the same.
 
-These resources and data sources are removed in v1.0.0, the first release on or after April 30, 2027. New configurations use `singlestoredb_cluster`.
+These resources and data sources are removed in v1.0.0, the first release on or after August 20, 2027. New configurations use `singlestoredb_cluster`.
 
 ## Before you edit configuration
 
@@ -26,7 +26,9 @@ terraform state show singlestoredb_workspace.this
 terraform state show singlestoredb_workspace_group.example
 ```
 
-Check the deployment name before you change state. A cluster `name` must be 1 to 32 characters, the provider rejects a rename, and the workspace group resource does not limit its name. Read the name the cluster will have with a `singlestoredb_cluster` data source whose `id` is the workspace id, or from `GET /v2/clusters/{id}`. If the name is longer than 32 characters, no cluster configuration can match it. Keep the workspace resources in that case.
+Check the deployment name before you change state. The cluster `name` is the workspace `name`, not the workspace group name. A cluster `name` must be 1 to 32 characters and the provider rejects a rename, while the workspace resource does not limit its name. If the workspace name is longer than 32 characters, no cluster configuration can match it. Keep the workspace resources in that case.
+
+To preview every value the cluster will have, read it with a `singlestoredb_cluster` data source whose `id` is the workspace id. This needs no state changes.
 
 Save these values outside the terminal scrollback:
 
@@ -70,15 +72,14 @@ output "admin_password" {
 }
 ```
 
-After the move, `name` is the name `GET /v2/clusters/{id}` returns. That is usually the workspace group name, `group` here, and it is not the workspace name `workspace-1`. The provider rejects a later rename.
+After the move, `name` is the workspace name, `workspace-1` here. `expires_at` is omitted: see [Expiration](#expiration).
 
 ```hcl
 resource "singlestoredb_cluster" "this" {
-  name            = "group"
+  name            = "workspace-1"
   project_name    = "Standard Project"
   size            = "S-00"
   firewall_ranges = ["0.0.0.0/0"]
-  expires_at      = "2222-01-01T00:00:00Z"
   cloud_provider  = "AWS"
   region_name     = "us-east-1"
 }
@@ -117,7 +118,13 @@ Copy every live value you previously set. Several attributes default when omitte
 | `auto_scale.sensitivity` | `NORMAL` |
 | `auto_suspend.suspend_type` | `DISABLED` |
 
-`kai`, `multi_az`, and `opt_in_preview_feature` cannot be changed after import. If the live value is `true` and the configuration leaves the default `false`, the plan fails until the configuration matches state. `expires_at` cannot be changed or removed after import: when the workspace group has one, set the same RFC3339 timestamp on the cluster. When it has none, leave `expires_at` unset.
+`kai`, `multi_az`, and `opt_in_preview_feature` cannot be changed after import. If the live value is `true` and the configuration leaves the default `false`, the plan fails until the configuration matches state.
+
+### Expiration
+
+Leave `expires_at` unset on an imported cluster, even when the workspace group has an expiration. `GET /v2/clusters/{id}` does not return the workspace group expiration, so import stores no `expires_at`, and the plan fails with `Cannot change cluster expires_at` if the configuration sets one.
+
+The workspace group still expires at its `expires_at`. After the migration Terraform no longer shows that time. Note it from the `terraform state show` output saved earlier, and extend or remove it in the SingleStore Portal if needed.
 
 ## Attribute map
 
@@ -125,7 +132,7 @@ Copy every live value you previously set. Several attributes default when omitte
 | --- | --- |
 | `singlestoredb_workspace.id` | `id` (import this value) |
 | `singlestoredb_workspace_group.id` | `group_id` (computed) |
-| `singlestoredb_workspace_group.name` | `name` (the live `/v2/clusters` name, usually this name) |
+| `singlestoredb_workspace.name` | `name` |
 | `singlestoredb_workspace.size` | `size` |
 | `singlestoredb_workspace.suspended` | `suspended` |
 | `singlestoredb_workspace.kai_enabled` | `kai` |
@@ -136,7 +143,7 @@ Copy every live value you previously set. Several attributes default when omitte
 | `singlestoredb_workspace.endpoint` | `endpoint` (computed) |
 | `singlestoredb_workspace_group.admin_password` | none; keep the saved password outside the cluster resource (see [Admin password](#admin-password)) |
 | `singlestoredb_workspace_group.firewall_ranges` | `firewall_ranges` |
-| `singlestoredb_workspace_group.expires_at` | `expires_at` |
+| `singlestoredb_workspace_group.expires_at` | none; leave `expires_at` unset (see [Expiration](#expiration)) |
 | `singlestoredb_workspace_group.project_name` | `project_name` |
 | `singlestoredb_workspace_group.cloud_provider` | `cloud_provider` |
 | `singlestoredb_workspace_group.region_name` | `region_name` |
@@ -148,7 +155,7 @@ Copy every live value you previously set. Several attributes default when omitte
 
 These attributes have no cluster argument:
 
-- `singlestoredb_workspace.name`. The cluster name comes from the clusters API.
+- `singlestoredb_workspace_group.name`. The group name is not used by the cluster.
 - `singlestoredb_workspace.workspace_group_id`. Use the computed `group_id`.
 - `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`.
 - `singlestoredb_workspace.created_at` and `singlestoredb_workspace_group.created_at`. The cluster `created_at` is the cluster's own timestamp.
@@ -156,11 +163,13 @@ These attributes have no cluster argument:
 
 `created_at`, `endpoint`, `group_id`, and `outbound_allow_list` are read from the API after import.
 
-Firewall ranges are compared as a set. The API may return them in a different order, and unrestricted access (`0.0.0.0/0`) may come back as an allow-all flag. Import has no configuration to keep the order from, so it stores the order the API returns. The first plan after import can show an in-place update of `firewall_ranges` when only the order differs. Applying it sends nothing to the API and stores your order. List the ranges in the order `terraform state show` prints to avoid that update.
+Firewall ranges are compared as a set. Import has no configuration to keep the order from, so it stores the order the API returns, and the first plan after import can show an in-place update when only the order differs. A list that contains `0.0.0.0/0` comes back as allow-all only, so import stores `["0.0.0.0/0"]` and drops the other ranges. Set `firewall_ranges` to exactly what `terraform state show` prints after import to avoid that update. Use `["0.0.0.0/0"]` alone when the group allowed all traffic: the other ranges have no effect.
+
+The first update after import also shows `+ admin_password = (sensitive value)`. The value stays empty; see [Admin password](#admin-password).
 
 The provider rejects a plan that changes any of these: `name`, `project_name`, `cloud_provider`, `region_name`, `kai`, `multi_az`, `opt_in_preview_feature`, `expires_at`. It also rejects configuring `update_window`, and changing `deployment_type` away from `NON-PRODUCTION` while `opt_in_preview_feature` is true. Fix the configuration so those values match the imported state. The provider does not schedule a replacement for them.
 
-`size`, `scale_factor`, `cache_config`, `firewall_ranges`, `deployment_type`, `auto_scale`, `auto_suspend`, and `suspended` update in place. Resume the cluster before any of those updates. Change `suspended` in an apply by itself. `admin_password` has no configuration argument. The cluster resource cannot extend `expires_at`, because `PATCH /v2/clusters` ignores it. If the expiration changes outside Terraform, set the new timestamp from `terraform state show` in configuration.
+`size`, `scale_factor`, `cache_config`, `firewall_ranges`, `deployment_type`, `auto_scale`, `auto_suspend`, and `suspended` update in place. Resume the cluster before any of those updates. Change `suspended` in an apply by itself. `admin_password` has no configuration argument.
 
 ## Move state
 
@@ -193,7 +202,7 @@ A plan that destroys `singlestoredb_workspace`, `singlestoredb_workspace_group`,
 
 A plan error such as `Cannot update cluster name` means an attribute in the list above does not match imported state. The error prints the current value. Put that value in configuration. Applying is blocked until the plan succeeds.
 
-`terraform state show singlestoredb_cluster.this` after import is the source for `name`, `size`, `cloud_provider`, `region_name`, `project_name`, and the rest of the live attributes. Set `name` from that output. The workspace resource's `name` is a different string.
+`terraform state show singlestoredb_cluster.this` after import is the source for `name`, `size`, `cloud_provider`, `region_name`, `project_name`, `firewall_ranges`, and the rest of the live attributes.
 
 ## Admin password
 
@@ -215,9 +224,44 @@ terraform import singlestoredb_cluster.one <workspace-one-id>
 terraform import singlestoredb_cluster.two <workspace-two-id>
 ```
 
-After each import, copy that cluster's `name` from `terraform state show`. The clusters API supplies the name, which is usually the workspace group name.
+Each cluster's `name` is its workspace name, so the clusters have different names.
 
-`firewall_ranges`, `expires_at`, `deployment_type`, `project_name`, `cloud_provider`, `region_name`, `multi_az`, and `opt_in_preview_feature` belong to the shared workspace group. Set them to the same values in every cluster that shares a `group_id`, and change them in all of those clusters in the same apply. An update to one cluster sends its `firewall_ranges` and `deployment_type` to the shared group. When the clusters disagree, each apply overwrites the other's firewall ranges, which can block access.
+Keep the shared settings in one place so they cannot drift apart:
+
+```hcl
+locals {
+  group = {
+    project_name    = "Standard Project"
+    firewall_ranges = ["0.0.0.0/0"]
+    cloud_provider  = "AWS"
+    region_name     = "us-east-1"
+  }
+}
+
+resource "singlestoredb_cluster" "one" {
+  name            = "workspace-1"
+  size            = "S-00"
+  project_name    = local.group.project_name
+  firewall_ranges = local.group.firewall_ranges
+  cloud_provider  = local.group.cloud_provider
+  region_name     = local.group.region_name
+}
+
+resource "singlestoredb_cluster" "two" {
+  name            = "workspace-2"
+  size            = "S-00"
+  project_name    = local.group.project_name
+  firewall_ranges = local.group.firewall_ranges
+  cloud_provider  = local.group.cloud_provider
+  region_name     = local.group.region_name
+}
+```
+
+`firewall_ranges`, `deployment_type`, `project_name`, `cloud_provider`, `region_name`, `multi_az`, and `opt_in_preview_feature` belong to the shared workspace group. Set them to the same values in every cluster that shares a `group_id`, and change them in all of those clusters in the same apply. An update to one cluster sends its `firewall_ranges` and `deployment_type` to the shared group. When the clusters disagree, each apply overwrites the other's firewall ranges, which can block access.
+
+## Deleting a migrated deployment
+
+Destroying `singlestoredb_cluster` deletes the workspace. It does not delete the workspace group, even after its last cluster is destroyed. Delete the empty group in the SingleStore Portal, or with `DELETE /v1/workspaceGroups/{id}`.
 
 ## Data sources
 
@@ -225,7 +269,7 @@ After each import, copy that cluster's `name` from `terraform state show`. The c
 | --- | --- |
 | `singlestoredb_workspace` | `singlestoredb_cluster`, looked up by `id` (the workspace id). The cluster data source has no `name` argument. |
 | `singlestoredb_workspaces` | `singlestoredb_clusters`. The filters are an optional `project_id` and `include_terminated`. There is no `workspace_group_id` filter. Each entry's `group_id` is the old workspace group id, and `id` is the old workspace id. |
-| `singlestoredb_workspace_group` | `singlestoredb_cluster`. Group fields (`firewall_ranges`, `region_name`, `expires_at`, `multi_az`, and the rest of the map above) are attributes of the cluster. |
+| `singlestoredb_workspace_group` | `singlestoredb_cluster`. Group fields (`firewall_ranges`, `region_name`, `multi_az`, and the rest of the map above) are attributes of the cluster. The group expiration is not available. |
 | `singlestoredb_workspace_groups` | `singlestoredb_clusters`. This lists clusters, not groups. A workspace group with no workspaces has no cluster entry, so it does not appear. A group with several workspaces appears once per workspace, and the entries share a `group_id`. Do not use the list as a group inventory or count its entries as groups. |
 
 On the cluster data source, `kai_enabled` is `kai`, `workspace_group_id` is `group_id`, and `high_availability_two_zones` is `multi_az`. `last_resumed_at`, `allow_all_traffic`, `project_name`, and `region_id` are absent. Unrestricted access is `firewall_ranges` containing `0.0.0.0/0`.

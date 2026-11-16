@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspaces Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Deprecated. This data source provides a list of workspaces that the user has access to. Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v1.0.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository.
+  Deprecated: use singlestoredb_cluster or singlestoredb_clusters instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md. This data source provides a list of workspaces that the user has access to.
 ---
 
 # singlestoredb_workspaces (Data Source)
 
-Deprecated. This data source provides a list of workspaces that the user has access to. Use singlestoredb_cluster or singlestoredb_clusters instead. This data source keeps its current behavior in v0.2.0, and plans print this warning. singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group, and singlestoredb_workspace_groups are removed in v1.0.0, the first release on or after April 30, 2027. See MIGRATING.md in the provider repository.
+**Deprecated:** use `singlestoredb_cluster` or `singlestoredb_clusters` instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md). This data source provides a list of workspaces that the user has access to.
 
 ## Example Usage
 
