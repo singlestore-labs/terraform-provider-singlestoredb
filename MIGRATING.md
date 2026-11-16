@@ -102,7 +102,7 @@ output "group_id" {
 }
 ```
 
-`name`, `size`, `firewall_ranges`, `cloud_provider`, and `region_name` are required. `name` must be 1 to 32 characters. Import does not supply configuration, so copy `cloud_provider` and `region_name` from the workspace group. `project_name`, `deployment_type`, and `suspended` can be omitted; the imported state keeps them.
+`name`, `size`, `firewall_ranges`, `cloud_provider`, and `region_name` are required. `name` must be 1 to 32 characters. Import does not supply configuration, so copy `cloud_provider` and `region_name` from the workspace group. A workspace group configured with the deprecated `region_id` has neither in state. Read them before you remove state, from a `singlestoredb_cluster` data source whose `id` is the workspace id, or from `GET /v2/clusters/{id}`. `project_name`, `deployment_type`, and `suspended` can be omitted; the imported state keeps them.
 
 Copy every live value you previously set. Several attributes default when omitted, and an omitted value that differs from the deployment is a real update:
 
@@ -252,13 +252,14 @@ resource "singlestoredb_flow" "this" {
 
 ### Private connection
 
-`singlestoredb_private_connection` is unchanged. Keep `workspace_id` or `workspace_group_id`, and keep their values: the provider rejects a change. The cluster `id` is the workspace id, so a connection that used `singlestoredb_workspace.this.id` can use `singlestoredb_cluster.this.id` in `workspace_id`. A connection that used `singlestoredb_workspace_group.example.id` can use `singlestoredb_cluster.this.group_id` in `workspace_group_id`.
+`singlestoredb_private_connection` is unchanged. `workspace_group_id` is required, and `workspace_id` is optional. Keep their values: the provider rejects a change. Set `workspace_group_id` to `singlestoredb_cluster.this.group_id`, which is the old workspace group id. When the connection also set `workspace_id` from `singlestoredb_workspace.this.id`, set it to `singlestoredb_cluster.this.id`, which is the old workspace id.
 
 ```hcl
 resource "singlestoredb_private_connection" "this" {
-  allow_list   = "651246146166"
-  type         = "INBOUND"
-  workspace_id = singlestoredb_cluster.this.id
+  allow_list         = "651246146166"
+  type               = "INBOUND"
+  workspace_group_id = singlestoredb_cluster.this.group_id
+  workspace_id       = singlestoredb_cluster.this.id
 }
 ```
 
