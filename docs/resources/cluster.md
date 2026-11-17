@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, remove both of those resources from state before importing the workspace id. Importing while they remain in state lets the next apply destroy the deployment. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md.
+  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with removed blocks that set destroy = false. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, remove both of those resources from state before importing the workspace id. Importing while they remain in state lets the next apply destroy the deployment. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md).
+Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md).
 
 ## Example Usage
 
@@ -76,7 +76,7 @@ output "admin_password" {
 - `admin_password` (String, Sensitive) The admin SQL user password for the cluster. Management API generates this password and returns it only on create. Terraform stores that value. Later responses omit the password, and refresh keeps the password already in state. Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. Read this attribute from state or from a sensitive output.
 - `created_at` (String) The timestamp when the cluster was created.
 - `endpoint` (String) The endpoint used to connect to the cluster.
-- `group_id` (String) The unique identifier of the workspace group that contains the cluster. Destroy deletes this cluster and leaves the workspace group in place, including when this cluster is its only workspace. Delete an empty group in the SingleStore Portal or with `DELETE /v1/workspaceGroups/{id}`.
+- `group_id` (String) The unique identifier of the workspace group that contains the cluster. Destroying the last cluster in a workspace group also terminates the group. Destroying a cluster that shares the group with other workspaces leaves the group and those workspaces running.
 - `id` (String) The unique identifier of the cluster.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 - `update_window` (Attributes) The maintenance window the Management API assigned to the cluster. Configuring update_window is unavailable: POST and PATCH /v2/clusters ignore updateWindow. Terraform reports the window the API returns. (see [below for nested schema](#nestedatt--update_window))

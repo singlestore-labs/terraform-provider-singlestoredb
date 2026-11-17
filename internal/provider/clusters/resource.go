@@ -128,7 +128,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, remove both of those resources from state before importing the workspace id. Importing while they remain in state lets the next apply destroy the deployment. See the [migration guide](" + config.MigratingGuideURL + ").",
+		MarkdownDescription: "Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](" + config.MigratingGuideURL + ").",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -155,8 +155,8 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"group_id": schema.StringAttribute{
 				Computed: true,
 				MarkdownDescription: "The unique identifier of the workspace group that contains the cluster. " +
-					"Destroy deletes this cluster and leaves the workspace group in place, including when this cluster is its only workspace. " +
-					"Delete an empty group in the SingleStore Portal or with `DELETE /v1/workspaceGroups/{id}`.",
+					"Destroying the last cluster in a workspace group also terminates the group. " +
+					"Destroying a cluster that shares the group with other workspaces leaves the group and those workspaces running.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
