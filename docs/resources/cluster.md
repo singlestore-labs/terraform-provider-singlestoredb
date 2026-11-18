@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with removed blocks that set destroy = false. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md.
+  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with removed blocks that set destroy = false. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md).
+Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md).
 
 ## Example Usage
 

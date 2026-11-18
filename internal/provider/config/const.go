@@ -53,7 +53,8 @@ const (
 	// v1.0.0, the first release on or after August 20, 2027, removes the data source.
 	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after August 20, 2027."
 	// MigratingGuideURL points to the guide for moving workspace resources onto singlestoredb_cluster.
-	MigratingGuideURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md"
+	// It is pinned to the release tag that first ships the guide, so the link survives if the file moves on master.
+	MigratingGuideURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md"
 	// WorkspaceResourceDeprecationMessage is printed on every plan that uses
 	// singlestoredb_workspace or singlestoredb_workspace_group.
 	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster instead. This resource is removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see " + MigratingGuideURL

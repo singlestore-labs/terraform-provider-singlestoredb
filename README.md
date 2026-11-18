@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb/branch/master/graph/badge.svg?token=BT65KGONQ6)](https://codecov.io/gh/singlestore-labs/terraform-provider-singlestoredb)
 [![License](https://img.shields.io/github/license/singlestore-labs/terraform-provider-singlestoredb.svg)](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/LICENSE)
 
-`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work in v0.2.0 and are removed in v1.0.0, the first release on or after August 20, 2027; see [Migrating from workspace resources](MIGRATING.md).
+`terraform-provider-singlestoredb` is a Terraform provider for managing resources on SingleStoreDB Cloud. Use `singlestoredb_cluster` for deployments. `singlestoredb_workspace` and `singlestoredb_workspace_group` still work in v0.2.0 and will be removed in v1.0.0.
 
 ## Prerequisites
 
@@ -132,8 +132,6 @@ Move an existing deployment onto `singlestoredb_cluster` without creating a new 
 ## Documentation
 
 For more detailed information about `terraform-provider-singlestoredb`, including advanced usage and configuration options, check out our [official documentation](./docs/index.md).
-
-To move an existing workspace and workspace group onto `singlestoredb_cluster`, see [Migrating from workspace resources](MIGRATING.md).
 
 ## Contributing
 

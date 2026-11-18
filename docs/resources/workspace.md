@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Deprecated: use singlestoredb_cluster instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md. Manage SingleStoreDB workspaces.
+  Deprecated: use singlestoredb_cluster instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md. Manage SingleStoreDB workspaces.
 ---
 
 # singlestoredb_workspace (Resource)
 
-**Deprecated:** use `singlestoredb_cluster` instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md). Manage SingleStoreDB workspaces.
+**Deprecated:** use `singlestoredb_cluster` instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md). Manage SingleStoreDB workspaces.
 
 ## Example Usage
 

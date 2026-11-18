@@ -55,9 +55,9 @@ output "admin_password" {
 
 You need Terraform 1.7 or later for `removed` blocks, and `jq`. On older Terraform, see [Terraform older than 1.7](#terraform-older-than-17).
 
-Change no cloud resources from step 1 until the migration is applied in step 4. Run no other `terraform apply` in this state, and make no changes in the SingleStore Portal or through Management API to anything this state manages. The migration plan must show `0 to change`: any change it shows is a mistake, not part of the migration. Make size, scaling, firewall, and suspend changes after the migration, in separate applies. Keeping the cloud resources unchanged is also what makes [rollback](#roll-back) a matter of putting the configuration and state back.
+The shell commands in this guide are a convenience, not a tool. They read the state file directly and are not guaranteed to work for every configuration or state layout. Check what each one prints or writes before you use it: every expected resource is present, no unexpected one is, and the addresses and ids match your configuration and state. The plan in step 4 is the final check.
 
-Check the deployment name. The cluster `name` is the workspace `name`, not the workspace group name, and it must be 1 to 32 characters. Management API rejects longer names when it creates a workspace, but an older workspace can have one, and a workspace cannot be renamed: `PATCH /v2/clusters/{id}` returns success and keeps the old name. If a workspace name is longer than 32 characters, first follow [A workspace name longer than 32 characters](#a-workspace-name-longer-than-32-characters).
+Change no cloud resources from step 1 until the migration is applied in step 4. Run no other `terraform apply` in this state, and make no changes in the SingleStore Portal or through Management API to anything this state manages. The migration plan must show `0 to change`: any change it shows is a mistake, not part of the migration. Make size, scaling, firewall, and suspend changes after the migration, in separate applies. Keeping the cloud resources unchanged is also what makes [rollback](#roll-back) a matter of putting the configuration and state back.
 
 A suspended workspace migrates as a suspended cluster. Leave it suspended for the migration. Afterwards, the provider rejects changing `suspended` together with other configuration, and rejects other changes while the cluster is suspended: resume in one apply, change settings in the next, and suspend again in a third.
 
@@ -71,18 +71,24 @@ Commit the current configuration, so you can restore it exactly. Then save the s
 
 The backup holds the admin password in plain text. Keep it out of shared logs and version control.
 
-Print the workspace group password and store it in your secret store:
+Print the password of every workspace group, with its address, and store each one in your secret store:
 
 ```shell
-jq -r '.resources[] | select(.type == "singlestoredb_workspace_group") | "\(.name): \(.instances[0].attributes.admin_password)"' pre-cluster-migration.tfstate
+jq -r '.resources[] | select(.mode == "managed" and .type == "singlestoredb_workspace_group") as $r
+  | $r.instances[]
+  | "\(if $r.module then "\($r.module)." else "" end)\($r.type).\($r.name)\(if .index_key == null then "" else "[\(.index_key | tojson)]" end): \(.attributes.admin_password)"' \
+  pre-cluster-migration.tfstate
 ```
 
 The migration drops the password from state, and import cannot recover it: Management API returns the cluster password only on create. The SQL password itself does not change. See [Admin password](#admin-password).
 
-If the workspace group has an expiration, note it now. After the migration Terraform no longer shows it. See [Expiration](#expiration).
+If a workspace group has an expiration, note it now. After the migration Terraform no longer shows it. See [Expiration](#expiration).
 
 ```shell
-jq -r '.resources[] | select(.type == "singlestoredb_workspace_group") | "\(.name): \(.instances[0].attributes.expires_at)"' pre-cluster-migration.tfstate
+jq -r '.resources[] | select(.mode == "managed" and .type == "singlestoredb_workspace_group") as $r
+  | $r.instances[]
+  | "\(if $r.module then "\($r.module)." else "" end)\($r.type).\($r.name)\(if .index_key == null then "" else "[\(.index_key | tojson)]" end): \(.attributes.expires_at)"' \
+  pre-cluster-migration.tfstate
 ```
 
 ## 2. Generate the cluster configuration
@@ -91,12 +97,20 @@ Write an `import` block for every workspace. Each cluster gets the address of it
 
 ```shell
 jq -r '.resources[]
-  | select(.mode == "managed" and .module == null and .each == null and .type == "singlestoredb_workspace")
+  | select(.mode == "managed" and .module == null and .type == "singlestoredb_workspace")
+  | select((.instances | length) == 1 and .instances[0].index_key == null)
   | "import {\n  to = singlestoredb_cluster.\(.name)\n  id = \"\(.instances[0].attributes.id)\"\n}\n"' \
   pre-cluster-migration.tfstate > cluster-imports.tf
 ```
 
-The command covers resources in the root module without `count` or `for_each`. For others, write the block by hand with the full address, for example `to = module.db.singlestoredb_cluster.this["eu"]`, and the workspace id as `id`.
+The command covers only resources in the root module without `count` or `for_each`. Terraform cannot generate configuration for an address inside a child module or with an index, so migrate those workspaces by hand:
+
+1. For each one, write an `import` block with a temporary root-level address and the workspace id, for example `to = singlestoredb_cluster.db_eu`.
+2. Generate the configuration as below.
+3. Move the generated attributes into the cluster resource in the module or the `for_each`, and delete the temporary resource block.
+4. Change `to` in the `import` block to the final address, for example `to = module.db.singlestoredb_cluster.this["eu"]`. An `import` block in the root module can target an address inside a child module.
+
+Do this before step 4. Nothing is imported until the migration apply, so changing `to` is safe.
 
 Leave the workspace resources in configuration for now, and generate the cluster resources from the live deployment:
 
@@ -137,19 +151,28 @@ The values come from the deployment, so do not edit them during the migration. T
 
 ## 3. Replace the old resources
 
-Write a `removed` block for every workspace and workspace group. `destroy = false` drops them from state without deleting them:
+Write a `removed` block for every workspace imported in step 2, and for every workspace group whose workspaces are all imported. `destroy = false` drops them from state without deleting them:
 
 ```shell
-jq -r '.resources[]
-  | select(.mode == "managed" and .module == null and .each == null)
-  | select(.type == "singlestoredb_workspace" or .type == "singlestoredb_workspace_group")
-  | "removed {\n  from = \(.type).\(.name)\n  lifecycle {\n    destroy = false\n  }\n}\n"' \
+jq -r '
+  def single: .module == null and (.instances | length) == 1 and .instances[0].index_key == null;
+  def removed: "removed {\n  from = \(.type).\(.name)\n  lifecycle {\n    destroy = false\n  }\n}\n";
+  [.resources[] | select(.mode == "managed" and .type == "singlestoredb_workspace")] as $ws
+  | [$ws[] | select(single) | .instances[0].attributes.workspace_group_id] as $migrated
+  | [$ws[] | select(single | not) | .instances[].attributes.workspace_group_id] as $kept
+  | ($ws[] | select(single) | removed),
+    (.resources[]
+      | select(.mode == "managed" and .type == "singlestoredb_workspace_group" and single)
+      | select(.instances[0].attributes.id as $id | ($migrated | index($id)) and ($kept | index($id) | not))
+      | removed)' \
   pre-cluster-migration.tfstate > workspace-removed.tf
 ```
 
+The command writes no block for a workspace group with no workspace: keep it, as described [above](#migrating-from-workspace-resources). It also skips resources in child modules or with `count` or `for_each`, and groups that contain such workspaces. For the workspaces you import by hand in step 2, write the `removed` blocks by hand. A `removed` block takes an address without an index, for example `from = module.db.singlestoredb_workspace.this`, and drops every instance of it. Remove a resource with `count` or `for_each` only when all its instances are imported, and a workspace group only when all its workspaces are imported.
+
 Then edit your main configuration:
 
-- Delete the `singlestoredb_workspace` and `singlestoredb_workspace_group` blocks.
+- Delete the `singlestoredb_workspace` and `singlestoredb_workspace_group` blocks that have a `removed` block. Keep every other block.
 - Point references to the workspace `id` or `endpoint` at the cluster, for example `singlestoredb_cluster.example_workspace.endpoint`.
 - Point references to the workspace group `id` at `singlestoredb_cluster.example_workspace.group_id`.
 - Point references to the group `admin_password` at the password you saved, through a sensitive variable or a secret store. Not at the cluster.
@@ -180,11 +203,11 @@ output "admin_password" {
 terraform plan -out=migrate.tfplan
 ```
 
-Apply only when the summary is `N to import, 0 to add, 0 to change, 0 to destroy`, with `N` the number of workspaces, and the warning lists every workspace and workspace group as no longer managed. Output values do not change, because the cluster id and endpoint are the workspace id and endpoint.
+Apply only when the summary is `N to import, 0 to add, 0 to change, 0 to destroy`, with `N` the number of `import` blocks, and the warning lists as no longer managed exactly the resources that have a `removed` block. Output values do not change, because the cluster id and endpoint are the workspace id and endpoint.
 
 Anything else means a step was missed:
 
-- A destroy of `singlestoredb_workspace` or `singlestoredb_workspace_group` means a `removed` block is missing. Do not apply: it deletes the deployment and its data.
+- A destroy of `singlestoredb_workspace` or `singlestoredb_workspace_group` means a `removed` block is missing, or a resource block was deleted that has none. Do not apply: it deletes the deployment and its data. Add the `removed` block if all its workspaces are imported; otherwise restore the resource block.
 - A change on a cluster means `cluster.tf` was edited, or the deployment changed after step 2. Restore the generated value, or generate `cluster.tf` again.
 - A change on another resource means a reference now produces a different value. Point it at the matching cluster attribute.
 - `Reference to undeclared resource` means a reference to a deleted block remains.
@@ -203,6 +226,8 @@ If anything goes wrong, see [Roll back](#roll-back).
 ## Expiration
 
 The cluster has no workspace group expiration. `GET /v2/clusters/{id}` does not return it, so import stores no `expires_at`, and the plan fails with `Cannot change cluster expires_at` if the configuration sets one. Leave `expires_at` unset or `null` on a migrated cluster.
+
+The migration does not remove the expiration. The workspace group keeps it, and at that time the group is terminated with every workspace in it and all their data, even though the cluster shows `expires_at = null` and the plan shows nothing. Terraform no longer tracks this deadline, so track it outside the cluster resource, using the value saved in [step 1](#1-back-up-configuration-and-state-and-save-the-password). To move it, update `expires_at` on `singlestoredb_workspace_group` in a separate apply before step 1, or change it in the SingleStore Portal.
 
 ## Admin password
 
@@ -254,7 +279,9 @@ The provider rejects a plan that changes any of these: `name`, `project_name`, `
 
 Each workspace becomes its own cluster, and the clusters share `group_id`. The commands in steps 2 and 3 already write one `import` block per workspace and one `removed` block for the group, so the steps are the same. Each cluster's `name` is its workspace name.
 
-After the migration plan is clean, you can keep the shared settings in one place so they cannot drift apart. This changes expressions, not values, so the next plan should show no changes:
+After the migration plan is clean, you can keep the shared settings in one place so they cannot drift apart. This changes expressions, not values, so the next plan should show no changes.
+
+The blocks below are partial: they show only the shared settings. Edit the generated blocks in place and keep every other generated attribute, such as `auto_suspend`, `auto_scale`, `scale_factor`, `cache_config`, `kai`, and `multi_az`. Dropping one can resize a cluster, turn off auto-suspend, or fail the plan on an attribute that cannot change.
 
 ```hcl
 locals {
@@ -273,6 +300,7 @@ resource "singlestoredb_cluster" "one" {
   firewall_ranges = local.group.firewall_ranges
   cloud_provider  = local.group.cloud_provider
   region_name     = local.group.region_name
+  # ... every other generated attribute, unchanged
 }
 
 resource "singlestoredb_cluster" "two" {
@@ -282,43 +310,13 @@ resource "singlestoredb_cluster" "two" {
   firewall_ranges = local.group.firewall_ranges
   cloud_provider  = local.group.cloud_provider
   region_name     = local.group.region_name
+  # ... every other generated attribute, unchanged
 }
 ```
 
 Clusters that share a `group_id` share one firewall and one deployment type. Each cluster resource sends its own `firewall_ranges` and `deployment_type` to that group, so when two clusters disagree, every apply switches the group to the other cluster's values and the next plan shows a change again. Clients lose access while the group has the wrong list. This happens when one block is edited and the other is not, or when the clusters are managed from different configurations. Keep the shared values in one `locals` block, as above, and manage every cluster in a group from the same configuration.
 
 `project_name`, `cloud_provider`, `region_name`, `multi_az`, and `opt_in_preview_feature` also belong to the group, but cannot change after creation. Configuring a different value fails the plan.
-
-## A workspace name longer than 32 characters
-
-No cluster configuration can match a workspace name longer than 32 characters, and the workspace cannot be renamed. Unlike the migration, the fix below changes cloud resources, so finish it as a separate change, with a clean `terraform plan`, before step 1. Move its databases to a new workspace in the same workspace group, then migrate the new workspace. The databases stay in the group's storage, so `DETACH DATABASE` and `ATTACH DATABASE` move them without copying data. The new workspace shares the group's firewall ranges, admin password, and private connections that have no `workspace_id`.
-
-1. Add a `singlestoredb_workspace` with a name of 1 to 32 characters to the same workspace group, with the size and settings of the old one. Apply. This only creates the new workspace.
-
-   ```hcl
-   resource "singlestoredb_workspace" "new" {
-     name               = "workspace-2"
-     workspace_group_id = singlestoredb_workspace_group.example_wg.id
-     size               = "S-00"
-   }
-   ```
-
-2. Stop writes to the databases. For each database, detach it on the old workspace endpoint and attach it on the new one, as the admin user:
-
-   ```sql
-   -- on the old workspace endpoint
-   DETACH DATABASE my_database;
-   -- on the new workspace endpoint
-   ATTACH DATABASE my_database;
-   ```
-
-   Check the data on the new endpoint. `SHOW DATABASES` on the old endpoint should list only system databases.
-
-3. Point applications and configuration at the new workspace. Its `id` and `endpoint` differ from the old workspace's. The provider rejects changing `workspace_id` on `singlestoredb_flow` and on `singlestoredb_private_connection`, so recreate those resources against the new workspace. Changing `endpoint` on `singlestoredb_sql_execute` replaces it and runs `revert` against the old endpoint; see [SQL](#sql).
-
-4. Remove the old `singlestoredb_workspace` from configuration and apply. The plan destroys only the old workspace. The workspace group and the new workspace stay.
-
-5. Migrate the new workspace with the rest of this guide, starting at [Back up state and save the password](#1-back-up-configuration-and-state-and-save-the-password).
 
 ## Deleting a migrated deployment
 

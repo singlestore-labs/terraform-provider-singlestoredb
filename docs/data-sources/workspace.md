@@ -3,12 +3,12 @@
 page_title: "singlestoredb_workspace Data Source - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Deprecated: use singlestoredb_cluster or singlestoredb_clusters instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md. Retrieve a specific workspace using its ID or name with this data source.
+  Deprecated: use singlestoredb_cluster or singlestoredb_clusters instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md. Retrieve a specific workspace using its ID or name with this data source.
 ---
 
 # singlestoredb_workspace (Data Source)
 
-**Deprecated:** use `singlestoredb_cluster` or `singlestoredb_clusters` instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/master/MIGRATING.md). Retrieve a specific workspace using its ID or name with this data source.
+**Deprecated:** use `singlestoredb_cluster` or `singlestoredb_clusters` instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md). Retrieve a specific workspace using its ID or name with this data source.
 
 ## Example Usage
 
