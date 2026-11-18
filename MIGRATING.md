@@ -147,7 +147,7 @@ jq -r '.resources[]
   pre-cluster-migration.tfstate > workspace-removed.tf
 ```
 
-Then edit the configuration:
+Then edit your main configuration:
 
 - Delete the `singlestoredb_workspace` and `singlestoredb_workspace_group` blocks.
 - Point references to the workspace `id` or `endpoint` at the cluster, for example `singlestoredb_cluster.example_workspace.endpoint`.
@@ -204,8 +204,6 @@ If anything goes wrong, see [Roll back](#roll-back).
 
 The cluster has no workspace group expiration. `GET /v2/clusters/{id}` does not return it, so import stores no `expires_at`, and the plan fails with `Cannot change cluster expires_at` if the configuration sets one. Leave `expires_at` unset or `null` on a migrated cluster.
 
-The workspace group still expires at its `expires_at`. Extend or remove it in the SingleStore Portal if needed.
-
 ## Admin password
 
 Management API generates the cluster admin password, ignores a password sent in the request, and returns it only on create. `admin_password` on `singlestoredb_cluster` is read-only. Setting it in the cluster configuration is unavailable.
@@ -227,6 +225,7 @@ A migrated cluster has no `admin_password` in state, and refresh does not fill i
 | `singlestoredb_workspace.auto_scale`                        | `auto_scale`                                                   |
 | `singlestoredb_workspace.auto_suspend`                      | `auto_suspend`                                                 |
 | `singlestoredb_workspace.endpoint`                          | `endpoint` (computed)                                          |
+| `singlestoredb_workspace.created_at`                        | `created_at` (computed; the same time, in whole seconds)       |
 | `singlestoredb_workspace_group.admin_password`              | none (see [Admin password](#admin-password))                   |
 | `singlestoredb_workspace_group.firewall_ranges`             | `firewall_ranges`                                              |
 | `singlestoredb_workspace_group.expires_at`                  | none; leave `expires_at` unset (see [Expiration](#expiration)) |
@@ -244,7 +243,7 @@ These attributes have no cluster argument:
 - `singlestoredb_workspace_group.name`. The group name is not used by the cluster.
 - `singlestoredb_workspace.workspace_group_id`. Use the computed `group_id`.
 - `singlestoredb_workspace_group.region_id`. The cluster uses `cloud_provider` and `region_name`, and the generated configuration fills them in.
-- `singlestoredb_workspace.created_at` and `singlestoredb_workspace_group.created_at`. The cluster `created_at` is the cluster's own timestamp.
+- `singlestoredb_workspace_group.created_at`. The cluster `created_at` is the workspace creation time.
 - The workspace data source attribute `last_resumed_at`.
 
 The provider rejects a plan that changes any of these: `name`, `project_name`, `cloud_provider`, `region_name`, `kai`, `multi_az`, `opt_in_preview_feature`, `expires_at`. It also rejects configuring `update_window`, and changing `deployment_type` away from `NON-PRODUCTION` while `opt_in_preview_feature` is true. The provider does not schedule a replacement for them.
