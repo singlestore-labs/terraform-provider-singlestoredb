@@ -3,12 +3,12 @@
 page_title: "singlestoredb_cluster Resource - terraform-provider-singlestoredb"
 subcategory: ""
 description: |-
-  Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing singlestoredb_workspace and singlestoredb_workspace_group, remove both from state and import the workspace id as this resource.
+  Manage a SingleStoreDB cluster. This resource replaces singlestoredb_workspace and singlestoredb_workspace_group. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with removed blocks that set destroy = false. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the migration guide https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md.
 ---
 
 # singlestoredb_cluster (Resource)
 
-Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource.
+Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md).
 
 ## Example Usage
 
@@ -67,7 +67,7 @@ output "admin_password" {
 - `kai` (Boolean) Whether SingleStore Kai (MongoDB compatibility) is enabled for the cluster.
 - `multi_az` (Boolean) Enables deployment across multiple availability zones.
 - `opt_in_preview_feature` (Boolean) If enabled, the deployment gets the latest features and updates immediately. Suitable only for `NON-PRODUCTION` deployments and cannot be changed after creation.
-- `project_name` (String) The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
+- `project_name` (String) The name of the project to which the cluster is assigned. Required when creating a cluster. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.
 - `scale_factor` (Number) Specifies the scale factor for the cluster. The scale factor can be 1, 2 or 4. Default is 1.
 - `suspended` (Boolean) The status of the cluster. If true, the cluster is suspended. If omitted, Terraform does not suspend or resume the cluster and reports its current status, so a cluster suspended by `auto_suspend` is not resumed on apply. If omitted and other settings change, the plan shows this value as known after apply, because `auto_suspend` can suspend the cluster once the update lands. Must be false or omitted on create.
 
@@ -76,7 +76,7 @@ output "admin_password" {
 - `admin_password` (String, Sensitive) The admin SQL user password for the cluster. Management API generates this password and returns it only on create. Terraform stores that value. Later responses omit the password, and refresh keeps the password already in state. Setting a password is unavailable: the API ignores a caller-supplied password. Choosing a password may be added in a later release. Read this attribute from state or from a sensitive output.
 - `created_at` (String) The timestamp when the cluster was created.
 - `endpoint` (String) The endpoint used to connect to the cluster.
-- `group_id` (String) The unique identifier of the workspace group that contains the cluster. Destroy terminates this group when the cluster is its only workspace. If another workspace uses the group, destroy terminates only this cluster and leaves the group in place.
+- `group_id` (String) The unique identifier of the workspace group that contains the cluster. Destroying the last cluster in a workspace group also terminates the group. Destroying a cluster that shares the group with other workspaces leaves the group and those workspaces running.
 - `id` (String) The unique identifier of the cluster.
 - `outbound_allow_list` (String) The account ID which must be allowed for outbound connections. This is only applicable to AWS provider.
 - `update_window` (Attributes) The maintenance window the Management API assigned to the cluster. Configuring update_window is unavailable: POST and PATCH /v2/clusters ignore updateWindow. Terraform reports the window the API returns. (see [below for nested schema](#nestedatt--update_window))

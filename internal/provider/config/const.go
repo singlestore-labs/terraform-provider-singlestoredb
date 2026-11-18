@@ -50,8 +50,22 @@ const (
 	// ProviderNewIssueURL  direct to creating a GitHub issue for the provider.
 	ProviderNewIssueURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/issues/new"
 	// RegionsDataSourceDeprecationMessage is shown when singlestoredb_regions is used.
-	// v1.0.0, the first release on or after April 30, 2027, removes the data source.
-	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after April 30, 2027."
+	// v1.0.0, the first release on or after August 20, 2027, removes the data source.
+	RegionsDataSourceDeprecationMessage = "Use the singlestoredb_regions_v2 data source instead. This data source is removed in v1.0.0, the first release on or after August 20, 2027."
+	// MigratingGuideURL points to the guide for moving workspace resources onto singlestoredb_cluster.
+	// It is pinned to the release tag that first ships the guide, so the link survives if the file moves on master.
+	MigratingGuideURL = "https://github.com/singlestore-labs/terraform-provider-singlestoredb/blob/v0.2.0/MIGRATING.md"
+	// WorkspaceResourceDeprecationMessage is printed on every plan that uses
+	// singlestoredb_workspace or singlestoredb_workspace_group.
+	WorkspaceResourceDeprecationMessage = "Use singlestoredb_cluster instead. This resource is removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see " + MigratingGuideURL
+	// WorkspaceDataSourceDeprecationMessage is printed on every plan that uses
+	// singlestoredb_workspace, singlestoredb_workspaces, singlestoredb_workspace_group,
+	// or singlestoredb_workspace_groups.
+	WorkspaceDataSourceDeprecationMessage = "Use singlestoredb_cluster or singlestoredb_clusters instead. This data source is removed in v1.0.0, the first release on or after August 20, 2027. See " + MigratingGuideURL
+	// WorkspaceResourceDeprecationMarkdown is the documentation form of WorkspaceResourceDeprecationMessage.
+	WorkspaceResourceDeprecationMarkdown = "**Deprecated:** use `singlestoredb_cluster` instead. Removed in v1.0.0, the first release on or after August 20, 2027. To move an existing deployment without recreating it, see the [migration guide](" + MigratingGuideURL + ")."
+	// WorkspaceDataSourceDeprecationMarkdown is the documentation form of WorkspaceDataSourceDeprecationMessage.
+	WorkspaceDataSourceDeprecationMarkdown = "**Deprecated:** use `singlestoredb_cluster` or `singlestoredb_clusters` instead. Removed in v1.0.0, the first release on or after August 20, 2027. See the [migration guide](" + MigratingGuideURL + ")."
 	// WorkspaceGroupConsistencyThreshold is the count of polling iterations where the state should equal the desired state.
 	WorkspaceGroupConsistencyThreshold = 5
 	// WorkspaceConsistencyThreshold is the count of polling iterations where the state should equal the desired state.

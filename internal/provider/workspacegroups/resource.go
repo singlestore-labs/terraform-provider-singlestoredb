@@ -78,7 +78,8 @@ func (r *workspaceGroupResource) Metadata(_ context.Context, req resource.Metada
 // Schema defines the schema for the resource.
 func (r *workspaceGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage SingleStoreDB workspace groups with this resource.",
+		DeprecationMessage:  config.WorkspaceResourceDeprecationMessage,
+		MarkdownDescription: config.WorkspaceResourceDeprecationMarkdown + " Manage SingleStoreDB workspace groups.",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{

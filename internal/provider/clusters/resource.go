@@ -128,7 +128,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 	)
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a SingleStoreDB cluster. Use this resource for new deployments. A cluster is one deployment. To move an existing `singlestoredb_workspace` and `singlestoredb_workspace_group`, remove both from state and import the workspace id as this resource.",
+		MarkdownDescription: "Manage a SingleStoreDB cluster. This resource replaces `singlestoredb_workspace` and `singlestoredb_workspace_group`. To adopt an existing workspace, import the workspace id and drop both of those resources from state in the same plan, with `removed` blocks that set `destroy = false`. Removing their configuration while they remain in state lets the next apply destroy the deployment. See the [migration guide](" + config.MigratingGuideURL + ").",
 		Attributes: map[string]schema.Attribute{
 			config.IDAttribute: schema.StringAttribute{
 				PlanModifiers: []planmodifier.String{
@@ -147,7 +147,7 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"project_name": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The name of the project to which the cluster is assigned. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.",
+				MarkdownDescription: "The name of the project to which the cluster is assigned. Required when creating a cluster. This value cannot be changed after the cluster is created. Use the `singlestoredb_projects` data source to get the available project names.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -155,8 +155,8 @@ func (r *clusterResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"group_id": schema.StringAttribute{
 				Computed: true,
 				MarkdownDescription: "The unique identifier of the workspace group that contains the cluster. " +
-					"Destroy terminates this group when the cluster is its only workspace. " +
-					"If another workspace uses the group, destroy terminates only this cluster and leaves the group in place.",
+					"Destroying the last cluster in a workspace group also terminates the group. " +
+					"Destroying a cluster that shares the group with other workspaces leaves the group and those workspaces running.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
