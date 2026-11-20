@@ -46,7 +46,7 @@ var (
 func TestGrantRevokeTeamRoles(t *testing.T) {
 	grantedRoles := []management.IdentityRole{}
 	identityRolesHandler := func(w http.ResponseWriter, r *http.Request) bool {
-		url := strings.Join([]string{"/v1/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
+		url := strings.Join([]string{"/v2/teams", testTeamRoleTeamID.String(), "identityRoles"}, "/")
 		if r.URL.Path != url || r.Method != http.MethodGet {
 			return false
 		}
@@ -58,9 +58,28 @@ func TestGrantRevokeTeamRoles(t *testing.T) {
 		return true
 	}
 
+	clusterResolveHandler := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path != "/v2/clusters" || r.Method != http.MethodGet {
+			return false
+		}
+
+		// One list answers both alignment and cluster resolution. The cluster has no
+		// group ID, so alignment leaves the configured resource ID unchanged.
+		clusterID := grantWorkspaceGroupRoleToTeamOnUpdate.ResourceID
+		w.Header().Add("Content-Type", "json")
+		_, err := w.Write(testutil.MustJSON([]management.Cluster{{
+			Name:      "mock-cluster",
+			ClusterID: &clusterID,
+		}}))
+		require.NoError(t, err)
+
+		return true
+	}
+
 	readOnlyHandlers := []func(w http.ResponseWriter, r *http.Request) bool{
 		identityRolesHandler,
 		identityRolesHandler,
+		clusterResolveHandler,
 	}
 
 	teamsAccessControlsPatchHandler := func(w http.ResponseWriter, r *http.Request) {

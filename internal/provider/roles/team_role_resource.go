@@ -48,7 +48,10 @@ func (r *teamRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 				MarkdownDescription: "The unique identifier of the granted role.",
 			},
 			"team_id": schema.StringAttribute{
-				Required:            true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				MarkdownDescription: "The unique identifier of the team.",
 			},
 			"role": schema.SingleNestedAttribute{
@@ -61,6 +64,8 @@ func (r *teamRoleGrantResource) Schema(_ context.Context, _ resource.SchemaReque
 }
 
 func (r *teamRoleGrantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var plan TeamRoleGrantModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -109,6 +114,8 @@ func (r *teamRoleGrantResource) Create(ctx context.Context, req resource.CreateR
 }
 
 func (r *teamRoleGrantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state TeamRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -146,6 +153,8 @@ func (r *teamRoleGrantResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *teamRoleGrantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state *TeamRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -160,35 +169,43 @@ func (r *teamRoleGrantResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	if IsRoleChanged(plan.Role, state.Role) {
-		if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to update user role",
-				"An error occurred while updating user role: "+err.Error(),
-			)
-
-			return
+	if !IsRoleChanged(plan.Role, state.Role) {
+		if next, ok := roleWithPlannedSpelling(plan.Role, state.Role); ok {
+			state.Role = next
+			diags = resp.State.Set(ctx, state)
+			resp.Diagnostics.Append(diags...)
 		}
 
-		roles, err := getTeamRolesAndValidate(ctx, r, plan.TeamID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to fetch and validate user roles",
-				"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
-			)
-
-			return
-		}
-
-		result := TeamRoleGrantModel{
-			ID:     plan.TeamID,
-			TeamID: plan.TeamID,
-			Role:   roles[0],
-		}
-
-		diags = resp.State.Set(ctx, &result)
-		resp.Diagnostics.Append(diags...)
+		return
 	}
+
+	if err := r.handleRoleUpdate(ctx, plan.Role.ResourceID, state.Role.ResourceID, plan, state); err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to update user role",
+			"An error occurred while updating user role: "+err.Error(),
+		)
+
+		return
+	}
+
+	roles, err := getTeamRolesAndValidate(ctx, r, plan.TeamID.String(), plan.Role.ResourceType.ValueStringPointer(), &[]RoleAttributesModel{plan.Role}, nil)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to fetch and validate user roles",
+			"An error occurred during the process of fetching user roles or validating them afterward: "+err.Error(),
+		)
+
+		return
+	}
+
+	result := TeamRoleGrantModel{
+		ID:     plan.TeamID,
+		TeamID: plan.TeamID,
+		Role:   roles[0],
+	}
+
+	diags = resp.State.Set(ctx, &result)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *teamRoleGrantResource) handleRoleUpdate(ctx context.Context, planResourceID, stateResourceID types.String, plan, state *TeamRoleGrantModel) error {
@@ -221,6 +238,8 @@ func (r *teamRoleGrantResource) handleRoleUpdate(ctx context.Context, planResour
 }
 
 func (r *teamRoleGrantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	ctx = withClusterCatalog(ctx, r.ClientWithResponsesInterface)
+
 	var state TeamRoleGrantModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -247,29 +266,4 @@ func (r *teamRoleGrantResource) Configure(_ context.Context, req resource.Config
 	}
 
 	r.ClientWithResponsesInterface = req.ProviderData.(management.ClientWithResponsesInterface)
-}
-
-func (r *teamRoleGrantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var state *TeamRoleGrantModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || state == nil {
-		return
-	}
-
-	var plan *TeamRoleGrantModel
-	diags = req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || plan == nil {
-		return
-	}
-
-	if plan.TeamID != state.TeamID {
-		resp.Diagnostics.AddError(
-			"Cannot update team ID",
-			"Updating the team_id is not permitted. Please explicitly delete(revoke) the granted role before changing the team_id.",
-		)
-
-		return
-	}
 }
